@@ -1,8 +1,8 @@
 {
   "mcpServers": {
     "recall-tracer": {
-      "command": "npx",
-      "args": ["tsx", "src/mcp/server.ts"]
+      "command": "sh",
+      "args": ["-c", "cd \"$(git rev-parse --show-toplevel)\" && exec npx tsx src/mcp/server.ts"]
     }
   }
 }
