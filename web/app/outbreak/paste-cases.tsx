@@ -46,7 +46,7 @@ export function PasteCases({ id, example }: { id: string; example: string }) {
       <CardHeader>
         <CardTitle>Case reports</CardTitle>
         <CardDescription>Illness reports from the health department, linked into one cluster. A case needs the state, the onset date, the store and the purchase date; the product is optional.</CardDescription>
-        <CardAction className="hidden @md/card-header:flex flex-wrap items-center gap-2">
+        <CardAction className="hidden sm:flex flex-wrap items-center gap-2">
           <Form action="/outbreak" className="flex items-center gap-1">
             <Input name="cluster" aria-label="Open another cluster by id" placeholder="Cluster id" required pattern="[A-Za-z0-9\-]{1,40}" spellCheck={false} autoComplete="off" className="h-7 w-32 text-xs" />
             <Button type="submit" variant="outline" size="sm">Open</Button>
@@ -55,7 +55,7 @@ export function PasteCases({ id, example }: { id: string; example: string }) {
           {id !== example && <Link href={`/outbreak?cluster=${example}`} className={buttonVariants({ variant: "outline", size: "sm" })}>Load example</Link>}
         </CardAction>
       </CardHeader>
-      <div className="flex flex-wrap items-center gap-2 px-(--card-spacing) @md/card-header:hidden" data-slot="toolbar">
+      <div className="flex flex-wrap items-center gap-2 px-(--card-spacing) sm:hidden" data-slot="toolbar">
         <Form action="/outbreak" className="flex items-center gap-1">
           <Input name="cluster" aria-label="Open another cluster by id" placeholder="Cluster id" required pattern="[A-Za-z0-9\-]{1,40}" spellCheck={false} autoComplete="off" className="h-7 w-32 text-xs" />
           <Button type="submit" variant="outline" size="sm">Open</Button>

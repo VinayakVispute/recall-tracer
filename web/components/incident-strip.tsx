@@ -25,7 +25,7 @@ export function IncidentStrip({ pathname }: { pathname: string }) {
   }, [pathname]); // a new incident or a confirmation lands on a navigation, so re-read then
   if (!inc || pathname.startsWith("/incident/")) return null;
   return (
-    <div className="flex w-full flex-wrap items-center gap-x-4 gap-y-1 border-t pt-2 text-xs text-muted-foreground">
+    <div className="flex w-full flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
       <Link href={`/incident/${inc.lot}`} className="font-medium text-foreground hover:underline">Lot {inc.lot}</Link>
       <span className="text-destructive">{inc.hazard}</span>
       <span className="hidden sm:inline">{inc.supplier} ({inc.supplier_id})</span>
