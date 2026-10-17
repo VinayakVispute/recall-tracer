@@ -199,6 +199,9 @@ export const TITLE: Record<string, string> = {
   draft_recall_notice: "Store notices drafted",
   find_common_source: "Common source search",
   case_path: "Case evidence path",
+  recall_memory: "Memory from earlier incidents",
+  rank_chokepoints: "Chokepoint (betweenness centrality)",
+  record_lessons: "Lessons saved for the next incident",
 }
 const DOING: Record<string, string> = {
   propose_classification: "Recording the proposed class and depth",
@@ -210,6 +213,9 @@ const DOING: Record<string, string> = {
   draft_recall_notice: "Writing one draft per store",
   find_common_source: "Walking every case back to the ingredient lots that could have reached it",
   case_path: "Reading one case's path back to its lot",
+  recall_memory: "Reading what earlier incidents learned about this supplier and these stores",
+  rank_chokepoints: "Running betweenness centrality to find where the spread concentrated",
+  record_lessons: "Writing lessons into the graph for the next incident",
 }
 
 /** Big inputs (33 notices, 60 product lots) are condensed so the log stays readable. */

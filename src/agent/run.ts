@@ -1,5 +1,5 @@
 import type { minimalRecall } from '../tools/index.js';
-import { TRACE_FORWARD, COVERAGE_GAPS, SKU_RECIPIENTS, TRACE_BACKWARD, STORES, INCIDENT_CLASSIFY, RAW_ON_HAND, FINISHED_ON_HAND, HOLD_FINISHED, FIND_COMMON_SOURCE, CASE_PATH } from '../graph/queries.js';
+import { TRACE_FORWARD, COVERAGE_GAPS, SKU_RECIPIENTS, TRACE_BACKWARD, STORES, INCIDENT_CLASSIFY, RAW_ON_HAND, FINISHED_ON_HAND, HOLD_FINISHED, FIND_COMMON_SOURCE, CASE_PATH, CHOKEPOINTS, MEMORY_READ, MEMORY_WRITE } from '../graph/queries.js';
 
 /** The Cypher behind each MCP tool, shown in the agent trace. */
 const CYPHER: Record<string, string[]> = {
@@ -13,6 +13,9 @@ const CYPHER: Record<string, string[]> = {
   draft_recall_notice: [STORES],
   find_common_source: [FIND_COMMON_SOURCE, CASE_PATH],
   case_path: [CASE_PATH],
+  rank_chokepoints: [CHOKEPOINTS],
+  recall_memory: [MEMORY_READ],
+  record_lessons: [MEMORY_WRITE],
 };
 /** Steps where the agent decides rather than reads the graph; the UI draws them as decision cards. */
 const JUDGEMENT = new Set(['propose_classification', 'minimal_recall']);
@@ -48,6 +51,9 @@ function summarize(name: string, r: any): string {
     case 'draft_recall_notice': return `${r.drafted} notices drafted, pending approval`;
     case 'find_common_source': return r.summary;
     case 'case_path': return `${Object.keys(r.paths).length - r.unexplained.length} of ${Object.keys(r.paths).length} cases reached by ${r.lot}`;
+    case 'rank_chokepoints': return r.nodes.length ? `${r.nodes[0].id} is the chokepoint: betweenness ${r.nodes[0].score}, ${r.nodes[0].stores} stores downstream` : 'No node carries more paths than another';
+    case 'recall_memory': return r.lessons.length ? `${r.lessons.length} lessons from earlier incidents (${[...new Set(r.lessons.map((l: any) => l.from_lot))].join(', ')})` : 'No lessons from earlier incidents';
+    case 'record_lessons': return `${r.saved.length} lessons saved for future incidents${r.unknown.length ? `; ${r.unknown.length} unknown ids dropped` : ''}`;
     default: return '';
   }
 }

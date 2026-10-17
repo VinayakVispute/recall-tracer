@@ -2,7 +2,31 @@
 
 When a supplier reports a contaminated ingredient lot, most food companies can't say which stores got it, so they recall everything. Recall Tracer is an agent that works the incident the way a recall coordinator does, on a FalkorDB graph of lots, batches, rework, inventory and deliveries: it assesses the hazard, holds what hasn't left the plant, follows the lot to every store with the path that proves it, clears the stores whose records are clean, widens the recall where records are missing, and drafts notices for a human to confirm and approve.
 
-Built for [Graph Hacks: Context for AI Agents](https://www.wemakedevs.org/hackathons/falkordb), Track 01 (agents that act on connected data).
+Built for [Graph Hacks: Context for AI Agents](https://www.wemakedevs.org/hackathons/falkordb), Track 01 (agents that act on connected data) and Track 02 (agent memory and coordination).
+
+## How we meet the brief
+
+**Track 01: Agents that act on connected data.**
+
+| Focus point | What the agent does | Where | Evidence |
+|---|---|---|---|
+| Multi-hop reasoning | Follows L-204 through up to 8 hops: lot → batch → rework (B-03 leftovers into B-09) → product lot → store. Then walks the other way to prove the 38 cleared stores are clean | `trace_forward`, `trace_backward` in [`src/graph/queries.ts`](src/graph/queries.ts) | 31 stores reached, rework found, decoy lot L-205 not; asserted in `tests/tools.test.ts` |
+| Graph queries and algorithms as tools | `rank_chokepoints` runs FalkorDB's `algo.betweenness` on the lineage subgraph and names the batch most of the spread flows through | `CHOKEPOINTS` in `src/graph/queries.ts` | B-03 ranks first (Batch, 16 stores downstream), the same on every run (fixed sampling seed); asserted in tests |
+| Tool selection through MCP | 13 tools on our own MCP server (stdio and Streamable HTTP at `/mcp`). Each agent gets the subset it needs: the outbreak agent only 2 read-only tools | `src/mcp/server.ts`, `makeOutbreakAgent` / `makeIncidentAgent` in [`src/agent/ai-agent.ts`](src/agent/ai-agent.ts) | The live trace shows each tool call with its input and Cypher |
+| Actions based on what the graph shows | Writes the incident and the proposed class, marks 93 kg and 2,652 units held, widens the recall to 2 stores with missing lot codes, drafts 33 notices for approval | `place_hold`, `minimal_recall`, `draft_recall_notice` | 33 of 71 stores, 2,256 units instead of 7,672 |
+| Explainable results | Every store has the record path that proves its decision. The investigation log shows each step's Cypher and FalkorDB time. The final JSON is built from tool output, not retyped by the model | Evidence drawer, investigation log, `toResult` in `src/agent/run.ts` | Replay any step at `/incident/L-204#step-6` |
+
+**Track 02: Agent memory and coordination.**
+
+| Focus point | What the agents do | Where | Evidence |
+|---|---|---|---|
+| Episodic memory | Each incident is an `Incident` node with its hazard, proposed and confirmed class and timestamps. At the end of a run the agent saves 2 to 4 lessons as `Memory` nodes linked to the supplier, gap stores and chokepoint batch | `record_lessons`, `MEMORY_WRITE` | After an L-204 run the graph holds lessons about S-03, B-03, ST-013 and ST-021 |
+| Memory across sessions | The first step of every incident is `recall_memory`. It reads lessons from earlier incidents about the same supplier or the stores the new lot reaches, and skips the lot's own | `recall_memory`, `MEMORY_READ` | Opening L-205 (same supplier) brought back 3 lessons from OB-2026-10 and L-204, and the agent flagged ST-013 and ST-021 as repeat gap stores |
+| Memory that updates | Rerunning an incident replaces that incident's lessons instead of piling up duplicates | `MEMORY_CLEAR` then `MEMORY_WRITE` | Round-trip test in `tests/tools.test.ts` |
+| Handoffs between agents | The outbreak agent finds the source lot from illness cases and writes a lesson about its supplier. The incident agent picks it up through `recall_memory` when that supplier's lot is opened. The handoff goes through the graph, so it survives restarts | `runOutbreak` in `src/agent/ai-agent.ts` | The L-204 hazard assessment cites outbreak OB-2026-10 |
+| Shared state | The outbreak agent, the incident agent, the chat agent and the dashboard all read and write one FalkorDB graph. The dashboard never calls Claude, so it always agrees with what the agents wrote | `GET /incident/:lot` | Store statuses come from `minimal_recall` |
+
+Not covered: separate memory per user or tenant (there is one company), and load testing of concurrent writes.
 
 **Demo, seeded data, lot L-204:**
 
@@ -44,6 +68,7 @@ Graph name `recall`. All ids are strings and dates are ISO strings.
 | `ProductLot` | `id` (traceability lot code, e.g. TLC-03A), `sku`, `produced_at`, `best_by` |
 | `Store` | `id`, `name`, `city`, `region` |
 | `Incident` | `id`, `lot`, `hazard`, `reported_at`, proposed `class`, `depth`, `rationale`, `classified_at`, `confirmed_class`, `confirmed_depth`, `confirmed_at` |
+| `Memory` | `lot` (the incident lot or outbreak cluster that wrote it), `fact`, `at` |
 
 | Edge | Properties | Meaning |
 |---|---|---|
@@ -52,6 +77,7 @@ Graph name `recall`. All ids are strings and dates are ISO strings.
 | `(Lot)-[:STORED_AT]->(Site)` | `qty_kg`, `held_for`, `held_at` | What is left of the lot in the plant store room |
 | `(ProductLot)-[:HELD_AT]->(Site or DC)` | `units`, `held_for`, `held_at` | Unshipped product (units made = shipped + held) |
 | `(Incident)-[:CONCERNS]->(Lot)` | | The open incident for a lot |
+| `(Memory)-[:ABOUT]->(Supplier, Store, Batch, Site or DC)` | | What a lesson is about |
 | `(Batch)-[:REWORKED_INTO]->(Batch)` | `qty_kg` | Leftovers reused in a later batch |
 | `(Batch)-[:PRODUCED]->(ProductLot)` | `units` | Batch split into product lots |
 | `(ProductLot)-[:OF]->(Product)` | | Which SKU |
@@ -143,6 +169,44 @@ WHERE pl.id IN $product_lots
 RETURN pl.id AS product_lot, collect(DISTINCT l.code) AS ingredient_lots
 ```
 
+**`rank_chokepoints(lot)`** runs betweenness centrality over the lineage graph and keeps the batches and product lots downstream of the lot. The top node is where one fix stops most of the spread. FalkorDB samples at random, so the seed is fixed to make the ranking repeatable.
+
+```cypher
+CALL algo.betweenness({nodeLabels: ['Lot', 'Batch', 'ProductLot', 'Store'], relationshipTypes: ['USED_IN', 'REWORKED_INTO', 'PRODUCED', 'SHIPPED_TO'], samplingSize: 1000, samplingSeed: 7})
+YIELD node, score
+WITH node, score WHERE score > 0 AND (node:Batch OR node:ProductLot)
+MATCH (:Lot {code: $lot})-[:USED_IN|REWORKED_INTO|PRODUCED*1..6]->(node)
+WITH DISTINCT node, score
+OPTIONAL MATCH (node)-[:REWORKED_INTO|PRODUCED|SHIPPED_TO*1..6]->(st:Store)
+RETURN labels(node)[0] AS kind, node.id AS id, score, count(DISTINCT st) AS stores
+ORDER BY score DESC, id LIMIT 5
+```
+
+**`recall_memory(lot)`** returns the lot's supplier and the lessons other incidents left about that supplier or about the stores that got the same products.
+
+```cypher
+MATCH (s:Supplier)-[:SUPPLIED]->(l:Lot {code: $lot})
+OPTIONAL MATCH (l)-[:USED_IN|REWORKED_INTO|PRODUCED*1..6]->(pl:ProductLot)
+WITH s, collect(DISTINCT pl.sku) AS skus
+WITH s, [(p:Product)-[:SHIPPED_UNTRACKED]->(a:Store) WHERE p.sku IN skus | a.id]
+       + [(q:ProductLot)-[:SHIPPED_TO]->(b:Store) WHERE q.sku IN skus | b.id] AS stores
+MATCH (m:Memory)-[:ABOUT]->(x)
+WHERE m.lot <> $lot AND (x = s OR (x:Store AND x.id IN stores))
+RETURN m.lot AS from_lot, m.at AS at, labels(x)[0] AS kind, x.id AS about, m.fact AS fact
+ORDER BY at DESC, about LIMIT 20
+```
+
+**`record_lessons(lot, lessons[{about, fact}])`** deletes the lot's earlier lessons, then saves up to 8 new ones, each linked to one node. Ids that match nothing are dropped and reported back.
+
+```cypher
+UNWIND $lessons AS lesson
+MATCH (x {id: lesson.about}) WHERE x:Supplier OR x:Store OR x:Batch OR x:Site OR x:DC
+CREATE (m:Memory {lot: $lot, fact: lesson.fact, at: $at})-[:ABOUT]->(x)
+RETURN labels(x)[0] AS kind, x.id AS about, m.fact AS fact
+```
+
+**`find_common_source(cluster)`** and **`case_path(lot, cases)`** are the outbreak agent's tools. They rank ingredient lots by how many illness cases they explain, and return each case's path from the lot to the store where the food was bought.
+
 **`draft_recall_notice(lot, notices[{store, reason}])`** looks up the store details and saves one draft per store with status `pending_approval`. It never sends anything.
 
 ```cypher
@@ -183,7 +247,7 @@ docker run -d --name falkordb -p 6380:6379 -p 3001:3000 falkordb/falkordb:latest
 bun install
 cp .env.example .env          # add ANTHROPIC_API_KEY; FALKORDB_PORT=6380
 bun run generate --seed 42 --reset
-bun run test                    # 17 tests, no API calls; E2E=1 bun run test adds one live agent run
+bun run test                    # 40 tests, no API calls; E2E=1 bun run test adds one live agent run
 bun run dev                     # API on :8787, Next.js app on http://localhost:3000 (opens at /outbreak; /notice, /incident (asks for the lot), /history, agent chat at /agent; the API is proxied under /api)
 ```
 
@@ -191,7 +255,7 @@ Enter `L-204`, pick the hazard and press **Open incident**. FalkorDB Browser on 
 
 To use the tools from Claude Code in this folder, the included `.mcp.json` registers the `recall-tracer` MCP server over stdio.
 
-The same 8 tools are also served over Streamable HTTP at `http://localhost:8787/mcp` (on a deployment, `<deployed URL>/mcp`). The API must be running (`bun run dev` or `bun run start`). Point an HTTP MCP client at it:
+The same 13 tools are also served over Streamable HTTP at `http://localhost:8787/mcp` (on a deployment, `<deployed URL>/mcp`). The API must be running (`bun run dev` or `bun run start`). Point an HTTP MCP client at it:
 
 ```json
 { "recall-tracer": { "url": "http://localhost:8787/mcp" } }
@@ -237,7 +301,9 @@ For clients that only speak stdio: `npx -y mcp-remote http://localhost:8787/mcp`
 - bad input gets a 400 and an unknown lot a 404, without calling Claude
 - the CSV has one row per shipment plus the gap rows
 - the graph data and the approval step work
-- with `E2E=1`, `POST /recall` runs end to end in under 60 seconds, with all seven steps in order, each with a summary and its Cypher
+- betweenness ranks B-03 first, the same on every run
+- lessons round-trip: unknown ids are dropped, a rerun replaces earlier lessons, a lot from the same supplier sees them, an unrelated lot and the writing lot don't
+- with `E2E=1`, `POST /recall` runs end to end in under 60 seconds, with all ten tool steps in order, each with a summary and its Cypher
 
 ## AI disclosure
 

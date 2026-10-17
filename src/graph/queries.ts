@@ -236,3 +236,38 @@ RETURN i.id AS id, i.lot AS lot, i.hazard AS hazard, i.reported_at AS reported_a
        i.confirmed_class AS confirmed_class, i.scoped_at AS scoped_at, i.stores AS stores, s.id AS supplier_id, s.name AS supplier
 ORDER BY reported_at DESC`;
 export const SUPPLIER_GET = 'MATCH (s:Supplier {id: $id}) RETURN s.id AS id, s.name AS name';
+
+// --- Graph algorithm: where the spread runs through ---
+
+/** rank_chokepoints: betweenness centrality over the whole supply chain, kept to the nodes this lot reaches.
+ * FalkorDB samples source nodes at random; a fixed seed makes every run rank the same. */
+export const CHOKEPOINTS = `
+CALL algo.betweenness({nodeLabels: ['Lot', 'Batch', 'ProductLot', 'Store'], relationshipTypes: ['USED_IN', 'REWORKED_INTO', 'PRODUCED', 'SHIPPED_TO'], samplingSize: 1000, samplingSeed: 7})
+YIELD node, score
+WITH node, score WHERE score > 0 AND (node:Batch OR node:ProductLot)
+MATCH (:Lot {code: $lot})-[:USED_IN|REWORKED_INTO|PRODUCED*1..6]->(node)
+WITH DISTINCT node, score
+OPTIONAL MATCH (node)-[:REWORKED_INTO|PRODUCED|SHIPPED_TO*1..6]->(st:Store)
+RETURN labels(node)[0] AS kind, node.id AS id, score, count(DISTINCT st) AS stores
+ORDER BY score DESC, id LIMIT 5`;
+
+// --- Memory: lessons one incident leaves for the next (Track 02) ---
+
+/** recall_memory: lessons from other incidents about this lot's supplier, or about stores that get this lot's products. */
+export const MEMORY_READ = `
+MATCH (s:Supplier)-[:SUPPLIED]->(l:Lot {code: $lot})
+OPTIONAL MATCH (l)-[:USED_IN|REWORKED_INTO|PRODUCED*1..6]->(pl:ProductLot)
+WITH s, collect(DISTINCT pl.sku) AS skus
+WITH s, [(p:Product)-[:SHIPPED_UNTRACKED]->(a:Store) WHERE p.sku IN skus | a.id]
+       + [(q:ProductLot)-[:SHIPPED_TO]->(b:Store) WHERE q.sku IN skus | b.id] AS stores
+MATCH (m:Memory)-[:ABOUT]->(x)
+WHERE m.lot <> $lot AND (x = s OR (x:Store AND x.id IN stores))
+RETURN m.lot AS from_lot, m.at AS at, labels(x)[0] AS kind, x.id AS about, m.fact AS fact
+ORDER BY at DESC, about LIMIT 20`;
+/** record_lessons: one incident's lessons replace its earlier ones, so reruns don't pile up. */
+export const MEMORY_CLEAR = `MATCH (m:Memory {lot: $lot}) DELETE m`;
+export const MEMORY_WRITE = `
+UNWIND $lessons AS lesson
+MATCH (x {id: lesson.about}) WHERE x:Supplier OR x:Store OR x:Batch OR x:Site OR x:DC
+CREATE (m:Memory {lot: $lot, fact: lesson.fact, at: $at})-[:ABOUT]->(x)
+RETURN labels(x)[0] AS kind, x.id AS about, m.fact AS fact`;

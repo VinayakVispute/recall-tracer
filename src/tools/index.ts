@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { query } from '../graph/db.js';
-import { TRACE_FORWARD, COVERAGE_GAPS, SKU_RECIPIENTS, STORES, TRACE_BACKWARD, RAW_ON_HAND, FINISHED_ON_HAND, HOLD_RAW, HOLD_FINISHED, INCIDENT_CLASSIFY, FIND_COMMON_SOURCE, CLUSTER_CASES, CASES_EXIST, CASE_PATH, INCIDENT_SCOPED } from '../graph/queries.js';
+import { TRACE_FORWARD, COVERAGE_GAPS, SKU_RECIPIENTS, STORES, TRACE_BACKWARD, RAW_ON_HAND, FINISHED_ON_HAND, HOLD_RAW, HOLD_FINISHED, INCIDENT_CLASSIFY, FIND_COMMON_SOURCE, CLUSTER_CASES, CASES_EXIST, CASE_PATH, INCIDENT_SCOPED, CHOKEPOINTS, LOT_INFO, MEMORY_READ, MEMORY_CLEAR, MEMORY_WRITE } from '../graph/queries.js';
 import type { Candidate, OutbreakResult } from '../contracts.js';
 
 // --- Schemas (shared by the MCP server) ------------------------------------
@@ -43,6 +43,15 @@ export const schemas = {
   case_path: {
     lot,
     cases: list(z.string()).pipe(z.array(z.string()).min(1).max(200)).describe('Case ids, e.g. ["C1", "C3"]'),
+  },
+  rank_chokepoints: { lot },
+  recall_memory: { lot },
+  record_lessons: {
+    lot,
+    lessons: list(z.object({
+      about: z.string().describe('Id of the supplier, store, batch, plant or DC the lesson is about, e.g. S-03 or ST-013'),
+      fact: z.string().max(300).describe('One sentence a future incident should know'),
+    })).pipe(z.array(z.object({ about: z.string(), fact: z.string() })).min(1).max(8)).describe('A JSON array (not a string) of lessons'),
   },
   draft_recall_notice: {
     lot,
@@ -214,6 +223,30 @@ export async function findCommonSource({ cluster }: { cluster: string }): Promis
   return { cluster, total_cases: cases.length, candidates, paths, summary };
 }
 
+/** Graph algorithm: the batches and product lots most supply paths run through, among those this lot reached. */
+export async function rankChokepoints({ lot }: { lot: string }) {
+  const nodes = await query<{ kind: 'Batch' | 'ProductLot'; id: string; score: number; stores: number }>(CHOKEPOINTS, { lot });
+  return { lot, algorithm: 'betweenness centrality', nodes: nodes.map((n) => ({ ...n, score: Math.round(n.score * 10) / 10 })) };
+}
+
+/** Lessons earlier incidents left about this lot's supplier or the stores its products reach. */
+export async function recallMemory({ lot }: { lot: string }) {
+  const [[info], lessons] = await Promise.all([
+    query<{ supplier_id: string; supplier: string }>(LOT_INFO, { lot }),
+    query<{ from_lot: string; at: string; kind: string; about: string; fact: string }>(MEMORY_READ, { lot }),
+  ]);
+  if (!info) throw new Error(`unknown lot ${lot}`);
+  return { lot, supplier: { id: info.supplier_id, name: info.supplier }, lessons };
+}
+
+/** Writes this incident's lessons as Memory nodes linked to what they are about. Ids that are not in the graph are dropped. */
+export async function recordLessons({ lot, lessons }: { lot: string; lessons: { about: string; fact: string }[] }) {
+  await query(MEMORY_CLEAR, { lot });
+  const saved = await query<{ kind: string; about: string; fact: string }>(MEMORY_WRITE, { lot, lessons, at: new Date().toISOString() });
+  const known = new Set(saved.map((r) => r.about));
+  return { lot, saved, unknown: [...new Set(lessons.map((l) => l.about).filter((id) => !known.has(id)))] };
+}
+
 export const NOTICES_FILE = process.env.NOTICES_FILE ?? 'out/notices.json'; // tests use their own file
 export type Notice = { lot: string; store: string; name: string; city: string; reason: string; status: 'pending_approval' | 'approved'; drafted_at: string; text: string };
 
@@ -283,6 +316,18 @@ export const tools = {
   case_path: {
     handler: casePath,
     description: 'For one ingredient lot and some case ids, return each case\'s path from the lot through batches and product lots to the store where the case bought the food. Cases the lot cannot reach come back in unexplained.',
+  },
+  rank_chokepoints: {
+    handler: rankChokepoints,
+    description: 'Graph algorithm: run betweenness centrality over the supply chain (lots, batches, product lots, stores) and return the batches and product lots this lot reached that the most supply paths run through, each with how many stores lie downstream. The top one is where the spread concentrated, e.g. a batch whose leftovers were reworked.',
+  },
+  recall_memory: {
+    handler: recallMemory,
+    description: 'Read lessons that earlier incidents recorded about this lot\'s supplier or about stores that receive its products, e.g. a store that took deliveries with no lot code. Empty when nothing is known yet.',
+  },
+  record_lessons: {
+    handler: recordLessons,
+    description: 'Save lessons from this incident for future ones, each about one supplier, store, batch, plant or DC id taken from tool results. Replaces lessons this incident saved before.',
   },
   draft_recall_notice: {
     handler: draftRecallNotice,

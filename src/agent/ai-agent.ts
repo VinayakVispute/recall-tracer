@@ -9,6 +9,7 @@ import { query } from '../graph/db.js'; // also loads .env.local / .env
 import { CLUSTER_CASES, INCIDENT_GET, LOT_INFO, SAME_SOURCE_LOTS } from '../graph/queries.js';
 import { toResult, toToolCall, type McpOutput, type Recall, type RecallResult, type TraceEvent } from './run.js';
 import type { OutbreakEvent, OutbreakResult } from '../contracts.js';
+import { recordLessons } from '../tools/index.js';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const MODEL = 'claude-opus-5-5';
@@ -115,7 +116,7 @@ export function makeIncidentAgent(model: LanguageModel, tools: ToolSet) {
     model,
     instructions: readFileSync(new URL('./prompt.md', import.meta.url), 'utf8'),
     tools,
-    stopWhen: isStepCount(14),
+    stopWhen: isStepCount(18),
     providerOptions: { anthropic: {
       thinking: { type: 'adaptive', display: 'updates' }, // short progress notes between tool calls, for the trace
       effort: 'low', // fixed tool sequence; low effort keeps the run well under 60 s
@@ -188,6 +189,8 @@ export async function runOutbreak(cluster: string, onEvent: (e: OutbreakEvent) =
   const top = r.candidates[0];
   const decoys = top ? (await query<{ lot: string }>(SAME_SOURCE_LOTS, { lot: top.lot, ranked: r.candidates.map((c) => c.lot) })).map((d) => d.lot) : [];
   const outbreak = { ...r, summary: r.summary + (decoys.length ? ` ${decoys.join(', ')} (same supplier, same ingredient) explains none.` : '') };
+  // Handoff: the incident agent reads this from the graph with recall_memory when the supplier's lot is opened.
+  if (top) await recordLessons({ lot: cluster, lessons: [{ about: top.supplier, fact: `Outbreak ${cluster}: ${outbreak.summary}` }] });
   onEvent({ type: 'done', outbreak });
   return outbreak;
 }

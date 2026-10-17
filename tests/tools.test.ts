@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { rmSync } from 'node:fs';
 import { build, load } from '../src/data/generate.js';
 import { close } from '../src/graph/db.js';
-import { scopeRecall, schemas, traceForward, coverageGaps, unaffectedStores, minimalRecall, draftRecallNotice, readNotices, NOTICES_FILE, traceBackward, placeHold, readHold, proposeClassification, findCommonSource, casePath } from '../src/tools/index.js';
+import { scopeRecall, schemas, traceForward, coverageGaps, unaffectedStores, minimalRecall, draftRecallNotice, readNotices, NOTICES_FILE, traceBackward, placeHold, readHold, proposeClassification, findCommonSource, casePath, rankChokepoints, recallMemory, recordLessons } from '../src/tools/index.js';
 import { incidentStatus, listIncidents, summarizeIncident } from '../src/tools/incident.js';
 import { parseCases, formatCases, ingestCases } from '../src/data/cases.js';
 import { writeFileSync } from 'node:fs';
@@ -195,10 +195,30 @@ describe('API', () => {
     console.log(`e2e: ${Date.now() - t0} ms`, JSON.stringify({ counts: r.counts, calls: r.tool_calls, summary: r.summary }, null, 1));
     expect(Date.now() - t0).toBeLessThan(60_000);
     expect(r.counts).toEqual({ blanket: 71, targeted: 33, safe: 38 });
-    expect(r.tool_calls.map((c: any) => c.name)).toEqual(['propose_classification', 'place_hold', 'trace_forward', 'coverage_gaps', 'minimal_recall', 'trace_backward', 'draft_recall_notice']);
+    expect(r.tool_calls.map((c: any) => c.name)).toEqual(['recall_memory', 'propose_classification', 'place_hold', 'trace_forward', 'rank_chokepoints', 'coverage_gaps', 'minimal_recall', 'trace_backward', 'draft_recall_notice', 'record_lessons']);
     expect(r.tool_calls.every((c: any) => c.summary && c.cypher.length)).toBe(true);
     expect(readNotices().filter((n) => n.lot === LOT)).toHaveLength(33);
   }, 90_000);
+});
+
+describe('graph algorithm and memory', () => {
+  it('rank_chokepoints: betweenness puts the reworked batch B-03 first, the same on every run', async () => {
+    const r = await rankChokepoints({ lot: LOT });
+    expect(r.nodes[0]).toMatchObject({ kind: 'Batch', id: 'B-03', stores: 16 });
+    expect(await rankChokepoints({ lot: LOT })).toEqual(r);
+    expect(r.nodes.every((n) => n.score > 0)).toBe(true);
+  });
+
+  it('lessons one incident records are read by the next incident from the same supplier, and only by others', async () => {
+    const saved = await recordLessons({ lot: 'L-TEST', lessons: [{ about: 'S-03', fact: 'a' }, { about: 'ST-013', fact: 'b' }, { about: 'NOPE', fact: 'c' }] });
+    expect([saved.saved.map((l) => l.about).sort(), saved.unknown]).toEqual([['S-03', 'ST-013'], ['NOPE']]);
+    await recordLessons({ lot: 'L-TEST', lessons: [{ about: 'S-03', fact: 'a2' }] }); // a rerun replaces, never piles up
+    const mine = (lot: string) => recallMemory({ lot }).then((r) => r.lessons.filter((l) => l.from_lot === 'L-TEST').map((l) => [l.about, l.fact]));
+    expect(await mine('L-205')).toEqual([['S-03', 'a2']]); // same supplier S-03
+    expect(await mine('L-101')).toEqual([]); // supplier S-08
+    expect(await mine('L-TEST')).toEqual([]);
+    await query('MATCH (m:Memory {lot: $lot}) DELETE m', { lot: 'L-TEST' });
+  });
 });
 
 describe('outbreak OB-2026-10', () => {

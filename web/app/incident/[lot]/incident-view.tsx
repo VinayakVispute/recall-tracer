@@ -173,10 +173,11 @@ export function IncidentView({ lot, hazard, autostart, playback, initial }: { lo
     const s = steps.findLast((x) => x.kind === "tool" && x.name === name && x.call?.error);
     return s?.kind === "tool" ? s.call?.summary : undefined;
   };
-  // The plan's eight stages: one per agent step, plus Approved.
+  // One stage per agent step, plus Approved.
   const stages: [label: string, ok: boolean, error?: string][] = ([
-    ["Hazard", "propose_classification"], ["Hold", "place_hold"], ["Forward trace", "trace_forward"], ["Records", "coverage_gaps"],
-    ["Scope", "minimal_recall"], ["Backward", "trace_backward"], ["Notices", "draft_recall_notice"],
+    ["Memory", "recall_memory"], ["Hazard", "propose_classification"], ["Hold", "place_hold"], ["Forward trace", "trace_forward"],
+    ["Chokepoint", "rank_chokepoints"], ["Records", "coverage_gaps"], ["Scope", "minimal_recall"], ["Backward", "trace_backward"],
+    ["Notices", "draft_recall_notice"], ["Lessons", "record_lessons"],
   ] as const).map(([label, tool]) => [label, done(tool), done(tool) ? undefined : failed(tool)]);
   stages.push([notices.length ? `Approved ${approved}/${notices.length}` : "Approved", notices.length > 0 && approved === notices.length && (!replaying || !!shown)]);
   const active = running || (replaying && replay.playing);
