@@ -3,7 +3,7 @@ import type { NextConfig } from "next";
 const RECALL_API = process.env.RECALL_API ?? "http://localhost:8787";
 
 // Every path the Hono API serves. /recall/stream (SSE) is covered by /recall/:path*.
-const API_PATHS = ["/recall", "/recall/:path*", "/graph/:path*", "/notices", "/notices/:path*", "/export/:path*", "/incident/:path*", "/chat"];
+const API_PATHS = ["/recall", "/recall/:path*", "/graph/:path*", "/notices", "/notices/:path*", "/export/:path*", "/incident/:path*", "/incidents", "/incidents/:path*", "/outbreak", "/outbreak/:path*", "/ingest/:path*", "/chat"];
 
 const nextConfig: NextConfig = {
   reactCompiler: true,

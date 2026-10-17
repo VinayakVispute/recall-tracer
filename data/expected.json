@@ -115,6 +115,79 @@
     "units": 2652,
     "locations": 5
   },
-  "nodes": 163,
-  "edges": 427
+  "outbreak": {
+    "cluster": "OB-2026-10",
+    "cases": [
+      "C1",
+      "C2",
+      "C3",
+      "C4",
+      "C5",
+      "C6"
+    ],
+    "ranking": [
+      {
+        "lot": "L-204",
+        "cases_explained": 6,
+        "explained": [
+          "C1",
+          "C2",
+          "C3",
+          "C4",
+          "C5",
+          "C6"
+        ],
+        "stores_reached": 31
+      },
+      {
+        "lot": "L-162",
+        "cases_explained": 4,
+        "explained": [
+          "C1",
+          "C4",
+          "C5",
+          "C6"
+        ],
+        "stores_reached": 23
+      },
+      {
+        "lot": "L-143",
+        "cases_explained": 2,
+        "explained": [
+          "C2",
+          "C3"
+        ],
+        "stores_reached": 10
+      },
+      {
+        "lot": "L-101",
+        "cases_explained": 2,
+        "explained": [
+          "C2",
+          "C3"
+        ],
+        "stores_reached": 23
+      },
+      {
+        "lot": "L-275",
+        "cases_explained": 2,
+        "explained": [
+          "C5",
+          "C6"
+        ],
+        "stores_reached": 33
+      },
+      {
+        "lot": "L-117",
+        "cases_explained": 2,
+        "explained": [
+          "C1",
+          "C4"
+        ],
+        "stores_reached": 56
+      }
+    ]
+  },
+  "nodes": 170,
+  "edges": 439
 }

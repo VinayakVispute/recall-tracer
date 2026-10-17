@@ -1,6 +1,6 @@
 node_modules
 out
 web/dist
-demo
+demo/*.mp4
 .env
 .git

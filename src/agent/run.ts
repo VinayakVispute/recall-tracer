@@ -4,7 +4,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import type { minimalRecall } from '../tools/index.js';
-import { TRACE_FORWARD, COVERAGE_GAPS, SKU_RECIPIENTS, TRACE_BACKWARD, STORES, INCIDENT_CLASSIFY, RAW_ON_HAND, FINISHED_ON_HAND, HOLD_FINISHED, INCIDENT_GET, LOT_INFO } from '../graph/queries.js';
+import { TRACE_FORWARD, COVERAGE_GAPS, SKU_RECIPIENTS, TRACE_BACKWARD, STORES, INCIDENT_CLASSIFY, RAW_ON_HAND, FINISHED_ON_HAND, HOLD_FINISHED, INCIDENT_GET, LOT_INFO, FIND_COMMON_SOURCE, CASE_PATH } from '../graph/queries.js';
 import { query } from '../graph/db.js';
 
 const MODEL = 'claude-opus-5-5';
@@ -21,7 +21,11 @@ const CYPHER: Record<string, string[]> = {
   minimal_recall: [TRACE_FORWARD, COVERAGE_GAPS, SKU_RECIPIENTS],
   trace_backward: [TRACE_BACKWARD],
   draft_recall_notice: [STORES],
+  find_common_source: [FIND_COMMON_SOURCE, CASE_PATH],
+  case_path: [CASE_PATH],
 };
+/** Steps where the agent decides rather than reads the graph; the UI draws them as decision cards. */
+const JUDGEMENT = new Set(['propose_classification', 'minimal_recall']);
 
 let mcp: Promise<Client> | undefined;
 
@@ -44,14 +48,22 @@ export async function closeAgent() {
   mcp = undefined;
 }
 
-export type ToolCall = { id: string; name: string; input: unknown; ms: number; error?: boolean; summary: string; cypher: string[]; turn: number };
-export type TraceEvent =
-  | { type: 'start'; lot: string; model: string }
+export type ToolCall = {
+  id: string; name: string; input: unknown; ms: number; error?: boolean; summary: string; cypher: string[]; turn: number;
+  /** FalkorDB's own execution time over the tool's queries, and how many it ran. */
+  db_ms: number; queries: number;
+  kind?: 'judgement';
+};
+/** C3. The defaults are a recall run; an outbreak run is TraceEvent<{ cluster }, { outbreak }> (OutbreakEvent in contracts.ts). */
+export type TraceEvent<Subject = { lot: string }, Done = { result: RecallResult }> =
+  | ({ type: 'start'; model: string } & Subject)
   | { type: 'note'; text: string; turn: number }
   | { type: 'tool_start'; id: string; name: string; input: unknown; turn: number }
   | { type: 'tool_end'; call: ToolCall }
-  | { type: 'done'; result: RecallResult }
+  | ({ type: 'done' } & Done)
   | { type: 'error'; message: string };
+/** What an MCP tools/call returns, from either MCP client. */
+export type McpOutput = { content: unknown; isError?: boolean };
 type Recall = Awaited<ReturnType<typeof minimalRecall>>;
 
 /** One line per tool result, for the trace timeline. */
@@ -65,8 +77,24 @@ function summarize(name: string, r: any): string {
     case 'minimal_recall': return `${r.counts.targeted} of ${r.counts.blanket} stores, ${r.units_to_pull.toLocaleString()} units; gaps ${r.add_gap_stores ? 'added' : 'flagged only'}`;
     case 'trace_backward': return `${r.results.length} product lots walked back; ${r.containing?.length ?? 0} contain ${r.lot ?? 'the lot'}`;
     case 'draft_recall_notice': return `${r.drafted} notices drafted, pending approval`;
+    case 'find_common_source': return r.summary;
+    case 'case_path': return `${Object.keys(r.paths).length - r.unexplained.length} of ${Object.keys(r.paths).length} cases reached by ${r.lot}`;
     default: return '';
   }
+}
+
+/** The one place an MCP result becomes a ToolCall, shared by both agent loops. `parsed` is set iff the call succeeded. */
+export function toToolCall(id: string, name: string, input: unknown, turn: number, ms: number, out: McpOutput) {
+  const text = (out.content as { text?: string }[]).map((c) => c.text ?? '').join('');
+  let summary = text.slice(0, 200), db_ms = 0, queries = 0, parsed: any;
+  if (!out.isError) {
+    parsed = JSON.parse(text);
+    ({ db_ms, queries } = parsed);
+    summary = summarize(name, parsed);
+  }
+  const call: ToolCall = { id, name, input, ms, error: !!out.isError, summary, cypher: CYPHER[name] ?? [], turn,
+    db_ms, queries, ...(JUDGEMENT.has(name) ? { kind: 'judgement' as const } : {}) };
+  return { call, parsed, text };
 }
 
 export async function runAgent(lot: string, onEvent: (e: TraceEvent) => void = () => {}) {
@@ -126,14 +154,8 @@ export async function runAgent(lot: string, onEvent: (e: TraceEvent) => void = (
       onEvent({ type: 'tool_start', id: b.id, name: b.name, input: b.input, turn });
       const s = Date.now();
       const out = await mcpc.callTool({ name: b.name, arguments: b.input as Record<string, unknown> });
-      const text = (out.content as { type: string; text: string }[]).map((c) => c.text).join('');
-      let summary = text.slice(0, 200);
-      if (!out.isError) {
-        const parsed = JSON.parse(text);
-        summary = summarize(b.name, parsed);
-        if (b.name === 'minimal_recall') recall = parsed;
-      }
-      const call: ToolCall = { id: b.id, name: b.name, input: b.input, ms: Date.now() - s, error: !!out.isError, summary, cypher: CYPHER[b.name] ?? [], turn };
+      const { call, parsed, text } = toToolCall(b.id, b.name, b.input, turn, Date.now() - s, out);
+      if (b.name === 'minimal_recall' && parsed) recall = parsed;
       calls.push(call);
       onEvent({ type: 'tool_end', call });
       results.push({ type: 'tool_result', tool_use_id: b.id, content: text, is_error: !!out.isError });

@@ -4,6 +4,7 @@ import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { graph, query, close } from '../graph/db.js';
 import { INDEXES, LOAD, COUNT_NODES, COUNT_EDGES } from '../graph/queries.js';
+import type { Case, Cluster } from '../contracts.js';
 
 type Edge = { from: string; to: string } & Record<string, unknown>;
 
@@ -40,6 +41,15 @@ const CLEAN_SAME_SKU: Record<string, string[]> = {
 };
 const AFFECTED_SKUS = ['P-01', 'P-02', 'P-03'];
 const GAP_SKU = 'P-02';
+
+const CLUSTER: Cluster = { id: 'OB-2026-10', pathogen: 'Listeria monocytogenes', opened_at: '2026-10-16' };
+// One slot per case: its state, whether the person remembers the product, and whether it came
+// through batch B-03 (which blends L-204 with L-117, so L-117 is the runner-up).
+const CASE_SLOTS = [
+  { region: 'OH', sku: true, viaB03: true }, { region: 'PA', sku: true, viaB03: false },
+  { region: 'MI', sku: false, viaB03: false }, { region: 'OH', sku: true, viaB03: true },
+  { region: 'IN', sku: true, viaB03: false }, { region: 'MI', sku: true, viaB03: false },
+];
 
 const pad = (n: number, w = 2) => String(n).padStart(w, '0');
 const day = (base: string, add: number) => new Date(Date.parse(base) + add * 86_400_000).toISOString().slice(0, 10);
@@ -159,11 +169,61 @@ export function build(seed = 42) {
     heldAt.push({ from: e.to, to: pick(DCS).id, units: dc });
   }
 
-  const sort = (xs: string[]) => [...xs].sort();
   const affectedShipments = shippedTo.filter((e) => affectedLots.includes(e.from));
+
+  // Outbreak cases. Their own RNG, so the supply chain above stays identical.
+  const crng = seedrandom(`${seed}:cases`);
+  const cint = (a: number, b: number) => a + Math.floor(crng() * (b - a + 1));
+  const skuOf = new Map(productLots.map((pl) => [pl.id, pl.sku]));
+  const regionOf = new Map(stores.map((st) => [st.id, st.region]));
+  /** Product lots a lot ends up in: its batches, rework up to 3 hops, what they produced. */
+  const reachLots = (code: string) => {
+    let bs = usedIn.filter((e) => e.from === code).map((e) => e.to);
+    for (let hop = 0, frontier = bs; hop < 3; hop++) {
+      frontier = reworked.filter((e) => frontier.includes(e.from)).map((e) => e.to);
+      bs = [...bs, ...frontier];
+    }
+    return new Set(produced.filter((e) => bs.includes(e.from)).map((e) => e.to));
+  };
+  const reach = new Map(lots.map((l) => [l.code, reachLots(l.code)]));
+  const explains = (code: string, c: { store: string; bought_at: string; sku?: string }) =>
+    shippedTo.some((e) => e.to === c.store && e.shipped_at as string <= c.bought_at && reach.get(code)!.has(e.from) && (!c.sku || skuOf.get(e.from) === c.sku));
+
+  const b03Lots = new Set(produced.filter((e) => e.from === 'B-03' || e.from === 'B-09').map((e) => e.to));
+  const cases: (Case & { store: string; bought_at: string })[] = [];
+  CASE_SLOTS.forEach((slot, i) => {
+    // Delivered by Oct 12, so every case is reported before the cluster opened on Oct 16.
+    const pickable = affectedShipments.filter((e) => e.shipped_at as string <= '2026-10-12' && regionOf.get(e.to) === slot.region
+      && b03Lots.has(e.from) === slot.viaB03 && !cases.some((c) => c.store === e.to));
+    while (pickable.length) {
+      const [e] = pickable.splice(Math.floor(crng() * pickable.length), 1);
+      const bought_at = day(e.shipped_at as string, cint(0, 1));
+      const c = { store: e.to, bought_at, ...(slot.sku ? { sku: skuOf.get(e.from)! } : {}) };
+      if (explains('L-205', c)) continue; // the decoy must reach no case
+      // A named product came only from affected lots, so clean lots of the same SKU don't muddy the ranking.
+      if (c.sku && shippedTo.some((s) => s.to === c.store && skuOf.get(s.from) === c.sku && !affectedLots.includes(s.from))) continue;
+      const onset = day(bought_at, cint(1, 2));
+      cases.push({ id: `C${i + 1}`, region: slot.region, onset, reported_at: day(onset, 1), ...c });
+      return;
+    }
+    throw new Error(`no store fits case slot ${i + 1}`);
+  });
+  const ranking = lots.map((l) => {
+    const explained = cases.filter((c) => explains(l.code, c)).map((c) => c.id);
+    const stores_reached = new Set(shippedTo.filter((e) => reach.get(l.code)!.has(e.from)).map((e) => e.to)).size;
+    return { lot: l.code, cases_explained: explained.length, explained, stores_reached };
+  }).filter((r) => r.cases_explained > 0)
+    .sort((a, b) => b.cases_explained - a.cases_explained || a.stores_reached - b.stores_reached || a.lot.localeCompare(b.lot))
+    .slice(0, 10);
+  if (ranking[0].lot !== BAD_LOT || ranking[0].cases_explained !== cases.length || ranking[1]?.cases_explained === cases.length)
+    throw new Error('outbreak ranking: L-204 must be the only lot explaining every case');
+  const hasCase: Edge[] = cases.map((c) => ({ from: CLUSTER.id, to: c.id }));
+  const boughtAt: Edge[] = cases.map((c) => ({ from: c.id, to: c.store, date: c.bought_at }));
+
+  const sort = (xs: string[]) => [...xs].sort();
   const sum = (es: Edge[], k = 'units') => es.reduce((n, e) => n + (e[k] as number), 0);
-  const nodes = suppliers.length + lots.length + batches.length + products.length + productLots.length + stores.length + SITES.length + DCS.length;
-  const edges = [supplied, usedIn, storedAt, reworked, produced, of, shippedTo, untracked, heldAt].reduce((n, es) => n + es.length, 0);
+  const nodes = suppliers.length + lots.length + batches.length + products.length + productLots.length + stores.length + SITES.length + DCS.length + 1 + cases.length;
+  const edges = [supplied, usedIn, storedAt, reworked, produced, of, shippedTo, untracked, heldAt, hasCase, boughtAt].reduce((n, es) => n + es.length, 0);
 
   const expected = {
     seed, lot: BAD_LOT,
@@ -178,12 +238,13 @@ export function build(seed = 42) {
       units: sum(heldAt.filter((e) => affectedLots.includes(e.from))),
       locations: new Set([...heldAt.filter((e) => affectedLots.includes(e.from)).map((e) => e.to), storedAt.find((e) => e.from === BAD_LOT)!.to]).size,
     },
+    outbreak: { cluster: CLUSTER.id, cases: cases.map((c) => c.id), ranking },
     nodes, edges,
   };
 
   return {
-    nodes: { suppliers, lots, batches, products, productLots, stores, sites: SITES, dcs: DCS },
-    edges: { supplied, usedIn, storedAt, reworked, produced, of, shippedTo, untracked, heldAt },
+    nodes: { suppliers, lots, batches, products, productLots, stores, sites: SITES, dcs: DCS, clusters: [CLUSTER], cases },
+    edges: { supplied, usedIn, storedAt, reworked, produced, of, shippedTo, untracked, heldAt, hasCase, boughtAt },
     expected,
   };
 }
@@ -196,8 +257,10 @@ export async function load(data: ReturnType<typeof build>, reset = true) {
   const steps: [string, unknown[]][] = [
     [LOAD.suppliers, n.suppliers], [LOAD.lots, n.lots], [LOAD.batches, n.batches], [LOAD.products, n.products],
     [LOAD.productLots, n.productLots], [LOAD.stores, n.stores], [LOAD.sites, n.sites], [LOAD.dcs, n.dcs],
+    [LOAD.clusters, n.clusters], [LOAD.cases, n.cases],
     [LOAD.supplied, e.supplied], [LOAD.usedIn, e.usedIn], [LOAD.storedAt, e.storedAt], [LOAD.reworked, e.reworked],
     [LOAD.produced, e.produced], [LOAD.of, e.of], [LOAD.shippedTo, e.shippedTo], [LOAD.untracked, e.untracked], [LOAD.heldAt, e.heldAt],
+    [LOAD.hasCase, e.hasCase], [LOAD.boughtAt, e.boughtAt],
   ];
   for (const [q, rows] of steps) await g.query(q, { params: { rows } as never });
   const [{ n: nodeCount }] = await query<{ n: number }>(COUNT_NODES);

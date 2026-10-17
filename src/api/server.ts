@@ -1,16 +1,18 @@
 import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
 import { createMcpHandler } from 'mcp-handler';
-import { streamSSE } from 'hono/streaming';
+import { streamSSE, type SSEStreamingApi } from 'hono/streaming';
+import type { Context } from 'hono';
 import { fileURLToPath } from 'node:url';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { query } from '../graph/db.js';
-import { AFFECTED_SHIPMENTS, STORES, LOT_EXISTS, INCIDENT_DELETE, INCIDENT_CREATE, INCIDENT_CONFIRM } from '../graph/queries.js';
+import { AFFECTED_SHIPMENTS, STORES, LOT_EXISTS, INCIDENT_DELETE, INCIDENT_CREATE, INCIDENT_CONFIRM, CLUSTER_CASES } from '../graph/queries.js';
 import { traceForward, coverageGaps, unaffectedStores, traceBackward, readHold, readNotices, writeNotices, incidentId, RECALL_CLASSES, RECALL_DEPTHS } from '../tools/index.js';
 import { createAgentUIStreamResponse } from 'ai';
-import { getRecallAgent } from '../agent/ai-agent.js';
-import { runAgent, type RecallResult } from '../agent/run.js';
-import { incidentReport, incidentStatus } from '../tools/incident.js';
+import { getRecallAgent, runOutbreak } from '../agent/ai-agent.js';
+import { runAgent, type RecallResult, type TraceEvent } from '../agent/run.js';
+import { incidentReport, incidentStatus, listIncidents, supplierIncidents } from '../tools/incident.js';
+import { ingestCases, CASE_ID } from '../data/cases.js';
 import { registerTools } from '../mcp/tools.js';
 
 const LOT_RE = /^L-\d{1,6}$/;
@@ -57,24 +59,120 @@ app.post('/recall', async (c) => {
   return c.json(result);
 });
 
-/** Same as POST /recall, but streams each agent step (Server-Sent Events) so the dashboard fills in live. */
-app.get('/recall/stream', async (c) => {
-  const lot = c.req.query('lot');
-  const bad = await checkLot(lot);
-  if (bad) return c.json({ error: bad[1] }, bad[0] as 400);
+/**
+ * Streams one agent run as Server-Sent Events: `event: <type>`, `data: JSON(event)`, in order.
+ * A thrown error becomes a final `error` event after every queued write.
+ */
+function traceSSE(c: Context, run: (send: (e: { type: string }) => void, stream: SSEStreamingApi) => Promise<void>) {
   return streamSSE(c, async (stream) => {
     let writes = Promise.resolve(); // keep events in order and flushed before the stream closes
     const send = (e: { type: string }) => (writes = writes.then(() => stream.writeSSE({ event: e.type, data: JSON.stringify(e) })));
     try {
-      await openIncident(lot!, c.req.query('hazard'));
-      const result = await runAgent(lot!, send);
-      save(result);
+      await run(send, stream);
       await writes;
     } catch (e) {
       await writes;
       await stream.writeSSE({ event: 'error', data: JSON.stringify({ type: 'error', message: (e as Error).message }) });
     }
   });
+}
+
+/** B2. A recorded run: t_ms is time since the start event. Only complete runs (start ... done) are written. */
+type Recording = { lot: string; recorded_at: string; events: { t_ms: number; event: TraceEvent }[] };
+const runFile = (dir: string, lot: string) => `${dir}/run-${lot}.json`;
+
+function record(lot: string, events: Recording['events']) {
+  mkdirSync('out', { recursive: true });
+  const file = runFile('out', lot);
+  writeFileSync(`${file}.tmp`, JSON.stringify({ lot, recorded_at: new Date().toISOString(), events } satisfies Recording));
+  renameSync(`${file}.tmp`, file); // a concurrent replay never reads half a file
+}
+/** Curated demo/ recordings win over the latest live run in out/. A file that isn't a complete, ordered run is skipped. */
+function readRecording(lot: string): Recording | null {
+  for (const dir of ['demo', 'out']) {
+    try {
+      const r = JSON.parse(readFileSync(runFile(dir, lot), 'utf8')) as Recording;
+      const ev = r.events;
+      if (ev[0]?.event.type === 'start' && ev.at(-1)?.event.type === 'done' && ev.every((e, i) => !i || e.t_ms >= ev[i - 1].t_ms)) return r;
+    } catch { /* missing or unreadable: try the next dir */ }
+  }
+  return null;
+}
+
+/** Same as POST /recall, but streams each agent step so the dashboard fills in live. Also records the run for replay. */
+app.get('/recall/stream', async (c) => {
+  const lot = c.req.query('lot');
+  const bad = await checkLot(lot);
+  if (bad) return c.json({ error: bad[1] }, bad[0] as 400);
+  return traceSSE(c, async (send) => {
+    const t0 = Date.now(), events: Recording['events'] = [];
+    await openIncident(lot!, c.req.query('hazard'));
+    const result = await runAgent(lot!, (e) => { events.push({ t_ms: Date.now() - t0, event: e }); send(e); });
+    save(result);
+    record(lot!, events);
+  });
+});
+
+/** Replays a recorded run with its original timing (divided by speed). No Claude key and no database needed. */
+app.get('/recall/replay', async (c) => {
+  const lot = c.req.query('lot'), speed = Number(c.req.query('speed') ?? 1);
+  if (!lot || !LOT_RE.test(lot)) return c.json({ error: 'Enter a lot code like L-204.' }, 400);
+  if (!(speed > 0 && speed <= 20)) return c.json({ error: 'speed must be above 0 and at most 20' }, 400);
+  const rec = readRecording(lot);
+  if (!rec) return c.json({ error: `No recorded run for ${lot}` }, 404);
+  return traceSSE(c, async (send, stream) => {
+    for (const [i, { t_ms, event }] of rec.events.entries()) {
+      if (stream.aborted) return;
+      if (i) await stream.sleep((t_ms - rec.events[i - 1].t_ms) / speed);
+      send(event);
+    }
+  });
+});
+
+/** checkLot's sibling for outbreak clusters: 400 bad id, 404 no cases. */
+async function checkCluster(cluster?: string): Promise<[number, string] | null> {
+  if (!cluster || !CASE_ID.test(cluster)) return [400, 'Enter a cluster id like OB-2026-10.'];
+  const cases = await query(CLUSTER_CASES, { cluster });
+  return cases.length ? null : [404, `No cases in cluster ${cluster}. Paste the case list first.`];
+}
+
+/** A6. Paste or upload a case list into a cluster. Rejected rows are data (200), not an error. No Claude call. */
+app.post('/ingest/cases', async (c) => {
+  const { cluster, pathogen, text } = await c.req.json<{ cluster?: string; pathogen?: string; text?: string }>();
+  if (!cluster || !CASE_ID.test(cluster)) return c.json({ error: 'Enter a cluster id like OB-2026-10.' }, 400);
+  if (!text?.trim()) return c.json({ error: 'Paste at least one case.' }, 400);
+  try {
+    return c.json(await ingestCases(cluster, text, pathogen));
+  } catch (e) {
+    if ((e as { status?: number }).status === 400) return c.json({ error: (e as Error).message }, 400);
+    throw e;
+  }
+});
+
+/** B4. Finds the common source of a cluster. Validated before any Claude call. */
+app.post('/outbreak', async (c) => {
+  const { cluster } = await c.req.json<{ cluster?: string }>();
+  const bad = await checkCluster(cluster);
+  if (bad) return c.json({ error: bad[1] }, bad[0] as 400);
+  return c.json(await runOutbreak(cluster!));
+});
+
+/** Same as POST /outbreak, streamed: start{cluster}, notes and tool calls, then done{outbreak}. */
+app.get('/outbreak/stream', async (c) => {
+  const cluster = c.req.query('cluster');
+  const bad = await checkCluster(cluster);
+  if (bad) return c.json({ error: bad[1] }, bad[0] as 400);
+  return traceSSE(c, async (send) => { await runOutbreak(cluster!, send); });
+});
+
+/** B5. Every incident with its time to scope, newest first. */
+app.get('/incidents', async (c) => c.json(await listIncidents()));
+
+app.get('/incidents/supplier/:id', async (c) => {
+  const id = c.req.param('id');
+  if (!/^S-\d{1,4}$/.test(id)) return c.json({ error: 'Enter a supplier id like S-03.' }, 400);
+  const r = await supplierIncidents(id);
+  return r ? c.json(r) : c.json({ error: `No supplier ${id}` }, 404);
 });
 
 /** Everything the dashboard draws, straight from the graph. No Claude call. */

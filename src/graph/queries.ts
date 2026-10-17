@@ -124,6 +124,8 @@ export const INDEXES = [
   'CREATE INDEX FOR (s:Site) ON (s.id)',
   'CREATE INDEX FOR (d:DC) ON (d.id)',
   'CREATE INDEX FOR (i:Incident) ON (i.lot)',
+  'CREATE INDEX FOR (c:Case) ON (c.id)',
+  'CREATE INDEX FOR (cl:Cluster) ON (cl.id)',
 ];
 
 export const LOAD = {
@@ -143,8 +145,80 @@ export const LOAD = {
   of: 'UNWIND $rows AS r MATCH (pl:ProductLot {id: r.from}), (p:Product {sku: r.to}) CREATE (pl)-[:OF]->(p)',
   shippedTo: 'UNWIND $rows AS r MATCH (pl:ProductLot {id: r.from}), (st:Store {id: r.to}) CREATE (pl)-[:SHIPPED_TO {units: r.units, shipped_at: r.shipped_at}]->(st)',
   untracked: 'UNWIND $rows AS r MATCH (p:Product {sku: r.from}), (st:Store {id: r.to}) CREATE (p)-[:SHIPPED_UNTRACKED {units: r.units, shipped_at: r.shipped_at}]->(st)',
+  clusters: 'UNWIND $rows AS r CREATE (:Cluster {id: r.id, pathogen: r.pathogen, opened_at: r.opened_at})',
+  cases: 'UNWIND $rows AS r CREATE (:Case {id: r.id, region: r.region, onset: r.onset, reported_at: r.reported_at, sku: r.sku})',
+  hasCase: 'UNWIND $rows AS r MATCH (cl:Cluster {id: r.from}), (c:Case {id: r.to}) CREATE (cl)-[:HAS_CASE]->(c)',
+  boughtAt: 'UNWIND $rows AS r MATCH (c:Case {id: r.from}), (st:Store {id: r.to}) CREATE (c)-[:BOUGHT_AT {date: r.date}]->(st)',
   heldAt: 'UNWIND $rows AS r MATCH (pl:ProductLot {id: r.from}), (loc) WHERE loc.id = r.to AND (loc:Site OR loc:DC) CREATE (pl)-[:HELD_AT {units: r.units}]->(loc)',
 };
 
 export const COUNT_NODES = 'MATCH (n) RETURN count(n) AS n';
 export const COUNT_EDGES = 'MATCH ()-[r]->() RETURN count(r) AS n';
+
+// Outbreak: which ingredient lot reached every sick person's store before they bought the food.
+// A case with no product named matches any product lot delivered to its store.
+export const FIND_COMMON_SOURCE = `
+MATCH (:Cluster {id: $cluster})-[:HAS_CASE]->(c:Case)-[b:BOUGHT_AT]->(st:Store)<-[s:SHIPPED_TO]-(pl:ProductLot)
+      <-[:PRODUCED]-(:Batch)<-[:REWORKED_INTO*0..3]-(:Batch)<-[:USED_IN]-(l:Lot)
+WHERE s.shipped_at <= b.date AND (c.sku IS NULL OR pl.sku = c.sku)
+WITH l, collect(DISTINCT c.id) AS explained
+MATCH (l)-[:USED_IN]->(:Batch)-[:REWORKED_INTO*0..3]->(:Batch)-[:PRODUCED]->(:ProductLot)-[:SHIPPED_TO]->(reach:Store)
+WITH l, explained, count(DISTINCT reach) AS stores_reached
+MATCH (sup:Supplier)-[:SUPPLIED]->(l)
+RETURN l.code AS lot, l.ingredient AS ingredient, sup.id AS supplier, sup.name AS supplier_name,
+       size(explained) AS cases_explained, explained, stores_reached,
+       toFloat(size(explained)) / stores_reached AS specificity
+ORDER BY cases_explained DESC, specificity DESC, lot ASC LIMIT 10`;
+
+export const CLUSTER_CASES = 'MATCH (:Cluster {id: $cluster})-[:HAS_CASE]->(c:Case) RETURN c.id AS id ORDER BY id';
+export const CASES_EXIST = 'MATCH (c:Case) WHERE c.id IN $cases RETURN c.id AS id';
+
+/** Each case's evidence chain: lot, batches, product lot, store, case. */
+export const CASE_PATH = `
+MATCH (c:Case) WHERE c.id IN $cases
+MATCH p = (:Lot {code: $lot})-[:USED_IN]->(:Batch)-[:REWORKED_INTO*0..3]->(:Batch)-[:PRODUCED]->(pl:ProductLot)
+          -[s:SHIPPED_TO]->(:Store)<-[b:BOUGHT_AT]-(c)
+WHERE s.shipped_at <= b.date AND (c.sku IS NULL OR pl.sku = c.sku)
+RETURN c.id AS case, [n IN nodes(p) | coalesce(n.code, n.id)] AS path
+ORDER BY case`;
+
+// --- Case ingest (A6): additive, idempotent upserts into one cluster ---
+
+export const ALL_STORES = 'MATCH (st:Store) RETURN st.id AS id, st.name AS name, st.city AS city';
+export const CASE_CLUSTERS = 'MATCH (cl:Cluster)-[:HAS_CASE]->(c:Case) WHERE c.id IN $ids RETURN c.id AS id, cl.id AS cluster';
+export const CLUSTER_GET = 'MATCH (cl:Cluster {id: $id}) RETURN cl.id AS id';
+export const CLUSTER_MERGE = `
+MERGE (cl:Cluster {id: $id})
+ON CREATE SET cl.pathogen = $pathogen, cl.opened_at = $opened_at`;
+/** A null sku removes the property, so `c.sku IS NULL` still means "any product". BOUGHT_AT is replaced, not added. */
+export const CASES_UPSERT = `
+UNWIND $rows AS r
+MATCH (cl:Cluster {id: $cluster}), (st:Store {id: r.store})
+MERGE (c:Case {id: r.id})
+SET c.region = r.region, c.onset = r.onset, c.reported_at = r.reported_at, c.sku = r.sku
+MERGE (cl)-[:HAS_CASE]->(c)
+WITH c, r, st
+OPTIONAL MATCH (c)-[old:BOUGHT_AT]->()
+DELETE old
+WITH DISTINCT c, r, st
+CREATE (c)-[:BOUGHT_AT {date: r.bought_at}]->(st)`;
+
+/** Same supplier and ingredient as the top lot but not among the ranked lots: the decoy the outbreak summary names. */
+export const SAME_SOURCE_LOTS = `
+MATCH (s:Supplier)-[:SUPPLIED]->(top:Lot {code: $lot}), (s)-[:SUPPLIED]->(l:Lot)
+WHERE l.ingredient = top.ingredient AND l.code <> $lot AND NOT l.code IN $ranked
+RETURN l.code AS lot ORDER BY lot`;
+
+// --- Incident history (B5) ---
+
+/** The first successful minimal_recall stamps scoped_at; reruns keep it. stores is the latest scope. */
+export const INCIDENT_SCOPED = `
+MATCH (i:Incident {lot: $lot})
+SET i.scoped_at = coalesce(i.scoped_at, $at), i.stores = $stores`;
+export const INCIDENTS = `
+MATCH (i:Incident)-[:CONCERNS]->(l:Lot)<-[:SUPPLIED]-(s:Supplier)
+WHERE $supplier IS NULL OR s.id = $supplier
+RETURN i.id AS id, i.lot AS lot, i.hazard AS hazard, i.reported_at AS reported_at, i.class AS class,
+       i.confirmed_class AS confirmed_class, i.scoped_at AS scoped_at, i.stores AS stores
+ORDER BY reported_at DESC`;
+export const SUPPLIER_GET = 'MATCH (s:Supplier {id: $id}) RETURN s.id AS id, s.name AS name';

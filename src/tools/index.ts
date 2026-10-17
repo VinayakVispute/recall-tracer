@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { query } from '../graph/db.js';
-import { TRACE_FORWARD, COVERAGE_GAPS, SKU_RECIPIENTS, STORES, TRACE_BACKWARD, RAW_ON_HAND, FINISHED_ON_HAND, HOLD_RAW, HOLD_FINISHED, INCIDENT_CLASSIFY } from '../graph/queries.js';
+import { TRACE_FORWARD, COVERAGE_GAPS, SKU_RECIPIENTS, STORES, TRACE_BACKWARD, RAW_ON_HAND, FINISHED_ON_HAND, HOLD_RAW, HOLD_FINISHED, INCIDENT_CLASSIFY, FIND_COMMON_SOURCE, CLUSTER_CASES, CASES_EXIST, CASE_PATH, INCIDENT_SCOPED } from '../graph/queries.js';
+import type { Candidate, OutbreakResult } from '../contracts.js';
 
 // --- Schemas (shared by the MCP server) ------------------------------------
 
@@ -35,6 +36,13 @@ export const schemas = {
   trace_backward: {
     product_lots: list(z.string()).pipe(z.array(z.string()).min(1).max(200)).describe('Product lot codes (traceability lot codes), e.g. TLC-06A'),
     lot: lot.optional().describe('If given, report whether each product lot contains this ingredient lot'),
+  },
+  find_common_source: {
+    cluster: z.string().describe('Outbreak cluster id, e.g. OB-2026-10'),
+  },
+  case_path: {
+    lot,
+    cases: list(z.string()).pipe(z.array(z.string()).min(1).max(200)).describe('Case ids, e.g. ["C1", "C3"]'),
   },
   draft_recall_notice: {
     lot,
@@ -173,6 +181,39 @@ export async function traceBackward({ product_lots, lot }: { product_lots: strin
   return { lot, results, ...(lot ? { containing: results.filter((r) => r.contains_lot).map((r) => r.product_lot) } : {}) };
 }
 
+/** The MCP minimal_recall: the recall plus the incident's scope time. Dashboard reads call minimalRecall and never stamp it. */
+export async function scopeRecall(args: { lot: string; add_gap_stores?: boolean }) {
+  const r = await minimalRecall(args);
+  await query(INCIDENT_SCOPED, { lot: args.lot, at: new Date().toISOString(), stores: r.recall_stores.length });
+  return r;
+}
+
+/** Each case's chain from the lot to the store where the person bought the food. Unknown case ids are an error, not an empty result. */
+export async function casePath({ lot, cases }: { lot: string; cases: string[] }) {
+  const known = new Set((await query<{ id: string }>(CASES_EXIST, { cases })).map((r) => r.id));
+  const unknown = cases.filter((c) => !known.has(c));
+  if (unknown.length) throw new Error(`unknown case ids: ${unknown.join(', ')}`);
+  const rows = await query<{ case: string; path: string[] }>(CASE_PATH, { lot, cases });
+  const paths: Record<string, string[][]> = Object.fromEntries(cases.map((c) => [c, []]));
+  for (const r of rows) paths[r.case].push(r.path);
+  return { lot, paths, unexplained: cases.filter((c) => !paths[c].length) };
+}
+
+/** Ranks ingredient lots by how many of the cluster's cases they explain, then by how few stores they reached. */
+export async function findCommonSource({ cluster }: { cluster: string }): Promise<OutbreakResult> {
+  const cases = (await query<{ id: string }>(CLUSTER_CASES, { cluster })).map((r) => r.id);
+  if (!cases.length) throw new Error(`no cases in cluster ${cluster}`);
+  const candidates = (await query<Candidate>(FIND_COMMON_SOURCE, { cluster })).map((c) => ({ ...c, explained: c.explained.sort() }));
+  const [top, next] = candidates;
+  const { paths } = top ? await casePath({ lot: top.lot, cases: top.explained }) : { paths: {} };
+  const all = top?.cases_explained === cases.length;
+  const summary = !top ? `No lot explains any of the ${cases.length} cases.`
+    : `${top.lot} (${top.ingredient}, ${top.supplier_name}) explains ${top.cases_explained} of ${cases.length} cases and reached ${top.stores_reached} stores.`
+      + (next ? ` Runner-up ${next.lot} explains ${next.cases_explained}.` : '')
+      + (all ? '' : ' No lot explains every case.');
+  return { cluster, total_cases: cases.length, candidates, paths, summary };
+}
+
 export const NOTICES_FILE = process.env.NOTICES_FILE ?? 'out/notices.json'; // tests use their own file
 export type Notice = { lot: string; store: string; name: string; city: string; reason: string; status: 'pending_approval' | 'approved'; drafted_at: string; text: string };
 
@@ -228,12 +269,20 @@ export const tools = {
     description: 'Stores that received an affected SKU but only from lots that do not trace to the bad lot, each with the lots it received as proof. Excludes affected and gap stores.',
   },
   minimal_recall: {
-    handler: minimalRecall,
+    handler: scopeRecall,
     description: 'Combine trace_forward, coverage_gaps and unaffected_stores into the targeted recall: stores to recall, units to pull, and blanket vs targeted vs safe counts. Set add_gap_stores to decide whether gap stores join the recall.',
   },
   trace_backward: {
     handler: traceBackward,
     description: 'Walk product lots backward to every ingredient lot in them (including through rework). Pass lot to check whether each product lot contains it. Use it to independently verify that the lots held by safe stores do not contain the bad lot.',
+  },
+  find_common_source: {
+    handler: findCommonSource,
+    description: 'Outbreak source finder. For a cluster of illness cases, rank ingredient lots by how many cases they explain (the lot reached the store where the person bought the food before they bought it), then by specificity (fewer stores reached for the same cases). Returns the ranking and each explained case\'s path for the top lot.',
+  },
+  case_path: {
+    handler: casePath,
+    description: 'For one ingredient lot and some case ids, return each case\'s path from the lot through batches and product lots to the store where the case bought the food. Cases the lot cannot reach come back in unexplained.',
   },
   draft_recall_notice: {
     handler: draftRecallNotice,

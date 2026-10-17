@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dev A and B Plan</title>
+<style>
+  :root {
+    --bg: #0a0a0a; --card: #141414; --border: #262626; --fg: #fafafa; --muted: #a1a1aa;
+    --accent: #22c55e; --amber: #f59e0b; --red: #ef4444; --blue: #60a5fa;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 1040px; margin: 0 auto; padding: 32px 16px 80px; }
+  h1 { font-size: 28px; margin: 0 0 4px; letter-spacing: -0.02em; }
+  h2 { font-size: 19px; margin: 40px 0 12px; letter-spacing: -0.01em; }
+  h3 { font-size: 15px; margin: 0 0 6px; }
+  p { margin: 6px 0; }
+  .muted { color: var(--muted); }
+  .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); margin-right: 6px; vertical-align: 1px; }
+  .p0 { color: var(--accent); border-color: #14532d; }
+  .p1 { color: var(--amber); border-color: #78350f; }
+  .risk { color: var(--red); border-color: #7f1d1d; }
+  .now { color: var(--blue); border-color: #1e3a8a; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--card); }
+  code, pre { font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  code { background: #1f1f1f; padding: 1px 5px; border-radius: 4px; }
+  pre { background: #0f0f0f; border: 1px solid var(--border); border-radius: 8px; padding: 12px; overflow-x: auto; margin: 8px 0 0; }
+  ol, ul { margin: 6px 0; padding-left: 20px; }
+  li { margin: 3px 0; }
+  .mock { background: #0f0f0f; border: 1px dashed #3f3f46; border-radius: 10px; padding: 14px; margin-top: 8px; }
+  .mock .bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+  .btn { display: inline-block; font-size: 12px; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border); background: #1f1f1f; color: var(--fg); }
+  .btn.primary { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+  .field { flex: 1; min-width: 140px; font: 12px ui-monospace, Menlo, monospace; color: var(--muted); background: #141414; border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; white-space: pre-wrap; }
+  .feeds { font-size: 12px; color: var(--blue); margin: 8px 0 0; }
+  .meter { height: 6px; background: #262626; border-radius: 3px; overflow: hidden; min-width: 60px; }
+  .meter i { display: block; height: 100%; background: var(--accent); }
+  .chain { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; font: 12px ui-monospace, Menlo, monospace; margin: 4px 0; }
+  .chain span { border: 1px solid var(--border); border-radius: 6px; padding: 2px 6px; background: #141414; }
+  .track { position: relative; height: 26px; background: #141414; border: 1px solid var(--border); border-radius: 6px; margin: 6px 0; }
+  .track b { position: absolute; top: 5px; width: 3px; height: 14px; background: var(--muted); border-radius: 2px; }
+  .track .head { background: var(--accent); width: 2px; top: 0; height: 24px; }
+  .trace { font: 12px ui-monospace, Menlo, monospace; color: var(--muted); }
+  .trace div { padding: 3px 0; border-bottom: 1px solid #1f1f1f; }
+  .ok { color: var(--accent); } .warn { color: var(--amber); } .bad { color: var(--red); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Recall Tracer · Dev A and Dev B plan</h1>
+  <p class="muted">Lanes A (graph and data) and B (agent, MCP, API, deploy) from the Recall Tracer Build Plan, mapped onto the repo as it is after the Next.js move (commit 8fb19e3). Written Oct 17.</p>
+
+  <h2>Decisions</h2>
+  <div class="grid">
+    <div class="card"><h3>Outbreak runs on the AI SDK agent</h3><p><code>runOutbreak</code> lives in <code>src/agent/ai-agent.ts</code> as a second <code>ToolLoopAgent</code> with the outbreak prompt. <code>GET /outbreak/stream</code> maps its tool calls and results onto the C3 <code>TraceEvent</code> SSE, so Dev C and the replay route see the same shape as the recall trace.</p></div>
+    <div class="card"><h3>Hosting is Vercel plus an API host (Dev C)</h3><p>Next.js in <code>web/</code> deploys to Vercel with <code>RECALL_API</code> set. The Hono API ships as one container (Railway, Fly or Render) that seeds FalkorDB Cloud on boot. Replay needs no key.</p></div>
+    <div class="card"><h3>Deadline as written</h3><p>Sync 1 Oct 17 22:00. Sync 2 Oct 18 11:00. Freeze Oct 18 12:00. Submit 18:00. P1 starts only if every P0 is green by Sync 2.</p></div>
+    <div class="card"><h3>db_ms comes from FalkorDB itself</h3><p>Each query reads FalkorDB's own "internal execution time". An <code>AsyncLocalStorage</code> scope per tool call sums them, so no handler changes its return type and every MCP result gains <code>db_ms</code> and <code>queries</code>.</p></div>
+  </div>
+
+  <h2>Plan drift to fix with the team</h2>
+  <div class="card">
+    <ul>
+      <li><span class="badge risk">paths</span>Lanes C and D name <code>web/src/App.tsx</code>, <code>pages/*</code>, <code>panels.tsx</code>. The UI now lives in <code>web/app/*</code> and <code>web/components/dashboard/*</code>. The "split App.tsx into a router" item is done by the App Router already. Fixtures stay at <code>web/fixtures/*.json</code>.</li>
+      <li><span class="badge risk">deploy</span>The Dockerfile still runs <code>bun run build</code> (now the Next build, whose deps are not installed) and <code>start</code> serves only the API. Dev C rewrites it as an API-only image.</li>
+      <li><span class="badge risk">seed values</span>The mockup case stores (ST-032, ST-045, …) and the L-117 and L-131 counts are mockup values. A2 picks case stores from the real generator's affected stores and writes the real ranking to <code>expected.json</code>. Dev C reads names from the fixture, never from the mockup.</li>
+    </ul>
+  </div>
+
+  <h2>Contracts (hour 1)</h2>
+  <p class="muted">All live in <code>src/contracts.ts</code>. Fixtures sit next to the UI in <code>web/fixtures/</code>.</p>
+  <div class="grid">
+    <div class="card"><h3><span class="badge now">A</span>C1 cases</h3>
+<pre>Case    {id, region, onset, reported_at, sku?}
+Cluster {id, pathogen, opened_at}
+(Cluster)-[:HAS_CASE]->(Case)
+(Case)-[:BOUGHT_AT {date}]->(Store)</pre>
+      <p>Seed: OB-2026-10, Listeria, 6 cases in OH, PA, MI, IN. Five name a SKU, one is store only.</p></div>
+    <div class="card"><h3><span class="badge now">B</span>C2 outbreak result</h3>
+<pre>{cluster, total_cases,
+ candidates: [{lot, ingredient, supplier,
+   supplier_name, cases_explained,
+   explained: string[], stores_reached,
+   specificity}],
+ paths: {[caseId]: string[][]}, summary}</pre>
+      <p>Fixture <code>web/fixtures/outbreak.json</code>, generated from the real tool output.</p></div>
+    <div class="card"><h3><span class="badge now">B</span>C3 SSE events</h3>
+<pre>TraceEvent as today, plus
+ToolCall.db_ms: number
+ToolCall.queries: number
+ToolCall.kind?: "judgement"</pre>
+      <p><code>judgement</code> marks propose_classification and minimal_recall. Fixture <code>web/fixtures/run-L-204.json</code> (Dev D records it).</p></div>
+    <div class="card"><h3><span class="badge">B</span>C4 graph tags</h3><p>Freeze the step and hop tag fields that <code>GET /graph/:lot</code> already returns. Type only, no behavior change.</p></div>
+  </div>
+
+  <h2>Dev A · Graph and data</h2>
+  <div class="scroll"><table>
+    <tr><th>#</th><th>Item</th><th>Where</th><th>Done when</th></tr>
+    <tr><td>A1</td><td><span class="badge p0">P0</span>C1 types and seed cases</td><td><code>src/contracts.ts</code></td><td>Types compile. Seed list reviewed at Sync 1.</td></tr>
+    <tr><td>A2</td><td><span class="badge p0">P0</span>Generator adds Cluster, Case, HAS_CASE, BOUGHT_AT. Cases draw from their own RNG so the existing graph and every current expectation stay byte-identical. The outbreak ranking goes into <code>expected.json</code>.</td><td><code>src/data/generate.ts</code>, <code>data/expected.json</code></td><td>Invariants hold: L-204 explains 6 of 6 and reaches 31 stores. L-205 explains 0. Every case buys after its shipment arrived.</td></tr>
+    <tr><td>A3</td><td><span class="badge p0">P0</span><code>FIND_COMMON_SOURCE</code>, <code>CASE_PATH</code>, LOAD and INDEXES for Case and Cluster</td><td><code>src/graph/queries.ts</code></td><td>Cypher ranking equals the generator's in-memory ranking.</td></tr>
+    <tr><td>A4</td><td><span class="badge p0">P0</span><code>findCommonSource</code>, <code>casePath</code> handlers and schemas</td><td><code>src/tools/index.ts</code>, <code>tests/tools.test.ts</code></td><td>Result matches C2. Bad case ids are rejected before any query runs.</td></tr>
+    <tr><td>A5</td><td><span class="badge p0">P0</span>Query timing</td><td><code>src/graph/db.ts</code></td><td>A measured tool call reports a non-zero <code>db_ms</code> and the right query count.</td></tr>
+    <tr><td>A6</td><td><span class="badge p0">P0</span>Cases ingest. Parse CSV or pasted tab text, match stores by id then by name plus city, report rejected rows.</td><td><code>src/data/cases.ts</code></td><td>Pasting the seed cases round-trips. A bad row comes back with its reason.</td></tr>
+    <tr><td>A7</td><td><span class="badge p1">P1</span><code>algo.SPpaths</code> path, FSMA 204 import with dry run, <code>--scale</code></td><td><code>src/data/*</code></td><td>Only after Sync 2.</td></tr>
+  </table></div>
+
+  <h2>Dev B · Agent, MCP, API, deploy</h2>
+  <div class="scroll"><table>
+    <tr><th>#</th><th>Item</th><th>Where</th><th>Done when</th></tr>
+    <tr><td>B1</td><td><span class="badge p0">P0</span>C2 and C3 types and fixtures</td><td><code>src/contracts.ts</code>, <code>web/fixtures/outbreak.json</code></td><td>Dev C builds Page 1 on the fixture.</td></tr>
+    <tr><td>B2</td><td><span class="badge p0">P0</span><code>GET /recall/replay?lot=&amp;speed=</code> streams a recorded run as SSE with its recorded gaps, divided by speed</td><td><code>src/api/server.ts</code>, <code>demo/run-*.json</code></td><td>Works with no API key. <code>speed=2</code> halves the wait.</td></tr>
+    <tr><td>B3</td><td><span class="badge p0">P0</span>find_common_source and case_path on MCP. <code>db_ms</code> and <code>queries</code> on every tool result and every <code>tool_end</code>.</td><td><code>src/mcp/tools.ts</code>, <code>src/agent/run.ts</code></td><td>The MCP client lists 10 tools. A live trace shows ms per step.</td></tr>
+    <tr><td>B4</td><td><span class="badge p0">P0</span>Outbreak mode. The prompt, <code>runOutbreak</code> on the AI SDK agent, <code>POST /outbreak</code>, <code>GET /outbreak/stream</code>, <code>POST /ingest/cases</code>.</td><td><code>src/agent/ai-agent.ts</code>, <code>src/api/server.ts</code></td><td>The stream shows note, tool call and result. The summary names the lot and the decoy. Bad case ids are rejected without a Claude call.</td></tr>
+    <tr><td>B5</td><td><span class="badge p0">P0</span><code>GET /incidents</code> and <code>/incidents/supplier/:id</code></td><td><code>src/api/server.ts</code></td><td>Lists incidents with the time from notice to scope.</td></tr>
+    <tr><td>B7</td><td><span class="badge p1">P1</span><code>GET /explain</code> runs <code>GRAPH.EXPLAIN</code></td><td><code>src/api/server.ts</code></td><td>Only after Sync 2.</td></tr>
+  </table></div>
+
+  <h2>Moved to Dev C · Deploy</h2>
+  <div class="scroll"><table>
+    <tr><th>#</th><th>Item</th><th>Where</th><th>Done when</th></tr>
+    <tr><td>C·B6</td><td><span class="badge p0">P0</span>Deploy. API-only Dockerfile that seeds on boot. Vercel project for <code>web/</code> with <code>RECALL_API</code>. FalkorDB Cloud through <code>FALKORDB_HOST</code>, <code>PORT</code>, <code>USERNAME</code>, <code>PASSWORD</code>.</td><td><code>Dockerfile</code>, <code>docker-compose.yml</code>, <code>.env.example</code>, <code>src/graph/db.ts</code> (auth fields only)</td><td>The public URL opens the dashboard. Replay works with no key. A live run works with the team key.</td></tr>
+  </table></div>
+  <p class="muted">Dev B hands over: replay needs no key, and every route stays on the Hono API so one <code>RECALL_API</code> covers it.</p>
+
+  <h2>Functions and routes, input and output</h2>
+  <p class="muted">Dev A and B build no UI. Their UI deliverable is the shapes below plus <code>web/fixtures/outbreak.json</code>, so Dev C and D build pages before the API lands. <span class="badge p0">built</span> exists in the working tree, not committed. <span class="badge now">proposed</span> is not built yet.</p>
+  <div class="grid">
+    <div class="card"><h3><span class="badge p0">built</span>find_common_source · A4, B3</h3><p class="muted">MCP tool. <code>src/tools/index.ts</code></p>
+<pre>in:  { cluster: string }            // "OB-2026-10"
+out: OutbreakResult                 // src/contracts.ts
+  { cluster, total_cases,
+    candidates: { lot, ingredient, supplier,
+      supplier_name, cases_explained,
+      explained: string[], stores_reached,
+      specificity }[],
+    paths: Record&lt;caseId, string[][]&gt;,
+    summary }</pre></div>
+    <div class="card"><h3><span class="badge p0">built</span>case_path · A4, B3</h3><p class="muted">MCP tool. <code>src/tools/index.ts</code></p>
+<pre>in:  { lot: string,
+       cases: string[] }            // 1 to 200 ids
+out: { lot,
+       paths: Record&lt;caseId, string[][]&gt;,
+       unexplained: string[] }</pre></div>
+    <div class="card"><h3><span class="badge p0">built</span>measure · A5</h3><p class="muted"><code>src/graph/db.ts</code>. Every <code>tool_end</code> carries <code>db_ms</code> and <code>queries</code>; judgement tools carry <code>kind: 'judgement'</code>.</p>
+<pre>measure&lt;T&gt;(fn: () =&gt; Promise&lt;T&gt;)
+  : Promise&lt;{ result: T,
+              db_ms: number,
+              queries: number }&gt;</pre></div>
+    <div class="card"><h3><span class="badge now">proposed</span>Replay · B2</h3><p class="muted"><code>src/api/server.ts</code>. No API key. 404 if no recording for the lot.</p>
+<pre>GET /recall/replay?lot=L-204&amp;speed=2
+file: demo/run-&lt;lot&gt;.json
+  = { events: { t_ms: number,
+                event: TraceEvent }[] }
+out: SSE of TraceEvent,
+     each gap divided by speed</pre></div>
+    <div class="card"><h3><span class="badge now">proposed</span>Cases ingest · A6</h3><p class="muted"><code>src/data/cases.ts</code>. CSV or pasted tab text. Store matches by id, then name plus city.</p>
+<pre>parseCases(text: string): {
+  cases: CaseInput[],
+    // { id, region, onset, reported_at,
+    //   sku?, store, bought_at }
+  rejected: { row: number, line: string,
+              reason: string }[] }
+
+loadCases(cluster: Cluster,
+          cases: CaseInput[])
+  : Promise&lt;{ loaded: number }&gt;</pre></div>
+    <div class="card"><h3><span class="badge now">proposed</span>Outbreak mode · B4</h3><p class="muted"><code>src/agent/ai-agent.ts</code>, <code>src/api/server.ts</code>. Unknown cluster or no cases is a 400 before any Claude call.</p>
+<pre>runOutbreak(cluster: string,
+  onEvent: (e: TraceEvent) =&gt; void)
+  : Promise&lt;OutbreakResult&gt;
+
+POST /ingest/cases
+  in:  { cluster, pathogen?, text }
+  out: { cluster, loaded, rejected }
+POST /outbreak
+  in:  { cluster }  out: OutbreakResult
+GET  /outbreak/stream?cluster=OB-2026-10
+  out: SSE of TraceEvent</pre>
+<p><span class="badge risk">C3 change</span>TraceEvent gains <code>{ type: 'start', cluster, model }</code> and <code>{ type: 'done', outbreak: OutbreakResult }</code>. Tell Dev C before Page 1 goes live.</p></div>
+    <div class="card"><h3><span class="badge now">proposed</span>Incidents · B5</h3><p class="muted"><code>src/api/server.ts</code>. <code>minutes_to_scope</code> is <code>reported_at</code> to the first <code>minimal_recall</code>; nothing records that time yet.</p>
+<pre>GET /incidents
+out: IncidentSummary[] = {
+  id, lot, hazard, reported_at,
+  class, confirmed_class,
+  scoped_at, minutes_to_scope,
+  stores: number,
+  status: 'open' | 'scoped'
+        | 'notices_sent' }
+
+GET /incidents/supplier/:id
+out: { supplier, name,
+       incidents: IncidentSummary[] }</pre></div>
+  </div>
+
+  <h2>Dummy UI: what each function feeds</h2>
+  <p class="muted">Wireframes only. The candidate table, summary and C1 path come from <code>web/fixtures/outbreak.json</code>. The replay step, History rows and case_path timing are placeholder values. Dev C and Dev D build the real pages in <code>web/app/*</code>. Dev A and B build no UI. These show which page reads each function and route, so both sides agree on the shape. The blue line under each panel names the source.</p>
+
+  <div class="card"><h3>Page 1 · Outbreak intake, paste cases</h3>
+    <div class="mock">
+      <div class="bar"><span class="field">C1	OH	2026-10-04	2026-10-09	SKU-11	ST-029	2026-10-02
+C2	PA	2026-10-05	…
+C7	OH	bad-date	…</span></div>
+      <div class="bar"><span class="btn">Load example</span><span class="btn primary">Ingest cases</span><span class="muted" style="font-size:12px">Cluster OB-2026-10 · Listeria</span></div>
+      <div class="trace"><div class="ok">6 cases loaded</div><div class="bad">Row 7 rejected. onset is not a date.</div></div>
+    </div>
+    <p class="feeds">Feeds from A6 <code>parseCases</code> and <code>loadCases</code> through B4 <code>POST /ingest/cases</code> → <code>{ loaded, rejected[] }</code></p>
+  </div>
+
+  <div class="card" style="margin-top:12px"><h3>Page 1 · Candidate lots</h3>
+    <div class="mock">
+      <div class="bar"><span class="btn primary">Find common source</span><span class="muted" style="font-size:12px">6 cases · ranked by cases explained, then specificity</span></div>
+      <div class="scroll"><table>
+        <tr><th>Lot</th><th>Ingredient</th><th>Supplier</th><th>Cases</th><th></th><th>Stores</th><th>Specificity</th></tr>
+        <tr><td><b>L-204</b></td><td>diced carrot</td><td>Valley Root Co.</td><td>6 / 6</td><td><div class="meter"><i style="width:100%"></i></div></td><td>31</td><td>0.19</td></tr>
+        <tr><td>L-162</td><td>basil</td><td>Harlow Farms</td><td>4 / 6</td><td><div class="meter"><i style="width:67%"></i></div></td><td>23</td><td>0.17</td></tr>
+        <tr><td>L-143</td><td>vegetable stock</td><td>Cedar Hill Dairy</td><td>2 / 6</td><td><div class="meter"><i style="width:33%"></i></div></td><td>10</td><td>0.20</td></tr>
+        <tr><td>L-101</td><td>red lentils</td><td>Oakline Foods</td><td>2 / 6</td><td><div class="meter"><i style="width:33%"></i></div></td><td>23</td><td>0.09</td></tr>
+      </table></div>
+      <p style="font-size:13px;margin-top:8px">L-204 (diced carrot, Valley Root Co.) explains 6 of 6 cases and reached 31 stores. Runner-up L-162 explains 4.</p>
+    </div>
+    <p class="feeds">Feeds from <code>find_common_source</code> through B4 <code>POST /outbreak</code> → <code>OutbreakResult.candidates</code> and <code>.summary</code></p>
+  </div>
+
+  <div class="grid" style="margin-top:12px">
+    <div class="card"><h3>Page 1 · Case evidence</h3>
+      <div class="mock">
+        <div class="muted" style="font-size:12px">C1 · OH · bought 2026-10-02</div>
+        <div class="chain"><span>L-204</span>→<span>B-03</span>→<span>TLC-03B</span>→<span>ST-029</span>→<span>C1</span></div>
+        <div class="muted" style="font-size:12px;margin-top:8px">Check L-162 against C2, C3</div>
+        <div class="trace"><div class="warn">Unexplained: C2, C3</div></div>
+      </div>
+      <p class="feeds">Feeds from <code>OutbreakResult.paths</code> and <code>case_path</code> → <code>{ paths, unexplained }</code></p>
+    </div>
+
+    <div class="card"><h3>Page 1 · Agent column, live</h3>
+      <div class="mock trace">
+        <div>start · OB-2026-10 · claude-opus-5-5</div>
+        <div>note · Ranking lots for 6 cases</div>
+        <div>tool_end · find_common_source · <span class="ok">2.5 ms</span> · 4 queries</div>
+        <div>tool_end · case_path · <span class="ok">1.1 ms</span> · 1 query</div>
+        <div class="ok">done · L-204, decoy L-162</div>
+      </div>
+      <p class="feeds">Feeds from B4 <code>GET /outbreak/stream</code> → SSE <code>TraceEvent</code> with <code>db_ms</code> and <code>queries</code> from A5</p>
+    </div>
+  </div>
+
+  <div class="grid" style="margin-top:12px">
+    <div class="card"><h3>Page 3b · Replay scrubber</h3>
+      <div class="mock">
+        <div class="bar"><span class="btn">▶ Play</span><span class="btn">1×</span><span class="btn primary">2×</span><span class="muted" style="font-size:12px">L-204 · recorded run</span></div>
+        <div class="track"><b style="left:6%"></b><b style="left:18%"></b><b style="left:31%"></b><b style="left:44%"></b><b style="left:58%"></b><b style="left:71%"></b><b style="left:86%"></b><b class="head" style="left:58%"></b></div>
+        <div class="trace"><div>Step 5 of 7 · minimal_recall · 18 of 64 stores</div></div>
+      </div>
+      <p class="feeds">Feeds from B2 <code>GET /recall/replay?lot=&amp;speed=</code> → SSE <code>TraceEvent</code>, no API key</p>
+    </div>
+
+    <div class="card"><h3>Page 7 · History</h3>
+      <div class="mock">
+        <div class="scroll"><table>
+          <tr><th>Incident</th><th>Lot</th><th>Class</th><th>To scope</th><th>Status</th></tr>
+          <tr><td>INC-20261017-L204</td><td>L-204</td><td>I</td><td>4 min</td><td><span class="badge p0">scoped</span></td></tr>
+          <tr><td>INC-20261012-L162</td><td>L-162</td><td>II</td><td>7 min</td><td><span class="badge now">notices_sent</span></td></tr>
+        </table></div>
+        <div class="bar" style="margin:8px 0 0"><span class="btn">Supplier S-03 · Valley Root Co. · 1 incident</span></div>
+      </div>
+      <p class="feeds">Feeds from B5 <code>GET /incidents</code> and <code>/incidents/supplier/:id</code> → <code>IncidentSummary[]</code></p>
+    </div>
+  </div>
+
+  <h2>Order</h2>
+  <div class="card">
+    <ol>
+      <li><b>Tonight before Sync 1.</b> A1 and B1 contracts. A5 timing. A2 generator. A3 and A4 queries and handlers with tests. B3 MCP registration.</li>
+      <li><b>Tonight after Sync 1.</b> B2 replay. A6 ingest. B4 outbreak mode. B5 incidents.</li>
+      <li><b>Morning before Sync 2.</b> Support Dev C on the deploy. Fix anything the hosted run shows in A or B code.</li>
+      <li><b>Sync 2 to freeze.</b> P1 only if P0 is green. Redeploy after freeze.</li>
+    </ol>
+    <p class="muted">Critical path: C1 → A2 → A3 → A4 → B3 → B4 → C5 (Dev C wires Page 1 live).</p>
+  </div>
+
+  <h2>Risks</h2>
+  <div class="card">
+    <ul>
+      <li><span class="badge risk">SSE on Vercel</span>Vercel rewrites proxy to an external API but can cut long streams. If <code>/outbreak/stream</code> or replay stalls, the browser calls the API host directly with CORS on.</li>
+      <li><span class="badge risk">FalkorDB Cloud auth</span><code>db.ts</code> has no username or password today. Dev C adds them. TLS may be needed on the free tier.</li>
+      <li><span class="badge risk">counts</span>Adding cases changes node and edge totals in <code>expected.json</code>. The dashboard's "163 records" line reads the live count, so nothing hardcodes it.</li>
+    </ul>
+  </div>
+</main>
+</body>
+</html>
