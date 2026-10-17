@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { IncidentStrip } from "./incident-strip";
 
 // The order a coordinator works in: find the source, take the supplier's notice, run the incident.
 const LINKS = [
@@ -30,9 +31,13 @@ export function Nav({ graphLine }: { graphLine: React.ReactNode }) {
       <nav aria-label="Sections" className="flex flex-wrap items-center gap-1 text-sm">{LINKS.map((l) => link(l.href, l.label))}</nav>
       <div className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
         {graphLine}
+        {/* The recorded L-204 run with its real timings: the demo path that needs no Claude key.
+            A full page load, not <Link>: from an open incident, a client navigation would keep the old view mounted. */}
+        <a href="/incident/L-204?replay=1" className="rounded-md px-2.5 py-1 hover:text-foreground">⟳ Replay demo</a>
         {link("/real", "Real data", "text-xs")}
         {link("/agent", "Ask the agent", "text-xs")}
       </div>
+      <IncidentStrip pathname={pathname} />
     </header>
   );
 }
