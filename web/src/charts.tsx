@@ -108,7 +108,7 @@ export function FlowChart({ r, focus }: { r: Report; focus?: string }) {
             <line x1="0" y1="0" x2="0" y2="6" stroke="var(--gap-ink)" strokeWidth="2" opacity=".55" />
           </pattern>
         </defs>
-        {['Lot', 'Batches', 'Rework', 'Product lots', 'States'].map((t, c) => (
+        {['Bad lot', 'Batches made with it', 'Rework', 'Product lots', 'States (units delivered)'].map((t, c) => (
           <text key={t} x={X(c)} y={H + 20} className="axis-label">{t}</text>
         ))}
         {links.map((l, i) => {
@@ -137,109 +137,96 @@ export function FlowChart({ r, focus }: { r: Report; focus?: string }) {
   );
 }
 
-// --- Where it went: state tile map ------------------------------------------
+// --- By state: stacked bars, click to filter the store table ----------------
 
-/** Stylised tile grid of the region (col,row). States without data are drawn as ghosts for orientation. */
-const TILES: Record<string, [number, number]> = {
-  WI: [1, 0], MI: [2, 0], NY: [4, 0],
-  IL: [0, 1], IN: [1, 1], OH: [2, 1], PA: [3, 1], NJ: [4, 1],
-  MO: [0, 2], KY: [1, 2], WV: [2, 2], VA: [3, 2], MD: [4, 2],
-};
+type Store = Report['stores'][number];
 
-export function TileMap({ r, onPick }: { r: Report; onPick: (state: string) => void }) {
-  const { show, hide, el } = useTip();
-  const S = 86, G = 6;
-  const by = (st: string) => r.stores.filter((s) => s.region === st);
+export function StateBars({ r, active, onPick }: { r: Report; active?: string; onPick: (state?: string) => void }) {
+  const by = new Map<string, Store[]>();
+  r.stores.forEach((s) => by.set(s.region, [...(by.get(s.region) ?? []), s]));
+  const rows = [...by].map(([st, list]) => ({
+    st, list,
+    n: { recall: list.filter((s) => s.status === 'recall').length, gap: list.filter((s) => s.status === 'gap').length, safe: list.filter((s) => s.status === 'safe').length },
+    units: list.reduce((a, s) => a + s.units_at_risk, 0),
+    cities: [...new Set(list.map((s) => s.city))].sort().join(', '),
+  })).sort((a, b) => b.n.recall + b.n.gap - (a.n.recall + a.n.gap) || b.units - a.units);
+  const max = Math.max(...rows.map((x) => x.list.length));
   return (
-    <div className="chart-wrap">
-      <svg viewBox={`0 0 ${5 * (S + G)} ${3 * (S + G)}`} className="tiles" role="img" aria-label="Stores by state">
-        {Object.entries(TILES).map(([st, [c, row]]) => {
-          const list = by(st), x = c * (S + G), y = row * (S + G);
-          if (!list.length) return (
-            <g key={st}><rect x={x} y={y} width={S} height={S} rx={6} className="tile ghost" /><text x={x + 8} y={y + 18} className="tile-code ghost">{st}</text></g>
-          );
-          const n = { recall: 0, gap: 0, safe: 0 };
-          list.forEach((s) => n[s.status]++);
-          const units = list.reduce((a, s) => a + s.units_at_risk, 0);
-          let bx = x + 8;
-          return (
-            <g key={st} className="tile-g" onClick={() => onPick(st)}
-              onMouseMove={(e) => show(e, <><b>{st}</b>: {n.recall} to recall, {n.gap} gap, {n.safe} safe<br />{fmt(units)} units to pull<br />{[...new Set(list.map((s) => s.city))].join(', ')}</>)}
-              onMouseLeave={hide}>
-              <rect x={x} y={y} width={S} height={S} rx={6} className="tile" />
-              <text x={x + 8} y={y + 18} className="tile-code">{st}</text>
-              <text x={x + 8} y={y + 50} className="tile-num">{n.recall + n.gap}</text>
-              <text x={x + 8} y={y + 64} className="tile-sub">of {list.length} stores</text>
-              {(['recall', 'gap', 'safe'] as const).map((k) => {
-                const w = ((S - 16) * n[k]) / list.length;
-                const rect = <rect key={k} x={bx} y={y + S - 14} width={Math.max(0, w - 2)} height={6} rx={2} className={`bar ${k}`} />;
-                bx += w;
-                return rect;
-              })}
-            </g>
-          );
-        })}
-      </svg>
-      {el}
-    </div>
+    <ul className="state-bars">
+      {rows.map((x) => (
+        <li key={x.st} className={active === x.st ? 'active' : ''} onClick={() => onPick(active === x.st ? undefined : x.st)} title={x.cities}>
+          <span className="st">{x.st}</span>
+          <span className="track"><span className="bar" style={{ width: `${(100 * x.list.length) / max}%` }}>
+            {(['recall', 'gap', 'safe'] as const).map((k) => x.n[k] ? <i key={k} className={k} style={{ width: `${(100 * x.n[k]) / x.list.length}%` }} /> : null)}
+          </span></span>
+          <span className="nums"><b>{x.n.recall + x.n.gap}</b> of {x.list.length} pull<span className="sub">{fmt(x.units)} units, {x.cities}</span></span>
+        </li>
+      ))}
+    </ul>
   );
 }
 
-// --- Exposure window: when affected product reached shelves -------------------
+// --- Exposure: when affected product reached shelves, and how long it stays in date ---
 
-export function ExposureStrip({ r }: { r: Report }) {
-  const { show, hide, el } = useTip();
-  const W = 460, ROW = 46, L = 132, R = 16;
+export function Exposure({ r }: { r: Report }) {
   const pts = r.stores.flatMap((st) => [
-    ...st.shipments.filter((s) => s.affected).map((s) => ({ st, sku: s.sku, date: s.shipped_at, units: s.units, lot: s.lot, gap: false })),
-    ...st.untracked.map((u) => ({ st, sku: u.sku, date: u.shipped_at, units: u.units, lot: 'no lot code', gap: true })),
+    ...st.shipments.filter((s) => s.affected).map((s) => ({ date: s.shipped_at, units: s.units })),
+    ...st.untracked.map((u) => ({ date: u.shipped_at, units: u.units })),
   ]);
   if (!pts.length) return null;
   const dates = pts.map((p) => p.date).sort();
-  const t0 = Date.parse(dates[0]), t1 = Date.parse(dates.at(-1)!), span = Math.max(1, (t1 - t0) / 864e5);
-  const x = (d: string) => L + ((Date.parse(d) - t0) / 864e5 / span) * (W - L - R);
-  const stack = new Map<string, number>();
-  const H = r.skus.length * ROW + 26;
-  const days = Math.round((Date.now() - t0) / 864e5);
+  const t0 = Date.parse(dates[0]), t1 = Date.parse(dates.at(-1)!);
+  const days = Array.from({ length: Math.round((t1 - t0) / 864e5) + 1 }, (_, i) => new Date(t0 + i * 864e5).toISOString().slice(0, 10));
+  const perDay = days.map((d) => pts.filter((p) => p.date === d).reduce((n, p) => n + p.units, 0));
+  const max = Math.max(...perDay);
+  const onShelf = Math.round((Date.now() - t0) / 864e5);
+  const bb = r.product_lots.filter((p) => p.affected).map((p) => p.best_by).sort();
+  const inDate = bb.filter((d) => Date.parse(d) >= Date.now()).length;
   return (
-    <div className="chart-wrap">
-      <p className="chart-note">First affected shipment {shortDate(dates[0])}, last {shortDate(dates.at(-1)!)}. The oldest product has been on shelves for {days} days.</p>
-      <svg viewBox={`0 0 ${W} ${H}`} className="strip" role="img" aria-label="Affected shipments by date and product">
-        {r.skus.map((s, i) => (
-          <g key={s.sku}>
-            <line x1={L} x2={W - R} y1={i * ROW + ROW / 2} y2={i * ROW + ROW / 2} className="grid" />
-            <text x={0} y={i * ROW + ROW / 2} dy="0.35em" className="row-label">{s.product}</text>
-          </g>
+    <div className="exposure">
+      <dl className="facts">
+        <div><dt>Deliveries to stores</dt><dd>{shortDate(dates[0])} to {shortDate(dates.at(-1)!)}<span className="sub">{pts.length} deliveries, {fmt(pts.reduce((n, p) => n + p.units, 0))} units</span></dd></div>
+        <div><dt>Time on shelves</dt><dd>up to {onShelf} days<span className="sub">product is sold and eaten daily</span></dd></div>
+        <div><dt>Best-by dates</dt><dd>{shortDate(bb[0])} to {shortDate(bb.at(-1)!)}<span className="sub">{inDate === bb.length ? 'all lots still within date' : `${inDate} of ${bb.length} lots still within date`}</span></dd></div>
+      </dl>
+      <div className="daybars" role="img" aria-label="Units delivered per day">
+        {days.map((d, i) => (
+          <div key={d} className="day" title={`${shortDate(d)}: ${fmt(perDay[i])} units`}>
+            <i style={{ height: `${perDay[i] ? Math.max(4, (100 * perDay[i]) / max) : 0}%` }} />
+            <span>{shortDate(d).replace(/^\w+ /, '')}</span>
+          </div>
         ))}
-        {pts.map((p, i) => {
-          const row = r.skus.findIndex((s) => s.sku === p.sku), key = `${p.sku}${p.date}`, k = stack.get(key) ?? 0;
-          stack.set(key, k + 1);
-          const cy = row * ROW + ROW / 2 + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 9;
-          return (
-            <circle key={i} cx={x(p.date)} cy={cy} r={4.5} className={p.gap ? 'dot gap' : 'dot recall'}
-              onMouseMove={(e) => show(e, <><b>{p.st.name}</b> ({p.st.city}, {p.st.region})<br />{p.units} units of {p.lot} on {shortDate(p.date)}</>)} onMouseLeave={hide} />
-          );
-        })}
-        {[...new Set(dates)].map((d) => <text key={d} x={x(d)} y={H - 4} className="axis-label" textAnchor="middle">{shortDate(d).replace(/^\w+ /, '')}</text>)}
-      </svg>
-      {el}
+      </div>
     </div>
   );
 }
 
-// --- Network: every record as a node, click to isolate what reaches it ------
+// --- Network: every record as a node, revealed step by step as the agent works --------
 
 const COLOR: Record<string, string> = {
   lot: '#8f1d1d', batch: '#c4471b', 'product-lot': '#c4471b', 'store-affected': '#c4471b',
   product: '#e5b021', 'store-gap': '#e5b021', 'store-safe': '#a9b1ae', 'product-lot-clean': '#c9cfcc',
+  site: '#2f5d8a', dc: '#2f5d8a', 'lot-clean': '#c9cfcc',
 };
-type Elements = { nodes: { data: { id: string; kind: string } }[]; edges: { data: { id: string; source: string; target: string; kind: string } }[] };
+const EDGE: Record<string, { color: string; style?: string }> = {
+  affected: { color: '#c4471b' }, untracked: { color: '#c99a12', style: 'dashed' }, clean: { color: '#d4d9d6' },
+  held: { color: '#2f5d8a', style: 'dotted' }, origin: { color: '#2f7d5b' },
+};
+type Elements = { nodes: { data: { id: string; kind: string; stage: string; depth: number; label?: string } }[]; edges: { data: { id: string; source: string; target: string; kind: string; stage: string; depth: number } }[] };
+const HOP_MS = 650;
 
-export function NetworkGraph({ lot, focus, onPick }: { lot: string; focus?: string; onPick: (store: string) => void }) {
+/**
+ * `stages` is the ordered list of agent steps completed so far ('start' first). Elements appear when their
+ * stage completes; the forward trace is staggered hop by hop so the spread is visible. Shrinking `stages` replays.
+ */
+export function NetworkGraph({ lot, stages, animating, focus, onPick }: { lot: string; stages: string[]; animating: boolean; focus?: string; onPick: (store: string) => void }) {
   const ref = useRef<HTMLDivElement>(null);
   const cyRef = useRef<cytoscape.Core>(null);
+  const revealed = useRef(new Set<string>());
+  const timers = useRef<number[]>([]);
   const [els, setEls] = useState<Elements>();
   useEffect(() => { fetch(`/graph/${lot}`).then((r) => r.json()).then(setEls); }, [lot]);
+
   useEffect(() => {
     if (!els || !ref.current) return;
     const cy = cytoscape({
@@ -247,55 +234,113 @@ export function NetworkGraph({ lot, focus, onPick }: { lot: string; focus?: stri
       elements: [...els.nodes, ...els.edges],
       layout: { name: 'preset', positions: layered(els) as never },
       style: [
-        { selector: 'node', style: { 'background-color': (n: any) => COLOR[n.data('kind')] ?? '#888', width: 11, height: 11, label: 'data(id)', 'font-size': 8, 'font-family': 'IBM Plex Sans', color: '#3a4441', 'text-valign': 'bottom', 'text-margin-y': 2 } },
+        { selector: 'node', style: { 'background-color': (n: any) => COLOR[n.data('kind')] ?? '#888', width: 11, height: 11, label: (n: any) => n.data('label') ?? n.data('id'), 'font-size': 8, 'font-family': 'IBM Plex Sans', color: '#3a4441', 'text-valign': 'bottom', 'text-margin-y': 2, 'transition-property': 'opacity, width, height', 'transition-duration': 350 } },
         { selector: 'node[kind = "lot"]', style: { width: 22, height: 22, 'font-size': 11, 'font-weight': 600 } },
-        { selector: 'edge', style: { width: 1, 'line-color': '#d4d9d6', 'curve-style': 'bezier', 'target-arrow-shape': 'triangle', 'target-arrow-color': '#d4d9d6', 'arrow-scale': 0.5 } },
-        { selector: 'edge[kind = "affected"]', style: { 'line-color': '#c4471b', 'target-arrow-color': '#c4471b', width: 1.4 } },
-        { selector: 'edge[kind = "untracked"]', style: { 'line-color': '#c99a12', 'target-arrow-color': '#c99a12', 'line-style': 'dashed', width: 1.4 } },
+        { selector: 'node[kind = "site"], node[kind = "dc"]', style: { shape: 'round-rectangle', width: 16, height: 16 } },
+        { selector: 'node[kind = "lot-clean"]', style: { width: 7, height: 7, 'font-size': 6 } },
+        { selector: 'edge', style: { width: 1, 'line-color': (e: any) => EDGE[e.data('kind')]?.color ?? '#d4d9d6', 'target-arrow-color': (e: any) => EDGE[e.data('kind')]?.color ?? '#d4d9d6', 'line-style': ((e: any) => EDGE[e.data('kind')]?.style ?? 'solid') as never, 'curve-style': 'bezier', 'target-arrow-shape': 'triangle', 'arrow-scale': 0.5, 'transition-property': 'opacity', 'transition-duration': 350 } },
+        { selector: 'edge[kind = "affected"], edge[kind = "untracked"], edge[kind = "held"]', style: { width: 1.4 } },
+        { selector: 'edge[kind = "origin"]', style: { width: 1.2, opacity: 0.9 } },
+        { selector: '.flowing', style: { 'line-style': 'dashed', 'line-dash-pattern': [6, 4] } },
+        { selector: '.verified', style: { 'border-width': 2, 'border-color': '#2f7d5b' } },
+        { selector: '.noticed', style: { 'border-width': 2, 'border-color': '#1c2321' } },
+        { selector: '.just', style: { width: 18, height: 18 } },
+        { selector: '.hidden', style: { opacity: 0, events: 'no' } },
+        { selector: '.faded', style: { opacity: 0.25 } },
         { selector: '.dim', style: { opacity: 0.1 } },
       ],
       userZoomingEnabled: false, // keep the mouse wheel for page scroll
     });
+    cy.elements().addClass('hidden');
+    revealed.current = new Set();
     if (import.meta.env.DEV) (window as unknown as { cy: typeof cy }).cy = cy; // lets the demo recorder click nodes
     cy.on('tap', (e) => {
       cy.elements().removeClass('dim');
       if (e.target === cy) return;
-      cy.elements().not(e.target.predecessors().add(e.target)).addClass('dim');
+      cy.elements().not(e.target.predecessors().add(e.target)).not('.hidden').addClass('dim');
       if (String(e.target.data('kind')).startsWith('store')) onPick(e.target.id());
     });
     cyRef.current = cy;
-    return () => cy.destroy();
+    return () => { cy.destroy(); timers.current.forEach(clearTimeout); };
   }, [els]);
+
+  // Reveal newly completed stages; a shrunk list (replay) hides everything again.
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy) return;
+    const want = new Set(stages);
+    if ([...revealed.current].some((s) => !want.has(s))) {
+      timers.current.forEach(clearTimeout); timers.current = [];
+      cy.elements().addClass('hidden').removeClass('verified noticed faded flowing just');
+      revealed.current = new Set();
+    }
+    const instant = revealed.current.size === 0 && stages.length > 2; // a saved run: show it all at once
+    for (const stage of stages) {
+      if (revealed.current.has(stage)) continue;
+      revealed.current.add(stage);
+      const show = (sel: string, delay: number, cls?: string) => {
+        const t = window.setTimeout(() => {
+          const e = cy.elements(sel);
+          e.removeClass('hidden');
+          if (cls) e.addClass(cls);
+          e.nodes().addClass('just'); window.setTimeout(() => e.nodes().removeClass('just'), 500);
+        }, instant ? 0 : delay);
+        timers.current.push(t);
+      };
+      if (stage === 'draft_recall_notice') { show('node[kind = "store-affected"], node[kind = "store-gap"]', 0, 'noticed'); continue; }
+      if (stage === 'trace_backward') {
+        show('[stage = "trace_backward"]', 0);
+        show('node[kind = "store-safe"]', 600, 'verified');
+        timers.current.push(window.setTimeout(() => cy.elements('edge[kind = "origin"], node[kind = "lot-clean"]').addClass('faded'), instant ? 0 : 3200));
+        continue;
+      }
+      const depths = [...new Set(cy.elements(`[stage = "${stage}"]`).map((e) => e.data('depth') as number))].sort((a, b) => a - b);
+      depths.forEach((d, i) => show(`[stage = "${stage}"][depth = ${d}]`, i * HOP_MS, stage === 'trace_forward' ? 'flowing' : undefined));
+    }
+  }, [stages, els]);
+
+  // While the agent works, the affected edges carry a moving dash so the flow reads as motion.
+  useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy) return;
+    if (!animating) { cy.edges().removeClass('flowing'); return; }
+    let off = 0;
+    const t = window.setInterval(() => { off -= 1; cy.edges('.flowing').style('line-dash-offset', off); }, 60);
+    return () => clearInterval(t);
+  }, [animating, els]);
+
   useEffect(() => {
     const cy = cyRef.current;
     if (!cy || !focus) return;
     const n = cy.$id(focus);
-    if (n.nonempty()) { cy.elements().removeClass('dim'); cy.elements().not(n.predecessors().add(n)).addClass('dim'); }
+    if (n.nonempty()) { cy.elements().removeClass('dim'); cy.elements().not(n.predecessors().add(n)).not('.hidden').addClass('dim'); }
   }, [focus, els]);
   return <div className="network" ref={ref} />;
 }
 
-const ROW = 30, COLW = 230;
-/** Columns: lot → batches (rework one step right) → product lots → stores in four sub-columns. */
+const ROW = 30, COLW = 210;
+/** Columns: ingredient lots → batches (rework one step right) → product lots → plants and DCs → stores in four sub-columns. */
 function layered({ nodes, edges }: Elements) {
   const reworked = new Set(edges.filter((e) => e.data.source.startsWith('B-') && e.data.target.startsWith('B-')).map((e) => e.data.target));
   const order = ['store-affected', 'store-gap', 'store-safe'];
   const stores = nodes.filter((n) => n.data.kind.startsWith('store')).sort((a, b) => order.indexOf(a.data.kind) - order.indexOf(b.data.kind));
   const col = (kind: string, id: string) =>
-    kind === 'lot' ? 0 : kind === 'batch' ? (reworked.has(id) ? 1.6 : 1) : kind.startsWith('product') ? 2.4 : 3.4;
+    kind === 'lot' || kind === 'lot-clean' ? 0 : kind === 'batch' ? (reworked.has(id) ? 1.6 : 1) : kind.startsWith('product') ? 2.4 : kind === 'site' || kind === 'dc' ? 3.2 : 4.2;
+  const rank = (kind: string) => (kind === 'lot' ? 0 : kind === 'product-lot' ? 0 : kind === 'product' ? 1 : 2);
   const pos: Record<string, { x: number; y: number }> = {};
   const rows: Record<number, number> = {};
-  for (const n of nodes.filter((n) => !n.data.kind.startsWith('store'))) {
+  const fixed = nodes.filter((n) => !n.data.kind.startsWith('store')).sort((a, b) => rank(a.data.kind) - rank(b.data.kind) || a.data.id.localeCompare(b.data.id));
+  for (const n of fixed) {
     const c = col(n.data.kind, n.data.id);
     rows[c] = (rows[c] ?? 0) + 1;
-    pos[n.data.id] = { x: c * COLW, y: rows[c] * ROW };
+    pos[n.data.id] = { x: c * COLW, y: rows[c] * ROW * (c === 0 ? 0.8 : 1) };
   }
   const perCol = Math.ceil(stores.length / 4);
-  stores.forEach((n, i) => { pos[n.data.id] = { x: 3.4 * COLW + Math.floor(i / perCol) * 110, y: (i % perCol + 1) * ROW }; });
+  stores.forEach((n, i) => { pos[n.data.id] = { x: 4.2 * COLW + Math.floor(i / perCol) * 110, y: (i % perCol + 1) * ROW }; });
   const height = Math.max(perCol, ...Object.values(rows)) * ROW;
-  for (const n of nodes.filter((n) => !n.data.kind.startsWith('store'))) {
+  for (const n of fixed) {
     const c = col(n.data.kind, n.data.id);
-    pos[n.data.id].y += (height - rows[c] * ROW) / 2;
+    pos[n.data.id].y += (height - rows[c] * ROW * (c === 0 ? 0.8 : 1)) / 2;
   }
   return pos;
 }

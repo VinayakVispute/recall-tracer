@@ -40,11 +40,52 @@ MATCH (l:Lot)-[:USED_IN]->(:Batch)-[:REWORKED_INTO*0..3]->(:Batch)-[:PRODUCED]->
 WHERE pl.id IN $product_lots
 RETURN pl.id AS product_lot, collect(DISTINCT l.code) AS ingredient_lots`;
 
+/** place_hold: what is left of the ingredient lot in the plant store room. */
+export const RAW_ON_HAND = `
+MATCH (l:Lot {code: $lot})-[s:STORED_AT]->(site:Site)
+RETURN site.id AS id, site.name AS name, site.city AS city, site.region AS region, s.qty_kg AS qty_kg, l.received_kg AS received_kg`;
+
+/** place_hold: unshipped units of every affected product lot, at plants and distribution centres. */
+export const FINISHED_ON_HAND = `
+MATCH (:Lot {code: $lot})-[:USED_IN|REWORKED_INTO|PRODUCED*1..6]->(pl:ProductLot)-[h:HELD_AT]->(loc)
+WITH DISTINCT pl, h, loc
+MATCH (pl)-[:OF]->(p:Product)
+RETURN pl.id AS product_lot, p.name AS product, labels(loc)[0] AS kind, loc.id AS id, loc.name AS name,
+       loc.city AS city, loc.region AS region, h.units AS units
+ORDER BY kind, id, product_lot`;
+
+/** place_hold: record the hold on the inventory edges themselves, so the graph is the audit trail. */
+export const HOLD_RAW = `MATCH (:Lot {code: $lot})-[s:STORED_AT]->() SET s.held_for = $lot, s.held_at = $at`;
+export const HOLD_FINISHED = `
+MATCH (:Lot {code: $lot})-[:USED_IN|REWORKED_INTO|PRODUCED*1..6]->(:ProductLot)-[h:HELD_AT]->()
+SET h.held_for = $lot, h.held_at = $at`;
+
+// --- Incident (one node per lot: hazard, proposed and confirmed class, timestamps) ---
+
+export const INCIDENT_DELETE = `MATCH (i:Incident {lot: $lot}) DELETE i`;
+export const INCIDENT_CREATE = `
+MATCH (l:Lot {code: $lot})
+CREATE (:Incident {id: $id, lot: $lot, hazard: $hazard, reported_at: $reported_at})-[:CONCERNS]->(l)`;
+/** propose_classification: the agent's proposal. Creates the incident if the tool is used outside the API. */
+export const INCIDENT_CLASSIFY = `
+MERGE (i:Incident {lot: $lot})
+ON CREATE SET i.id = $id, i.reported_at = $at, i.hazard = 'not recorded'
+SET i.class = $class, i.depth = $depth, i.rationale = $rationale, i.classified_at = $at
+RETURN i.id AS id, i.hazard AS hazard`;
+export const INCIDENT_CONFIRM = `
+MATCH (i:Incident {lot: $lot})
+SET i.confirmed_class = $class, i.confirmed_depth = $depth, i.confirmed_at = $at
+RETURN i.id AS id`;
+export const INCIDENT_GET = `
+MATCH (i:Incident {lot: $lot})
+RETURN i.id AS id, i.hazard AS hazard, i.reported_at AS reported_at, i.class AS class, i.depth AS depth, i.rationale AS rationale,
+       i.classified_at AS classified_at, i.confirmed_class AS confirmed_class, i.confirmed_depth AS confirmed_depth, i.confirmed_at AS confirmed_at`;
+
 // --- Incident dashboard (read-only, no agent) -----------------------------
 
 export const LOT_INFO = `
 MATCH (s:Supplier)-[:SUPPLIED]->(l:Lot {code: $lot})
-RETURN l.code AS code, l.ingredient AS ingredient, l.received_at AS received_at, s.id AS supplier_id, s.name AS supplier`;
+RETURN l.code AS code, l.ingredient AS ingredient, l.received_at AS received_at, l.received_kg AS received_kg, s.id AS supplier_id, s.name AS supplier`;
 
 /** Every hop from the lot down to its product lots, with quantities. */
 export const LINEAGE = `
@@ -59,7 +100,7 @@ export const SKUS_OF = `MATCH (pl:ProductLot) WHERE pl.id IN $ids RETURN DISTINC
 
 export const PRODUCT_LOTS = `
 MATCH (b:Batch)-[r:PRODUCED]->(pl:ProductLot)-[:OF]->(p:Product) WHERE p.sku IN $skus
-RETURN pl.id AS id, pl.sku AS sku, p.name AS product, pl.produced_at AS produced_at, b.id AS batch, r.units AS units`;
+RETURN pl.id AS id, pl.sku AS sku, p.name AS product, p.upc AS upc, pl.produced_at AS produced_at, pl.best_by AS best_by, b.id AS batch, r.units AS units`;
 
 /** All lot-coded shipments of the given SKUs, with store details. */
 export const SKU_SHIPMENTS = `
@@ -80,22 +121,29 @@ export const INDEXES = [
   'CREATE INDEX FOR (p:Product) ON (p.sku)',
   'CREATE INDEX FOR (st:Store) ON (st.id)',
   'CREATE INDEX FOR (s:Supplier) ON (s.id)',
+  'CREATE INDEX FOR (s:Site) ON (s.id)',
+  'CREATE INDEX FOR (d:DC) ON (d.id)',
+  'CREATE INDEX FOR (i:Incident) ON (i.lot)',
 ];
 
 export const LOAD = {
   suppliers: 'UNWIND $rows AS r CREATE (:Supplier {id: r.id, name: r.name})',
-  lots: 'UNWIND $rows AS r CREATE (:Lot {code: r.code, ingredient: r.ingredient, received_at: r.received_at, supplier_id: r.supplier_id})',
-  batches: 'UNWIND $rows AS r CREATE (:Batch {id: r.id, produced_at: r.produced_at, site: r.site})',
-  products: 'UNWIND $rows AS r CREATE (:Product {sku: r.sku, name: r.name})',
-  productLots: 'UNWIND $rows AS r CREATE (:ProductLot {id: r.id, sku: r.sku, produced_at: r.produced_at})',
+  lots: 'UNWIND $rows AS r CREATE (:Lot {code: r.code, ingredient: r.ingredient, received_at: r.received_at, received_kg: r.received_kg, supplier_id: r.supplier_id})',
+  batches: 'UNWIND $rows AS r CREATE (:Batch {id: r.id, produced_at: r.produced_at, site: r.site, site_id: r.site_id})',
+  products: 'UNWIND $rows AS r CREATE (:Product {sku: r.sku, name: r.name, upc: r.upc})',
+  productLots: 'UNWIND $rows AS r CREATE (:ProductLot {id: r.id, sku: r.sku, produced_at: r.produced_at, best_by: r.best_by})',
   stores: 'UNWIND $rows AS r CREATE (:Store {id: r.id, name: r.name, city: r.city, region: r.region})',
+  sites: 'UNWIND $rows AS r CREATE (:Site {id: r.id, name: r.name, city: r.city, region: r.region})',
+  dcs: 'UNWIND $rows AS r CREATE (:DC {id: r.id, name: r.name, city: r.city, region: r.region})',
   supplied: 'UNWIND $rows AS r MATCH (s:Supplier {id: r.from}), (l:Lot {code: r.to}) CREATE (s)-[:SUPPLIED]->(l)',
   usedIn: 'UNWIND $rows AS r MATCH (l:Lot {code: r.from}), (b:Batch {id: r.to}) CREATE (l)-[:USED_IN {qty_kg: r.qty_kg}]->(b)',
+  storedAt: 'UNWIND $rows AS r MATCH (l:Lot {code: r.from}), (s:Site {id: r.to}) CREATE (l)-[:STORED_AT {qty_kg: r.qty_kg}]->(s)',
   reworked: 'UNWIND $rows AS r MATCH (a:Batch {id: r.from}), (b:Batch {id: r.to}) CREATE (a)-[:REWORKED_INTO {qty_kg: r.qty_kg}]->(b)',
   produced: 'UNWIND $rows AS r MATCH (b:Batch {id: r.from}), (pl:ProductLot {id: r.to}) CREATE (b)-[:PRODUCED {units: r.units}]->(pl)',
   of: 'UNWIND $rows AS r MATCH (pl:ProductLot {id: r.from}), (p:Product {sku: r.to}) CREATE (pl)-[:OF]->(p)',
   shippedTo: 'UNWIND $rows AS r MATCH (pl:ProductLot {id: r.from}), (st:Store {id: r.to}) CREATE (pl)-[:SHIPPED_TO {units: r.units, shipped_at: r.shipped_at}]->(st)',
   untracked: 'UNWIND $rows AS r MATCH (p:Product {sku: r.from}), (st:Store {id: r.to}) CREATE (p)-[:SHIPPED_UNTRACKED {units: r.units, shipped_at: r.shipped_at}]->(st)',
+  heldAt: 'UNWIND $rows AS r MATCH (pl:ProductLot {id: r.from}), (loc) WHERE loc.id = r.to AND (loc:Site OR loc:DC) CREATE (pl)-[:HELD_AT {units: r.units}]->(loc)',
 };
 
 export const COUNT_NODES = 'MATCH (n) RETURN count(n) AS n';

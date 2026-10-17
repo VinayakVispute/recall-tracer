@@ -5,10 +5,10 @@ import { streamSSE } from 'hono/streaming';
 import { fileURLToPath } from 'node:url';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { query } from '../graph/db.js';
-import { AFFECTED_SHIPMENTS, STORES, LOT_EXISTS } from '../graph/queries.js';
-import { traceForward, coverageGaps, unaffectedStores, readNotices, writeNotices } from '../tools/index.js';
+import { AFFECTED_SHIPMENTS, STORES, LOT_EXISTS, INCIDENT_DELETE, INCIDENT_CREATE, INCIDENT_CONFIRM } from '../graph/queries.js';
+import { traceForward, coverageGaps, unaffectedStores, traceBackward, readHold, readNotices, writeNotices, incidentId, RECALL_CLASSES, RECALL_DEPTHS } from '../tools/index.js';
 import { runAgent, type RecallResult } from '../agent/run.js';
-import { incidentReport } from '../tools/incident.js';
+import { incidentReport, incidentStatus } from '../tools/incident.js';
 
 const LOT_RE = /^L-\d{1,6}$/;
 const LAST = process.env.NOTICES_FILE ? 'out/test-last-recall.json' : 'out/last-recall.json';
@@ -32,16 +32,23 @@ async function checkLot(lot?: string): Promise<[number, string] | null> {
 function clearDrafts(lot: string) {
   writeNotices(readNotices().filter((n) => n.lot !== lot));
 }
+/** Opens (or reopens) the incident in the graph: the supplier's hazard and the time the notice was logged. */
+export async function openIncident(lot: string, hazard?: string) {
+  const reported_at = new Date().toISOString();
+  await query(INCIDENT_DELETE, { lot });
+  await query(INCIDENT_CREATE, { lot, id: incidentId(lot), hazard: (hazard ?? '').trim().slice(0, 200) || 'Contamination, type not stated on the notice', reported_at });
+  clearDrafts(lot);
+}
 function save(result: RecallResult) {
   mkdirSync('out', { recursive: true });
   writeFileSync(LAST, JSON.stringify(result));
 }
 
 app.post('/recall', async (c) => {
-  const { lot } = await c.req.json<{ lot?: string }>();
+  const { lot, hazard } = await c.req.json<{ lot?: string; hazard?: string }>();
   const bad = await checkLot(lot);
   if (bad) return c.json({ error: bad[1] }, bad[0] as 400);
-  clearDrafts(lot!);
+  await openIncident(lot!, hazard);
   const result = await runAgent(lot!);
   save(result);
   return c.json(result);
@@ -56,7 +63,7 @@ app.get('/recall/stream', async (c) => {
     let writes = Promise.resolve(); // keep events in order and flushed before the stream closes
     const send = (e: { type: string }) => (writes = writes.then(() => stream.writeSSE({ event: e.type, data: JSON.stringify(e) })));
     try {
-      clearDrafts(lot!);
+      await openIncident(lot!, c.req.query('hazard'));
       const result = await runAgent(lot!, send);
       save(result);
       await writes;
@@ -75,32 +82,74 @@ app.get('/incident/:lot', async (c) => {
   return c.json(await incidentReport(lot, c.req.query('gaps') !== 'flag'));
 });
 
+/** Incident node plus the hold: light enough to refresh while the agent runs. */
+app.get('/incident/:lot/status', async (c) => {
+  const lot = c.req.param('lot');
+  const bad = await checkLot(lot);
+  if (bad) return c.json({ error: bad[1] }, bad[0] as 400);
+  return c.json(await incidentStatus(lot));
+});
+
+/** The coordinator confirms (or changes) the agent's proposed class and depth. Notices can be approved only after this. */
+app.post('/incident/:lot/confirm', async (c) => {
+  const lot = c.req.param('lot');
+  const bad = await checkLot(lot);
+  if (bad) return c.json({ error: bad[1] }, bad[0] as 400);
+  const { class: cls, depth } = await c.req.json<{ class?: string; depth?: string }>();
+  if (!RECALL_CLASSES.includes(cls as never) || !RECALL_DEPTHS.includes(depth as never)) return c.json({ error: 'class must be I, II or III and depth consumer, retail or wholesale' }, 400);
+  const [row] = await query<{ id: string }>(INCIDENT_CONFIRM, { lot, class: cls, depth, at: new Date().toISOString() });
+  if (!row) return c.json({ error: 'No open incident for this lot' }, 404);
+  return c.json(await incidentStatus(lot));
+});
+
 /** The recall decision currently under review, so a page reload doesn't rerun the agent. */
 app.get('/recall/last', (c) => {
   try { return c.json(JSON.parse(readFileSync(LAST, 'utf8'))); } catch { return c.json({ error: 'No recall traced yet' }, 404); }
 });
 
-/** Cytoscape elements: affected paths, gap stores (via their SKU), safe stores (via the clean lots they got). */
+/**
+ * Cytoscape elements for the live trace. Each element carries the agent step that reveals it
+ * (`stage`) and, for the forward trace, its hop count from the lot (`depth`) so the page can animate the spread.
+ */
 app.get('/graph/:lot', async (c) => {
   const lot = c.req.param('lot');
   if (!LOT_RE.test(lot)) return c.json({ error: 'bad lot' }, 400);
-  const [trace, gaps, safe] = await Promise.all([traceForward({ lot }), coverageGaps({ lot }), unaffectedStores({ lot })]);
-  const nodes = new Map<string, { id: string; kind: string }>();
-  const edges = new Map<string, { id: string; source: string; target: string; kind: string }>();
-  const node = (id: string, kind: string) => { if (!nodes.has(id)) nodes.set(id, { id, kind }); };
-  const edge = (source: string, target: string, kind: string) => edges.set(`${source}>${target}`, { id: `${source}>${target}`, source, target, kind });
+  const [trace, gaps, safe, hold] = await Promise.all([traceForward({ lot }), coverageGaps({ lot }), unaffectedStores({ lot }), readHold(lot)]);
+  type N = { id: string; kind: string; stage: string; depth: number; label?: string };
+  const nodes = new Map<string, N>();
+  const edges = new Map<string, { id: string; source: string; target: string; kind: string; stage: string; depth: number }>();
+  const node = (id: string, kind: string, stage: string, depth = 0, label?: string) => {
+    const n = nodes.get(id);
+    if (!n) nodes.set(id, { id, kind, stage, depth, label });
+    else if (depth < n.depth) n.depth = depth;
+  };
+  const edge = (source: string, target: string, kind: string, stage: string, depth = 0) =>
+    edges.set(`${source}>${target}`, { id: `${source}>${target}`, source, target, kind, stage, depth });
 
-  node(lot, 'lot');
+  node(lot, 'lot', 'start');
+  for (const r of hold.raw) node(r.id, 'site', 'place_hold', 1, r.name), edge(lot, r.id, 'held', 'place_hold', 1);
+  for (const h of hold.finished) {
+    node(h.product_lot, 'product-lot', 'trace_forward', 3);
+    node(h.id, h.kind === 'DC' ? 'dc' : 'site', 'place_hold', 1, h.name);
+    edge(h.product_lot, h.id, 'held', 'place_hold', 1);
+  }
   for (const s of trace.stores) {
     for (const p of s.paths) {
-      p.slice(1).forEach((id, i) => node(id, i === p.length - 2 ? 'store-affected' : id.startsWith('B-') ? 'batch' : 'product-lot'));
-      p.slice(1).forEach((id, i) => edge(p[i], id, 'affected'));
+      p.slice(1).forEach((id, i) => node(id, i === p.length - 2 ? 'store-affected' : id.startsWith('B-') ? 'batch' : 'product-lot', 'trace_forward', i + 1));
+      p.slice(1).forEach((id, i) => edge(p[i], id, 'affected', 'trace_forward', i + 1));
     }
   }
-  for (const g of gaps.gaps) { node(g.sku, 'product'); node(g.store, 'store-gap'); edge(g.sku, g.store, 'untracked'); }
+  for (const g of gaps.gaps) { node(g.sku, 'product', 'coverage_gaps', 3, g.product); node(g.store, 'store-gap', 'coverage_gaps', 4); edge(g.sku, g.store, 'untracked', 'coverage_gaps', 4); }
+  const cleanLots = new Set<string>();
   for (const s of safe.stores) {
-    node(s.store, 'store-safe');
-    for (const l of s.received_lots) { node(l.lot, 'product-lot-clean'); edge(l.lot, s.store, 'clean'); }
+    node(s.store, 'store-safe', 'minimal_recall', 4);
+    for (const l of s.received_lots) { cleanLots.add(l.lot); node(l.lot, 'product-lot-clean', 'minimal_recall', 3); edge(l.lot, s.store, 'clean', 'minimal_recall', 4); }
+  }
+  // Backward check: the ingredient lots behind every lot a cleared store holds (batches skipped to keep the picture readable).
+  const back = await traceBackward({ product_lots: [...cleanLots], lot });
+  for (const r of back.results) for (const l of r.ingredient_lots) {
+    node(l, l === lot ? 'lot' : 'lot-clean', 'trace_backward', 0);
+    edge(l, r.product_lot, 'origin', 'trace_backward', 1);
   }
   return c.json({
     nodes: [...nodes.values()].map((data) => ({ data })),

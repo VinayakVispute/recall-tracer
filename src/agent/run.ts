@@ -4,7 +4,8 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import type { minimalRecall } from '../tools/index.js';
-import { TRACE_FORWARD, COVERAGE_GAPS, SKU_RECIPIENTS, TRACE_BACKWARD, STORES } from '../graph/queries.js';
+import { TRACE_FORWARD, COVERAGE_GAPS, SKU_RECIPIENTS, TRACE_BACKWARD, STORES, INCIDENT_CLASSIFY, RAW_ON_HAND, FINISHED_ON_HAND, HOLD_FINISHED, INCIDENT_GET, LOT_INFO } from '../graph/queries.js';
+import { query } from '../graph/db.js';
 
 const MODEL = 'claude-opus-5-5';
 const SYSTEM = readFileSync(new URL('./prompt.md', import.meta.url), 'utf8');
@@ -12,6 +13,8 @@ const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 
 /** The Cypher behind each MCP tool, shown in the agent trace. */
 const CYPHER: Record<string, string[]> = {
+  propose_classification: [INCIDENT_CLASSIFY],
+  place_hold: [RAW_ON_HAND, FINISHED_ON_HAND, HOLD_FINISHED],
   trace_forward: [TRACE_FORWARD],
   coverage_gaps: [COVERAGE_GAPS],
   unaffected_stores: [SKU_RECIPIENTS],
@@ -23,7 +26,7 @@ const CYPHER: Record<string, string[]> = {
 let mcp: Promise<Client> | undefined;
 
 /** One MCP server process per API process; the agent only sees tools through it. */
-function mcpClient() {
+export function mcpClient() {
   return (mcp ??= (async () => {
     const client = new Client({ name: 'recall-tracer-agent', version: '0.1.0' });
     await client.connect(new StdioClientTransport({
@@ -54,8 +57,10 @@ type Recall = Awaited<ReturnType<typeof minimalRecall>>;
 /** One line per tool result, for the trace timeline. */
 function summarize(name: string, r: any): string {
   switch (name) {
+    case 'propose_classification': return `Proposed Class ${r.class}, ${r.depth}-level recall. Awaiting confirmation`;
+    case 'place_hold': return `${r.totals.units.toLocaleString()} units and ${r.totals.raw_kg} kg of raw ${r.lot} held at ${r.totals.locations} locations`;
     case 'trace_forward': return `${r.batches.length} batches, ${r.product_lots.length} product lots, ${r.stores.length} stores reached`;
-    case 'coverage_gaps': return r.gaps.length ? `${r.gaps.length} stores got ${[...new Set(r.gaps.map((g: any) => g.sku))].join(', ')} with no lot code` : 'No unrecorded shipments';
+    case 'coverage_gaps': return r.gaps.length ? `${r.gaps.length} stores got ${[...new Set(r.gaps.map((g: any) => g.product))].join(', ')} with no lot code on the delivery record` : 'Every delivery of the affected products has a lot code';
     case 'unaffected_stores': return `${r.stores.length} stores proven safe`;
     case 'minimal_recall': return `${r.counts.targeted} of ${r.counts.blanket} stores, ${r.units_to_pull.toLocaleString()} units; gaps ${r.add_gap_stores ? 'added' : 'flagged only'}`;
     case 'trace_backward': return `${r.results.length} product lots walked back; ${r.containing?.length ?? 0} contain ${r.lot ?? 'the lot'}`;
@@ -73,14 +78,20 @@ export async function runAgent(lot: string, onEvent: (e: TraceEvent) => void = (
   }));
 
   const t0 = Date.now();
-  const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: 'user', content: `Alert: lot ${lot} is contaminated.` }];
+  const [[info], [incident]] = await Promise.all([
+    query<{ ingredient: string; supplier: string }>(LOT_INFO, { lot }),
+    query<{ hazard: string; reported_at: string }>(INCIDENT_GET, { lot }),
+  ]);
+  const alert = `Supplier notice for lot ${lot} (${info?.ingredient ?? 'ingredient'} from ${info?.supplier ?? 'the supplier'}). ` +
+    `Hazard: ${incident?.hazard ?? 'contamination, type not stated'}. Reported ${incident?.reported_at ?? new Date().toISOString()}.`;
+  const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: 'user', content: alert }];
   const calls: ToolCall[] = [];
   const notes: { turn: number; text: string }[] = [];
   const usage = { input_tokens: 0, output_tokens: 0 };
   let recall: Recall | undefined;
   onEvent({ type: 'start', lot, model: MODEL });
 
-  for (let turn = 0; turn < 12; turn++) {
+  for (let turn = 0; turn < 14; turn++) {
     const res = await client.beta.messages.create({
       model: MODEL,
       max_tokens: 16000,
@@ -129,7 +140,7 @@ export async function runAgent(lot: string, onEvent: (e: TraceEvent) => void = (
     }
     messages.push({ role: 'user', content: results });
   }
-  throw new Error('Agent did not finish in 12 turns');
+  throw new Error('Agent did not finish in 14 turns');
 }
 
 type Meta = { model: string; ms: number; turns: number; input_tokens: number; output_tokens: number; notes: { turn: number; text: string }[] };

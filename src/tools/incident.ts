@@ -1,22 +1,33 @@
 import { query } from '../graph/db.js';
-import { LOT_INFO, LINEAGE, BATCHES, PRODUCT_LOTS, SKU_SHIPMENTS, STORES, SKUS_OF } from '../graph/queries.js';
-import { minimalRecall, traceBackward } from './index.js';
+import { LOT_INFO, LINEAGE, BATCHES, PRODUCT_LOTS, SKU_SHIPMENTS, STORES, SKUS_OF, INCIDENT_GET } from '../graph/queries.js';
+import { minimalRecall, traceBackward, readHold } from './index.js';
 
 export type StoreStatus = 'recall' | 'gap' | 'safe';
 export type Shipment = { lot: string; sku: string; product: string; units: number; shipped_at: string; affected: boolean; origins: string[] };
 export type Untracked = { sku: string; product: string; units: number; shipped_at: string; reason: string };
+export type Incident = {
+  id: string; hazard: string; reported_at: string;
+  class: string | null; depth: string | null; rationale: string | null; classified_at: string | null;
+  confirmed_class: string | null; confirmed_depth: string | null; confirmed_at: string | null;
+};
+
+/** The incident node and the hold, cheap enough to poll while the agent runs. */
+export async function incidentStatus(lot: string) {
+  const [[incident], hold] = await Promise.all([query<Incident>(INCIDENT_GET, { lot }), readHold(lot)]);
+  return { incident: (incident ?? null) as Incident | null, hold };
+}
 
 /**
  * Everything the dashboard shows, read straight from the graph (no agent).
  * Statuses come from minimal_recall, so the dashboard and the agent agree by construction.
  */
 export async function incidentReport(lot: string, add_gap_stores = true) {
-  const recall = await minimalRecall({ lot, add_gap_stores });
-  const [info] = await query<{ code: string; ingredient: string; received_at: string; supplier_id: string; supplier: string }>(LOT_INFO, { lot });
+  const [recall, status] = await Promise.all([minimalRecall({ lot, add_gap_stores }), incidentStatus(lot)]);
+  const [info] = await query<{ code: string; ingredient: string; received_at: string; received_kg: number; supplier_id: string; supplier: string }>(LOT_INFO, { lot });
   const lineage = await query<{ source: string; target: string; type: string; qty_kg: number | null; units: number | null }>(LINEAGE, { lot });
 
   const skus = (await query<{ sku: string }>(SKUS_OF, { ids: recall.product_lots })).map((r) => r.sku).sort();
-  const productLots = await query<{ id: string; sku: string; product: string; produced_at: string; batch: string; units: number }>(PRODUCT_LOTS, { skus });
+  const productLots = await query<{ id: string; sku: string; product: string; upc: string; produced_at: string; best_by: string; batch: string; units: number }>(PRODUCT_LOTS, { skus });
   const productName = new Map(productLots.map((p) => [p.sku, p.product]));
 
   const [batches, shipments, origins] = await Promise.all([
@@ -27,15 +38,15 @@ export async function incidentReport(lot: string, add_gap_stores = true) {
   const originsOf = new Map(origins.results.map((r) => [r.product_lot, r.ingredient_lots]));
   const bad = new Set(recall.product_lots);
 
-  const status = new Map<string, StoreStatus>();
-  recall.recall_stores.forEach((r) => status.set(r.store, r.kind === 'affected' ? 'recall' : 'gap'));
-  recall.gaps.forEach((g) => status.set(g.store, 'gap'));
-  recall.safe.forEach((s) => status.set(s.store, 'safe'));
+  const statusOf = new Map<string, StoreStatus>();
+  recall.recall_stores.forEach((r) => statusOf.set(r.store, r.kind === 'affected' ? 'recall' : 'gap'));
+  recall.gaps.forEach((g) => statusOf.set(g.store, 'gap'));
+  recall.safe.forEach((s) => statusOf.set(s.store, 'safe'));
 
   type Store = { id: string; name: string; city: string; region: string; status: StoreStatus; shipments: Shipment[]; untracked: Untracked[]; paths: string[][]; units_at_risk: number; last_shipped: string };
   const stores = new Map<string, Store>();
   const store = (id: string, name: string, city: string, region: string) => {
-    if (!stores.has(id)) stores.set(id, { id, name, city, region, status: status.get(id) ?? 'safe', shipments: [], untracked: [], paths: [], units_at_risk: 0, last_shipped: '' });
+    if (!stores.has(id)) stores.set(id, { id, name, city, region, status: statusOf.get(id) ?? 'safe', shipments: [], untracked: [], paths: [], units_at_risk: 0, last_shipped: '' });
     return stores.get(id)!;
   };
   for (const s of shipments) {
@@ -59,17 +70,23 @@ export async function incidentReport(lot: string, add_gap_stores = true) {
   const rank: Record<StoreStatus, number> = { recall: 0, gap: 1, safe: 2 };
   all.sort((a, b) => rank[a.status] - rank[b.status] || b.units_at_risk - a.units_at_risk || a.id.localeCompare(b.id));
   const blanketUnits = shipments.reduce((n, s) => n + s.units, 0) + recall.gaps.reduce((n, g) => n + g.units, 0);
+  const shippedOf = (id: string) => shipments.filter((s) => s.lot === id);
+  const heldOf = (id: string) => status.hold.finished.filter((h) => h.product_lot === id).reduce((n, h) => n + h.units, 0);
 
   return {
     lot: { ...info },
+    incident: status.incident,
+    hold: status.hold,
     lineage,
     batches,
-    product_lots: productLots.map((p) => ({ ...p, affected: bad.has(p.id), origins: originsOf.get(p.id) ?? [] })),
-    skus: skus.map((sku) => ({ sku, product: productName.get(sku) ?? sku })),
+    product_lots: productLots.map((p) => ({
+      ...p, affected: bad.has(p.id), origins: originsOf.get(p.id) ?? [],
+      shipped: shippedOf(p.id).reduce((n, s) => n + s.units, 0), stores: shippedOf(p.id).length, held: heldOf(p.id),
+    })),
+    skus: skus.map((sku) => ({ sku, product: productName.get(sku) ?? sku, upc: productLots.find((p) => p.sku === sku)?.upc ?? '' })),
     stores: all,
     counts: { ...recall.counts, blanket_units: blanketUnits, units_to_pull: recall.units_to_pull, product_lots: recall.product_lots.length, batches: recall.batches.length },
     add_gap_stores,
   };
 }
 export type IncidentReport = Awaited<ReturnType<typeof incidentReport>>;
-

@@ -1,15 +1,29 @@
 import { z } from 'zod';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { query } from '../graph/db.js';
-import { TRACE_FORWARD, COVERAGE_GAPS, SKU_RECIPIENTS, STORES, TRACE_BACKWARD } from '../graph/queries.js';
+import { TRACE_FORWARD, COVERAGE_GAPS, SKU_RECIPIENTS, STORES, TRACE_BACKWARD, RAW_ON_HAND, FINISHED_ON_HAND, HOLD_RAW, HOLD_FINISHED, INCIDENT_CLASSIFY } from '../graph/queries.js';
 
 // --- Schemas (shared by the MCP server) ------------------------------------
 
 const lot = z.string().describe('Ingredient lot code, e.g. L-204');
-/** Models occasionally send an array argument as a JSON string; accept both. */
+/** Models occasionally send an array argument as a JSON string, sometimes with a stray bracket; accept both. */
 const list = <T extends z.ZodTypeAny>(item: T) =>
-  z.preprocess((v) => { if (typeof v !== 'string') return v; try { return JSON.parse(v); } catch { return v; } }, z.array(item));
+  z.preprocess((v) => {
+    if (typeof v !== 'string') return v;
+    const s = v.trim();
+    for (const cand of [s, s.slice(s.indexOf('['), s.lastIndexOf(']') + 1)]) { try { return JSON.parse(cand); } catch { /* try the next form */ } }
+    return v;
+  }, z.array(item));
+export const RECALL_CLASSES = ['I', 'II', 'III'] as const;
+export const RECALL_DEPTHS = ['consumer', 'retail', 'wholesale'] as const;
 export const schemas = {
+  propose_classification: {
+    lot,
+    class: z.enum(RECALL_CLASSES).describe('I: reasonable probability of serious health consequences or death. II: temporary or medically reversible effects. III: not likely to cause harm.'),
+    depth: z.enum(RECALL_DEPTHS).describe('consumer: product is on shelves and the public must be told. retail: stores pull it quietly. wholesale: still in distribution.'),
+    rationale: z.string().max(400).describe('One sentence: why this class and depth for this hazard and product'),
+  },
+  place_hold: { lot },
   trace_forward: { lot },
   coverage_gaps: { lot },
   unaffected_stores: { lot },
@@ -24,11 +38,44 @@ export const schemas = {
   },
   draft_recall_notice: {
     lot,
-    notices: list(z.object({ store: z.string(), reason: z.string() })).describe('One entry per store to notify'),
+    notices: list(z.object({ store: z.string(), reason: z.string() })).describe('A JSON array (not a string) with one entry per store to notify'),
   },
 };
 
 // --- Handlers ----------------------------------------------------------------
+
+export const incidentId = (lot: string, at = new Date()) => `INC-${at.toISOString().slice(0, 10).replace(/-/g, '')}-${lot.replace('-', '')}`;
+
+/** The agent's hazard assessment. It is a proposal: the coordinator confirms or changes it in the dashboard. */
+export async function proposeClassification({ lot, class: cls, depth, rationale }: { lot: string; class: string; depth: string; rationale: string }) {
+  const at = new Date().toISOString();
+  const [row] = await query<{ id: string; hazard: string }>(INCIDENT_CLASSIFY, { lot, class: cls, depth, rationale, at, id: incidentId(lot) });
+  return { incident: row.id, lot, hazard: row.hazard, class: cls, depth, rationale, status: 'proposed', note: 'Awaiting confirmation by the recall coordinator.' };
+}
+
+export type HoldRow = { product_lot: string; product: string; kind: 'Site' | 'DC'; id: string; name: string; city: string; region: string; units: number };
+/** Inventory that has not left the company: unused ingredient at the plant, unshipped product at plants and DCs. */
+export async function readHold(lot: string) {
+  const [raw, finished] = await Promise.all([
+    query<{ id: string; name: string; city: string; region: string; qty_kg: number; received_kg: number }>(RAW_ON_HAND, { lot }),
+    query<HoldRow>(FINISHED_ON_HAND, { lot }),
+  ]);
+  return {
+    lot, raw, finished,
+    totals: {
+      raw_kg: raw.reduce((n, r) => n + r.qty_kg, 0),
+      units: finished.reduce((n, r) => n + r.units, 0),
+      locations: new Set([...raw.map((r) => r.id), ...finished.map((r) => r.id)]).size,
+    },
+  };
+}
+/** Records the hold on the inventory edges, so the graph itself carries the audit trail. Nothing physical moves. */
+export async function placeHold({ lot }: { lot: string }) {
+  const at = new Date().toISOString();
+  await Promise.all([query(HOLD_RAW, { lot, at }), query(HOLD_FINISHED, { lot, at })]);
+  const hold = await readHold(lot);
+  return { ...hold, status: 'held', held_at: at, note: 'Held until QA releases it. Stores are handled by the recall, not the hold.' };
+}
 
 export async function traceForward({ lot }: { lot: string }) {
   const rows = await query<{ store: string; path: string[]; kinds: string[]; units: number }>(TRACE_FORWARD, { lot });
@@ -160,6 +207,14 @@ export async function draftRecallNotice({ lot, notices }: { lot: string; notices
 }
 
 export const tools = {
+  propose_classification: {
+    handler: proposeClassification,
+    description: 'Record the proposed recall class (I, II, III) and depth (consumer, retail, wholesale) for the incident, with a one-sentence rationale. A proposal only: the recall coordinator confirms or changes it.',
+  },
+  place_hold: {
+    handler: placeHold,
+    description: 'Place a hold on everything that has not left the company: the unused remainder of the ingredient lot at the plant, and every unshipped unit of affected product at plants and distribution centres. Returns the locations and quantities held.',
+  },
   trace_forward: {
     handler: traceForward,
     description: 'Follow a contaminated ingredient lot forward through batches, rework and product lots to every store that received it. Returns each store with its full path(s), plus affected batches and product lots.',

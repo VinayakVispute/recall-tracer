@@ -2,7 +2,9 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { rmSync } from 'node:fs';
 import { build, load } from '../src/data/generate.js';
 import { close } from '../src/graph/db.js';
-import { schemas, traceForward, coverageGaps, unaffectedStores, minimalRecall, draftRecallNotice, readNotices, NOTICES_FILE, traceBackward } from '../src/tools/index.js';
+import { schemas, traceForward, coverageGaps, unaffectedStores, minimalRecall, draftRecallNotice, readNotices, NOTICES_FILE, traceBackward, placeHold, readHold, proposeClassification } from '../src/tools/index.js';
+import { incidentStatus } from '../src/tools/incident.js';
+import { query } from '../src/graph/db.js';
 import { incidentReport } from '../src/tools/incident.js';
 import expected from '../data/expected.json';
 
@@ -76,6 +78,41 @@ describe('tools on L-204', () => {
     expect(b.results.find((r) => r.product_lot === 'TLC-09A')!.ingredient_lots).toContain('L-204'); // via rework
   });
 
+  it('place_hold: unused raw lot at the plant plus unshipped units at plants and DCs; made = shipped + held', async () => {
+    const h = await placeHold({ lot: LOT });
+    expect(h.totals).toEqual(expected.hold);
+    expect(h.raw).toHaveLength(1);
+    expect(h.finished.every((f) => expected.product_lots.includes(f.product_lot))).toBe(true);
+    expect((await readHold(LOT)).totals).toEqual(expected.hold);
+    const rows = await query<{ id: string; made: number; shipped: number; held: number }>(`
+      MATCH (:Batch)-[p:PRODUCED]->(pl:ProductLot)
+      OPTIONAL MATCH (pl)-[s:SHIPPED_TO]->(:Store)
+      WITH pl, p.units AS made, sum(s.units) AS shipped
+      OPTIONAL MATCH (pl)-[h:HELD_AT]->()
+      RETURN pl.id AS id, made, shipped, sum(h.units) AS held`);
+    expect(rows.length).toBeGreaterThan(20);
+    expect(rows.every((r) => r.made === r.shipped + r.held)).toBe(true);
+    const [{ n }] = await query<{ n: number }>('MATCH ()-[h:HELD_AT {held_for: $lot}]->() RETURN count(h) AS n', { lot: LOT });
+    expect(n).toBe(h.finished.length); // the hold is written to the graph
+  });
+
+  it('incident: open, agent proposes a class, coordinator confirms', async () => {
+    const { openIncident, app } = await import('../src/api/server.js');
+    await openIncident(LOT, 'Listeria monocytogenes in supplier testing');
+    let s = await incidentStatus(LOT);
+    expect(s.incident).toMatchObject({ hazard: 'Listeria monocytogenes in supplier testing', class: null, confirmed_at: null });
+    const p = await proposeClassification({ lot: LOT, class: 'I', depth: 'consumer', rationale: 'Listeria in ready-to-eat chilled soup.' });
+    expect(p.status).toBe('proposed');
+    s = await incidentStatus(LOT);
+    expect(s.incident).toMatchObject({ class: 'I', depth: 'consumer', confirmed_at: null });
+    const bad = await app.request(`/incident/${LOT}/confirm`, { method: 'POST', body: JSON.stringify({ class: 'IV', depth: 'consumer' }) });
+    expect(bad.status).toBe(400);
+    const ok = await app.request(`/incident/${LOT}/confirm`, { method: 'POST', body: JSON.stringify({ class: 'I', depth: 'retail' }) });
+    expect((await ok.json()).incident).toMatchObject({ confirmed_class: 'I', confirmed_depth: 'retail' });
+    expect((await incidentStatus(LOT)).incident?.confirmed_at).toBeTruthy();
+    expect((await incidentReport(LOT)).incident?.confirmed_depth).toBe('retail');
+  });
+
   it('incident report agrees with the tools', async () => {
     const r = await incidentReport(LOT);
     const ids = (st: string) => r.stores.filter((s) => s.status === st).map((s) => s.id).sort();
@@ -86,12 +123,22 @@ describe('tools on L-204', () => {
     expect(r.stores.reduce((n, s) => n + s.units_at_risk, 0)).toBe(expected.units_to_pull);
     expect(r.lineage.filter((e) => e.type === 'REWORKED_INTO')).toEqual([expect.objectContaining({ source: 'B-03', target: 'B-09' })]);
     expect(r.stores.filter((s) => s.status === 'safe').every((s) => s.shipments.every((x) => !x.origins.includes(LOT)))).toBe(true);
+    const affected = r.product_lots.filter((p) => p.affected);
+    expect(affected.map((p) => p.id).sort()).toEqual(expected.product_lots);
+    expect(affected.reduce((n, p) => n + p.held, 0)).toBe(expected.hold.units);
+    expect(affected.every((p) => p.units === p.shipped + p.held && p.upc.length === 12 && p.best_by > p.produced_at)).toBe(true);
   });
 
-  it('array tool arguments sent as JSON strings are accepted', () => {
+  it('array tool arguments sent as JSON strings are accepted, even with a stray bracket, through MCP', async () => {
     const notices = [{ store: 'ST-032', reason: 'x' }];
     expect(schemas.draft_recall_notice.notices.parse(JSON.stringify(notices))).toEqual(notices);
+    expect(schemas.draft_recall_notice.notices.parse(JSON.stringify(notices) + '}')).toEqual(notices); // what the model sent once
     expect(schemas.trace_backward.product_lots.parse('["TLC-06A"]')).toEqual(['TLC-06A']);
+    const { mcpClient } = await import('../src/agent/run.js');
+    const c = await mcpClient();
+    const r = await c.callTool({ name: 'draft_recall_notice', arguments: { lot: LOT, notices: '[{"store":"ST-013","reason":"test"}]}' } });
+    expect(r.isError).toBeFalsy();
+    expect(JSON.parse((r.content as any)[0].text).drafted).toBe(1);
   });
 
   it('draft_recall_notice: 33 drafts, all pending_approval', async () => {
@@ -128,15 +175,15 @@ describe('API', () => {
     expect((await post('L-999')).status).toBe(404);
   });
 
-  it.skipIf(!process.env.ANTHROPIC_API_KEY)('end to end: POST /recall in under 60 s with matching counts', async () => {
+  it.skipIf(!process.env.E2E)('end to end: POST /recall in under 60 s with matching counts', async () => {
     const { app } = await import('../src/api/server.js');
     const t0 = Date.now();
-    const res = await app.request('/recall', { method: 'POST', body: JSON.stringify({ lot: LOT }) });
+    const res = await app.request('/recall', { method: 'POST', body: JSON.stringify({ lot: LOT, hazard: 'Listeria monocytogenes detected in supplier finished-product testing' }) });
     const r = await res.json();
     console.log(`e2e: ${Date.now() - t0} ms`, JSON.stringify({ counts: r.counts, calls: r.tool_calls, summary: r.summary }, null, 1));
     expect(Date.now() - t0).toBeLessThan(60_000);
     expect(r.counts).toEqual({ blanket: 71, targeted: 33, safe: 38 });
-    expect(r.tool_calls.map((c: any) => c.name)).toEqual(['trace_forward', 'coverage_gaps', 'minimal_recall', 'trace_backward', 'draft_recall_notice']);
+    expect(r.tool_calls.map((c: any) => c.name)).toEqual(['propose_classification', 'place_hold', 'trace_forward', 'coverage_gaps', 'minimal_recall', 'trace_backward', 'draft_recall_notice']);
     expect(r.tool_calls.every((c: any) => c.summary && c.cypher.length)).toBe(true);
     expect(readNotices().filter((n) => n.lot === LOT)).toHaveLength(33);
   }, 90_000);

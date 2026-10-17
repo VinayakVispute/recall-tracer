@@ -1,6 +1,6 @@
 # Recall Tracer
 
-When a supplier reports a contaminated ingredient lot, most food companies can't say which stores got it, so they recall everything. Recall Tracer is an agent that follows the lot through a FalkorDB graph of batches, rework and shipments. It finds every affected store with the path that proves it, proves which stores are safe, widens the recall where records are missing, and drafts notices for a human to approve.
+When a supplier reports a contaminated ingredient lot, most food companies can't say which stores got it, so they recall everything. Recall Tracer is an agent that works the incident the way a recall coordinator does, on a FalkorDB graph of lots, batches, rework, inventory and deliveries: it assesses the hazard, holds what hasn't left the plant, follows the lot to every store with the path that proves it, clears the stores whose records are clean, widens the recall where records are missing, and drafts notices for a human to confirm and approve.
 
 Built for [Graph Hacks: Context for AI Agents](https://www.wemakedevs.org/hackathons/falkordb), Track 01 (agents that act on connected data).
 
@@ -8,10 +8,12 @@ Built for [Graph Hacks: Context for AI Agents](https://www.wemakedevs.org/hackat
 
 | | |
 |---|---|
+| Hazard | Listeria monocytogenes in diced carrot; the agent proposes Class I, consumer-level, the coordinator confirms |
+| Held | 93 kg of unused L-204 at the plant and 2,652 unshipped units at 2 plants and 3 DCs, marked held in the graph |
 | Reached | 4 batches (one blends L-204 with clean L-117; B-09 reuses leftovers of B-03), 7 product lots, 31 stores |
-| Gaps | 2 stores got the affected SKU P-02 with no lot code recorded, so they're added with the reason |
-| Safe | 38 stores got the same SKUs, but only from lots that don't trace to L-204, each listed with the lots checked |
-| Result | Blanket recall 71 stores vs targeted 33; 2,232 units to pull; 33 draft notices awaiting approval; FDA-style shipping CSV |
+| Gaps | 2 stores got Garden Vegetable Stew with no lot code on the delivery record, so they pull it too |
+| Cleared | 38 stores got the same products, but only from lots that don't trace to L-204, verified by a backward trace |
+| Result | Blanket recall 71 stores vs targeted 33; 2,256 units to pull instead of 7,672; 33 draft notices; public notice facts; FDA-style shipping CSV |
 
 ## How it works
 
@@ -20,6 +22,8 @@ React page ──> Hono API ──> agent (Claude) ──MCP stdio──> MCP se
 ```
 
 - **The graph decides; Claude doesn't.** Which stores are affected, gaps or safe comes only from Cypher results. Claude picks the tools, makes the gap decision, explains the result and writes the notice reasons. The API's final JSON is built from the `minimal_recall` tool output, not retyped by the model.
+- **One judgement is the agent's, and it is a proposal.** From the hazard on the supplier notice, the agent proposes the recall class (I, II, III) and depth (consumer, retail, wholesale) with a rationale. It is written to the `Incident` node and the coordinator confirms or changes it before any notice can be approved.
+- **The graph is the audit trail.** The incident, the hazard, the proposed and confirmed class, and the hold on inventory are all written to FalkorDB with timestamps.
 - **Tools go through MCP.** The agent starts the project's own MCP server (`src/mcp/server.ts`) as a stdio child process, lists its tools and hands them to Claude. The same server works in Claude Code or Claude Desktop (`.mcp.json` is included).
 - **Gap detection is the agent's decision.** `minimal_recall` takes `add_gap_stores`. The agent adds gap stores (policy: missing product is worse than pulling a few extra units); `false` only flags them.
 - **Humans approve.** Notices are written to `out/notices.json` as `pending_approval`. Approving changes their status; nothing is ever sent.
@@ -31,43 +35,71 @@ Graph name `recall`. All ids are strings and dates are ISO strings.
 | Node | Properties |
 |---|---|
 | `Supplier` | `id`, `name` |
-| `Lot` | `code` (e.g. L-204), `ingredient`, `received_at`, `supplier_id` |
-| `Batch` | `id` (e.g. B-03), `produced_at`, `site` |
-| `Product` | `sku`, `name` |
-| `ProductLot` | `id` (traceability lot code, e.g. TLC-03A), `sku`, `produced_at` |
+| `Lot` | `code` (e.g. L-204), `ingredient`, `received_at`, `received_kg`, `supplier_id` |
+| `Site` | `id` (plant, e.g. PL-1), `name`, `city`, `region` |
+| `DC` | `id` (distribution centre), `name`, `city`, `region` |
+| `Batch` | `id` (e.g. B-03), `produced_at`, `site`, `site_id` |
+| `Product` | `sku`, `name`, `upc` |
+| `ProductLot` | `id` (traceability lot code, e.g. TLC-03A), `sku`, `produced_at`, `best_by` |
 | `Store` | `id`, `name`, `city`, `region` |
+| `Incident` | `id`, `lot`, `hazard`, `reported_at`, proposed `class`, `depth`, `rationale`, `classified_at`, `confirmed_class`, `confirmed_depth`, `confirmed_at` |
 
 | Edge | Properties | Meaning |
 |---|---|---|
 | `(Supplier)-[:SUPPLIED]->(Lot)` | | Who sent the lot |
 | `(Lot)-[:USED_IN]->(Batch)` | `qty_kg` | Lot blended into a batch |
+| `(Lot)-[:STORED_AT]->(Site)` | `qty_kg`, `held_for`, `held_at` | What is left of the lot in the plant store room |
+| `(ProductLot)-[:HELD_AT]->(Site or DC)` | `units`, `held_for`, `held_at` | Unshipped product (units made = shipped + held) |
+| `(Incident)-[:CONCERNS]->(Lot)` | | The open incident for a lot |
 | `(Batch)-[:REWORKED_INTO]->(Batch)` | `qty_kg` | Leftovers reused in a later batch |
 | `(Batch)-[:PRODUCED]->(ProductLot)` | `units` | Batch split into product lots |
 | `(ProductLot)-[:OF]->(Product)` | | Which SKU |
 | `(ProductLot)-[:SHIPPED_TO]->(Store)` | `units`, `shipped_at` | Shipment with the lot code recorded |
 | `(Product)-[:SHIPPED_UNTRACKED]->(Store)` | `units`, `shipped_at` | Shipment where the lot code wasn't recorded (a gap) |
 
-There are indexes on `Lot.code`, `Batch.id`, `ProductLot.id`, `Product.sku`, `Store.id` and `Supplier.id`. Edges only point forward in time, so the graph has no cycles and bounded variable-length matches are safe.
+There are indexes on `Lot.code`, `Batch.id`, `ProductLot.id`, `Product.sku`, `Store.id`, `Supplier.id`, `Site.id`, `DC.id` and `Incident.lot`. Edges only point forward in time, so the graph has no cycles and bounded variable-length matches are safe.
 
 ## The dashboard
 
-The page is built for a recall coordinator in the first hour of an incident.
+The page is built for the manufacturer's recall coordinator in the first hour of an incident, and reads top to bottom in the order they work.
 
-- **Incident header**: the lot, ingredient and supplier, plus progress through Traced → Gaps decided → Safe stores verified → Notices drafted → Approved.
-- **Headline numbers**: stores to recall vs blanket, with one tick per store; units to pull vs a blanket recall (2,232 vs 7,311, a 69% saving); spread; stores that can't be cleared; stores proven safe.
-- **How the lot spread**: a flow diagram of units from the lot through batches and rework to product lots and states, with a hatched band for shipments with no lot code. A second tab shows every record as a network you can click.
-- **Where it went**: a map of states drawn as tiles, with recall, gap and safe counts. Click a state to filter the store table.
-- **Exposure window**: every affected shipment by date and product, and how long the oldest product has been on shelves.
-- **Store table**: all 71 stores, with status, lots received, units at risk, last shipment and notice status. You can filter and search it.
-- **Evidence drawer**: click a store to see why. For a recalled store it shows the chain of records with quantities and dates (lot → batch → rework → product lot → shipment). For a gap store it shows the missing record. For a safe store it shows each lot it holds, traced back to its ingredients.
-- **Agent trace**: streams live as the agent works. You see Claude's short notes, each MCP tool call with its input, its result in one line, its timing and its Cypher, the gap decision, and the conclusion.
-- **Notices**: an approval queue grouped by state, plus the FDA CSV export.
+- **Supplier notice**: lot code and hazard. Opening the incident writes an `Incident` node and starts a live 24-hour clock (FDA Reportable Food Registry report, FSMA 204 records request). When the run finishes, the header says how long after the notice the scope was decided.
+- **Hazard assessment**: the agent's proposed class and depth with its rationale. The coordinator confirms, or changes class or depth and confirms. Nothing can be approved before this.
+- **Headline numbers**: stores that must pull product (33 of 71, one tick per store); units to pull from stores vs a blanket recall; units and kilograms held before they left; stores that can't be cleared; stores cleared by the records. Each tile says in one line what the number means.
+- **What left the plant**: a plain-language paragraph of the lineage, then three views. The *scope table* has one row per affected product lot: product and UPC, where and when it was made, how it came to contain the lot (including rework), best-by date, units made, shipped (and to how many stores) and on hold. *Units flow* is a Sankey of units from the lot to states, with a hatched band for deliveries with no lot code. *Record network* is every record as a node.
+- **Live record network**: while the agent works, the network lights up as the agent reaches each record: the lot, then the plants and DCs put on hold, then the spread hop by hop (batches, rework, product lots, stores) with moving dashes, then the stores with missing records, the cleared stores, and the backward check in green. A **Replay the trace** button plays it again on a finished run.
+- **Where it went**: stores by state as stacked bars (pull, no record, cleared). Click a state to filter the table.
+- **Exposure**: delivery dates, time on shelves, best-by range, and units delivered per day.
+- **Public notice facts** (consumer-level recalls): products, UPCs, lot codes on pack, best-by dates, chains and states, read from the graph.
+- **Store decisions**: all 71 stores with the decision (Pull product, Pull with no record, Cleared), what they received, units to pull, last delivery and notice status. Filter and search.
+- **Evidence drawer**: click a store. It opens with one plain sentence saying why, then the chain of records with quantities and dates (lot → batch → rework → product lot → delivery), the missing record for a gap store, or each lot traced back to its ingredients for a cleared store.
+- **Investigation log**: streams live. Each agent step has a plain title (Hazard assessment, Hold at plants and DCs, Forward trace, Delivery record check, Scope decision, Backward check on cleared stores, Store notices drafted), the agent's short note, the result in one line, timing, and the tool name with its Cypher. The agent's summary closes it.
+- **Store notices**: an approval queue grouped by state, enabled once the class is confirmed, plus the FDA CSV export.
 
 All the dashboard data comes from `GET /incident/:lot`, which reads the graph without calling Claude. Store statuses come from `minimal_recall`, so the dashboard and the agent always agree.
 
 ## Tools and their Cypher
 
 All Cypher is in [`src/graph/queries.ts`](src/graph/queries.ts) and the handlers are in [`src/tools/index.ts`](src/tools/index.ts).
+
+**`propose_classification(lot, class, depth, rationale)`** records the agent's hazard assessment on the `Incident` node. It is a proposal; `POST /incident/:lot/confirm` records the coordinator's decision.
+
+```cypher
+MERGE (i:Incident {lot: $lot})
+ON CREATE SET i.id = $id, i.reported_at = $at, i.hazard = 'not recorded'
+SET i.class = $class, i.depth = $depth, i.rationale = $rationale, i.classified_at = $at
+RETURN i.id AS id, i.hazard AS hazard
+```
+
+**`place_hold(lot)`** finds what has not left the company and marks it held: the unused remainder of the lot at the plant, and every unshipped unit of affected product at plants and DCs.
+
+```cypher
+MATCH (:Lot {code: $lot})-[:USED_IN|REWORKED_INTO|PRODUCED*1..6]->(pl:ProductLot)-[h:HELD_AT]->(loc)
+WITH DISTINCT pl, h, loc
+MATCH (pl)-[:OF]->(p:Product)
+RETURN pl.id AS product_lot, p.name AS product, labels(loc)[0] AS kind, loc.id AS id, loc.name AS name,
+       loc.city AS city, loc.region AS region, h.units AS units
+```
 
 **`trace_forward(lot)`** returns every store reached, with the full path. The handler groups by store, collects the batches and product lots on the paths, and sums units per shipment.
 
@@ -127,7 +159,7 @@ ORDER BY tlc, store
 
 ## Demo video
 
-[`demo/recall-tracer-demo.mp4`](demo/recall-tracer-demo.mp4) is a 108-second captioned walkthrough of one live run, from the alert to the CSV export.
+[`demo/recall-tracer-demo.mp4`](demo/recall-tracer-demo.mp4) is a captioned walkthrough of one live run, from the supplier notice to the CSV export.
 
 ## Run it with one command
 
@@ -149,11 +181,11 @@ docker run -d --name falkordb -p 6380:6379 -p 3001:3000 falkordb/falkordb:latest
 bun install
 cp .env.example .env          # add ANTHROPIC_API_KEY; FALKORDB_PORT=6380
 bun run generate --seed 42 --reset
-bun run test                    # 14 tests; the end-to-end one runs only with an API key
+bun run test                    # 17 tests, no API calls; E2E=1 bun run test adds one live agent run
 bun run dev                     # API on :8787, page on http://localhost:5173
 ```
 
-Enter `L-204` and press **Trace**. FalkorDB Browser on http://localhost:3001 shows the raw graph. For one-port production use, run `bun run build && bun run start` and open http://localhost:8787.
+Enter `L-204`, pick the hazard and press **Open incident**. FalkorDB Browser on http://localhost:3001 shows the raw graph. For one-port production use, run `bun run build && bun run start` and open http://localhost:8787.
 
 To use the tools from Claude Code in this folder, the included `.mcp.json` registers the `recall-tracer` MCP server.
 
@@ -161,18 +193,20 @@ To use the tools from Claude Code in this folder, the included `.mcp.json` regis
 
 | Method | Path | Does |
 |---|---|---|
-| POST | `/recall` | Body `{lot}`. Runs the agent and returns the recall decision as JSON. Returns 404 without calling Claude if the lot isn't in the graph |
+| POST | `/recall` | Body `{lot, hazard}`. Opens the incident, runs the agent and returns the recall decision as JSON. Returns 404 without calling Claude if the lot isn't in the graph |
 | GET | `/recall/last` | The last decision, so a page reload doesn't rerun the agent |
-| GET | `/recall/stream?lot=` | Runs the agent and streams each step as Server-Sent Events (`note`, `tool_start`, `tool_end`, `done`) |
-| GET | `/incident/:lot` | Dashboard data straight from the graph: lineage with quantities, every store's shipments, where each lot came from. Add `?gaps=flag` for flag-only mode |
-| GET | `/graph/:lot` | Cytoscape nodes and edges for affected paths, gap stores and safe stores |
+| GET | `/recall/stream?lot=&hazard=` | Same, streaming each step as Server-Sent Events (`note`, `tool_start`, `tool_end`, `done`) |
+| GET | `/incident/:lot` | Dashboard data straight from the graph: incident, hold, lineage with quantities, product lots with UPC and best-by, every store's deliveries, where each lot came from. Add `?gaps=flag` for flag-only mode |
+| GET | `/incident/:lot/status` | The incident node and the hold only; polled while the agent runs |
+| POST | `/incident/:lot/confirm` | Body `{class, depth}`. The coordinator's decision on the agent's proposal |
+| GET | `/graph/:lot` | Cytoscape nodes and edges, each tagged with the agent step that reveals it and its hop count, for the live network |
 | GET | `/notices` | Draft notices with their status |
 | POST | `/notices/approve` | Body `{stores}`. Marks them `approved`; nothing is sent |
 | GET | `/export/:lot.csv` | FDA-style shipping records |
 
 ## Data
 
-`src/data/generate.ts` builds a seeded synthetic graph: 8 suppliers, 20 lots, 15 batches, 10 products, 29 product lots, 75 stores, 158 nodes and 344 edges. The planted cases (bad lot, blend, rework, decoy lot L-205, gap, untouched stores) are hard-coded and everything else is randomised by `seedrandom`, so the same seed always gives the same graph. All company, store and supplier names are fictional. The generator writes `data/expected.json`, and the tests assert against it.
+`src/data/generate.ts` builds a seeded synthetic graph: 8 suppliers, 20 lots, 2 plants, 3 DCs, 15 batches, 10 products with UPCs, 29 product lots with best-by dates, 75 stores, 163 nodes and 427 edges. Units made always equal units shipped plus units still held. The planted cases (bad lot, blend, rework, decoy lot L-205, gap, untouched stores) are hard-coded and everything else is randomised by `seedrandom`, so the same seed always gives the same graph. All company, store and supplier names are fictional. The generator writes `data/expected.json`, and the tests assert against it.
 
 ## Tests
 
@@ -184,12 +218,14 @@ To use the tools from Claude Code in this folder, the included `.mcp.json` regis
 - 38 safe stores, none of them in the recall
 - blanket 71, targeted 33, safe 38, and flag-only mode gives 31
 - the backward trace independently finds only the 7 affected product lots containing L-204
+- the hold finds the unused raw lot and the unshipped units, made = shipped + held for every product lot, and the hold is written to the graph
+- an incident can be opened, classified by the agent and confirmed (or changed) by the coordinator; bad classes are rejected
 - the dashboard's incident report agrees with the tools, store by store
 - 33 drafts are written
 - bad input gets a 400 and an unknown lot a 404, without calling Claude
 - the CSV has one row per shipment plus the gap rows
 - the graph data and the approval step work
-- `POST /recall` runs end to end in under 60 seconds, with all five steps in order, each with a summary and its Cypher
+- with `E2E=1`, `POST /recall` runs end to end in under 60 seconds, with all seven steps in order, each with a summary and its Cypher
 
 ## AI disclosure
 
@@ -200,3 +236,5 @@ This project was built with AI coding help (Claude Code, Claude Opus 5.5) during
 - Synthetic data only; there's no real company data.
 - No login. Notices are never sent; approval only changes their status.
 - No dilution or risk scoring: any path from the bad lot counts as affected.
+- Units to pull are units delivered, not units still on the shelf; there is no sales data.
+- The recall class is the firm's assessment. In the US the FDA assigns the final classification.
