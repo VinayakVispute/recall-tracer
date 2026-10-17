@@ -54,8 +54,10 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
     <a href="#built">What we built</a>
     <a href="#sources">Data sources</a>
     <a href="#graph">Graph schema</a>
+    <a href="#why">Why this schema</a>
     <a href="#ingest">Case ingest schema</a>
     <a href="#try">Try it</a>
+    <a href="#questions">Questions</a>
   </nav>
 
   <h2 id="built">1. What we built</h2>
@@ -128,6 +130,25 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
     <tr><td>Cluster</td><td><code>id</code> (OB-2026-10)</td><td>pathogen, opened_at</td></tr>
     <tr><td>Case</td><td><code>id</code> (C1)</td><td>region, onset, reported_at, sku (optional)</td></tr>
     <tr><td>Incident</td><td><code>lot</code></td><td>id, hazard, reported_at, class, depth, rationale, confirmed_class, confirmed_depth, scoped_at, stores</td></tr>
+  </table></div>
+
+  <h3 id="why">Why this schema</h3>
+  <div class="table-wrap"><table>
+    <tr><th>Choice</th><th>Reason</th></tr>
+    <tr><td>A graph (FalkorDB), not tables</td><td>A recall is a path question: which stores did this lot reach, and which lots reached these sick people. In a graph that is one traversal query. In SQL it is a chain of joins whose depth changes with rework.</td></tr>
+    <tr><td>Nodes follow FSMA 204 tracking events</td><td>Receive, transform and ship are the events the FDA rule makes companies record. Because the graph uses the same shape, a real traceability export can be mapped in without redesigning anything.</td></tr>
+    <tr><td>Lot and ProductLot are separate</td><td>A Lot is a raw ingredient from a supplier. A ProductLot is the finished, coded product on the shelf. Contamination enters at the ingredient, but stores pull product lots, so we need both and the link between them.</td></tr>
+    <tr><td><code>REWORKED_INTO</code> between batches</td><td>Leftover batch gets mixed into a later batch. This is a real way contamination spreads that simple one-hop tracing misses.</td></tr>
+    <tr><td>Quantities on edges (<code>qty_kg</code>, <code>units</code>)</td><td>The amount belongs to the movement, not to the thing. That is what lets us say "2,256 units to pull" instead of only listing stores.</td></tr>
+    <tr><td><code>SHIPPED_UNTRACKED</code></td><td>Some shipments have no lot code. We keep them as their own edge so they show up as coverage gaps instead of silently disappearing from the recall.</td></tr>
+    <tr><td><code>HELD_AT</code> plants and DCs</td><td>Stock that hasn't reached stores yet must be put on hold, not pulled from shelves. It needs its own place in the graph.</td></tr>
+    <tr><td>Case and Cluster nodes</td><td>A case is a person, not a shipment. <code>BOUGHT_AT</code> with a date ties them to a store, so outbreak mode can walk back from people to the common lot. A cluster groups cases of one pathogen.</td></tr>
+    <tr><td><code>sku</code> is optional on a case</td><td>Sick people often don't remember the exact product. A store and a date are enough to trace.</td></tr>
+    <tr><td>Case ids are global</td><td>The same person must not be counted twice in two clusters, so a reused id is rejected instead of moved.</td></tr>
+    <tr><td>Incident node linked to the Lot</td><td>It keeps history: minutes to scope, and the agent's proposed class kept apart from the human-confirmed class, for audit.</td></tr>
+    <tr><td>Dates as <code>YYYY-MM-DD</code> text</td><td>They sort and compare correctly as plain strings, with no timezone surprises.</td></tr>
+    <tr><td>Ingest by CSV or paste</td><td>Health department case lists live in spreadsheets. Pasting rows is the shortest path. Parsing involves no AI, so it is fast, free and repeatable. Bad rows are reported with reasons rather than dropped.</td></tr>
+    <tr><td>Synthetic, seeded data</td><td>Real lot-to-store data is private. A fixed seed gives a known answer key, so tests and the demo can prove the agent got it right.</td></tr>
   </table></div>
 
   <h2 id="ingest">4. Case ingest schema</h2>
@@ -212,6 +233,9 @@ curl -N 'localhost:8787/outbreak/stream?cluster=OB-2026-10'
 # replay the recorded L-204 recall, no key needed
 curl -N 'localhost:8787/recall/replay?lot=L-204&amp;speed=10'</code></pre>
   <p>Hosts are local for now. The live app URL comes after deploy.</p>
+
+  <h2 id="questions">6. Questions?</h2>
+  <p>If anything here is unclear (the schema, a column, why something is modelled a certain way, or how to plug in real data), ask Nishit. Happy to walk through it.</p>
 
   <footer>Recall Tracer, Dev A and Dev B lanes. Source: <code>src/data/cases.ts</code>, <code>src/graph/queries.ts</code>, <code>src/api/server.ts</code>.</footer>
 </main>
