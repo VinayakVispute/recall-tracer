@@ -193,9 +193,9 @@ export async function casePath({ lot, cases }: { lot: string; cases: string[] })
   const known = new Set((await query<{ id: string }>(CASES_EXIST, { cases })).map((r) => r.id));
   const unknown = cases.filter((c) => !known.has(c));
   if (unknown.length) throw new Error(`unknown case ids: ${unknown.join(', ')}`);
-  const rows = await query<{ case: string; path: string[] }>(CASE_PATH, { lot, cases });
+  const rows = await query<{ case_id: string; path: string[] }>(CASE_PATH, { lot, cases });
   const paths: Record<string, string[][]> = Object.fromEntries(cases.map((c) => [c, []]));
-  for (const r of rows) paths[r.case].push(r.path);
+  for (const r of rows) paths[r.case_id].push(r.path);
   return { lot, paths, unexplained: cases.filter((c) => !paths[c].length) };
 }
 

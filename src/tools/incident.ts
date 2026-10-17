@@ -9,6 +9,8 @@ export type Incident = {
   id: string; hazard: string; reported_at: string;
   class: string | null; depth: string | null; rationale: string | null; classified_at: string | null;
   confirmed_class: string | null; confirmed_depth: string | null; confirmed_at: string | null;
+  /** When the agent first decided the scope; freezes the shell's clock. */
+  scoped_at: string | null;
 };
 
 /** The incident node and the hold, cheap enough to poll while the agent runs. */

@@ -79,7 +79,8 @@ RETURN i.id AS id`;
 export const INCIDENT_GET = `
 MATCH (i:Incident {lot: $lot})
 RETURN i.id AS id, i.hazard AS hazard, i.reported_at AS reported_at, i.class AS class, i.depth AS depth, i.rationale AS rationale,
-       i.classified_at AS classified_at, i.confirmed_class AS confirmed_class, i.confirmed_depth AS confirmed_depth, i.confirmed_at AS confirmed_at`;
+       i.classified_at AS classified_at, i.confirmed_class AS confirmed_class, i.confirmed_depth AS confirmed_depth, i.confirmed_at AS confirmed_at,
+       i.scoped_at AS scoped_at`;
 
 // --- Incident dashboard (read-only, no agent) -----------------------------
 
@@ -171,6 +172,13 @@ RETURN l.code AS lot, l.ingredient AS ingredient, sup.id AS supplier, sup.name A
 ORDER BY cases_explained DESC, specificity DESC, lot ASC LIMIT 10`;
 
 export const CLUSTER_CASES = 'MATCH (:Cluster {id: $cluster})-[:HAS_CASE]->(c:Case) RETURN c.id AS id ORDER BY id';
+/** Page 1's case table: each case with where and when it was bought, and the product if the person remembers it. */
+export const CLUSTER_DETAIL = `
+MATCH (cl:Cluster {id: $cluster})-[:HAS_CASE]->(c:Case)-[b:BOUGHT_AT]->(st:Store)
+OPTIONAL MATCH (p:Product {sku: c.sku})
+RETURN cl.pathogen AS pathogen, cl.opened_at AS opened_at, c.id AS id, c.region AS region, c.onset AS onset, c.reported_at AS reported_at,
+       c.sku AS sku, p.name AS product, st.id AS store, st.name AS store_name, st.city AS city, b.date AS bought_at
+ORDER BY id`;
 export const CASES_EXIST = 'MATCH (c:Case) WHERE c.id IN $cases RETURN c.id AS id';
 
 /** Each case's evidence chain: lot, batches, product lot, store, case. */
@@ -179,8 +187,8 @@ MATCH (c:Case) WHERE c.id IN $cases
 MATCH p = (:Lot {code: $lot})-[:USED_IN]->(:Batch)-[:REWORKED_INTO*0..3]->(:Batch)-[:PRODUCED]->(pl:ProductLot)
           -[s:SHIPPED_TO]->(:Store)<-[b:BOUGHT_AT]-(c)
 WHERE s.shipped_at <= b.date AND (c.sku IS NULL OR pl.sku = c.sku)
-RETURN c.id AS case, [n IN nodes(p) | coalesce(n.code, n.id)] AS path
-ORDER BY case`;
+RETURN c.id AS case_id, [n IN nodes(p) | coalesce(n.code, n.id)] AS path
+ORDER BY case_id`; // not `case`: a reserved word in FalkorDB 6
 
 // --- Case ingest (A6): additive, idempotent upserts into one cluster ---
 
