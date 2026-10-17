@@ -253,7 +253,7 @@ export function NetworkGraph({ lot, stages, animating, focus, onPick }: { lot: s
   const revealed = useRef(new Set<string>());
   const timers = useRef<number[]>([]);
   const [els, setEls] = useState<Elements>();
-  useEffect(() => { fetch(`/graph/${lot}`).then((r) => r.json()).then(setEls); }, [lot]);
+  useEffect(() => { fetch(`/api/graph/${lot}`).then((r) => r.json()).then(setEls); }, [lot]);
 
   useEffect(() => {
     if (!els || !ref.current) return;

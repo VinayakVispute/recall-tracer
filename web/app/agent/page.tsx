@@ -52,7 +52,7 @@ const SUGGESTIONS = [
 export default function Page() {
   const { messages, sendMessage, status, stop, addToolApprovalResponse } =
     useChat({
-      transport: new DefaultChatTransport({ api: "/chat" }),
+      transport: new DefaultChatTransport({ api: "/api/chat" }),
       sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
     });
 

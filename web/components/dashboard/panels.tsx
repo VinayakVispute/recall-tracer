@@ -224,6 +224,8 @@ const TITLE: Record<string, string> = {
   minimal_recall: "Scope decision",
   trace_backward: "Backward check on cleared stores",
   draft_recall_notice: "Store notices drafted",
+  find_common_source: "Common source search",
+  case_path: "Case evidence path",
 }
 const DOING: Record<string, string> = {
   propose_classification: "Recording the proposed class and depth",
@@ -233,6 +235,8 @@ const DOING: Record<string, string> = {
   minimal_recall: "Combining the traces into a decision",
   trace_backward: "Walking every cleared lot back to its ingredients",
   draft_recall_notice: "Writing one draft per store",
+  find_common_source: "Walking every case back to the ingredient lots that could have reached it",
+  case_path: "Reading one case's path back to its lot",
 }
 
 /** Big inputs (33 notices, 60 product lots) are condensed so the log stays readable. */
