@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dev C Handoff</title>
+<meta name="description" content="Everything Dev C needs to deploy Recall Tracer and wire the UI to the live API.">
+<style>
+:root {
+  --bg: #ffffff; --fg: #0a0a0a; --muted: #6b7280; --card: #fafafa; --border: #e5e7eb;
+  --accent: #2563eb; --code: #f4f4f5; --ok: #15803d; --warn: #b45309; --hl-bg: #fff7ed; --hl-border: #ea580c;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #09090b; --fg: #fafafa; --muted: #a1a1aa; --card: #111113; --border: #27272a;
+    --accent: #60a5fa; --code: #18181b; --ok: #4ade80; --warn: #fbbf24; --hl-bg: #1c1208; --hl-border: #fb923c; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 960px; margin: 0 auto; padding: 32px 16px 64px; }
+h1 { font-size: 28px; margin: 0 0 4px; letter-spacing: -.02em; }
+h2 { font-size: 20px; margin: 40px 0 12px; padding-top: 8px; border-top: 1px solid var(--border); }
+h3 { font-size: 16px; margin: 20px 0 8px; }
+p { margin: 8px 0; }
+.lead { color: var(--muted); margin: 0 0 16px; }
+.badge { display: inline-block; font-size: 12px; padding: 1px 8px; border: 1px solid var(--border); border-radius: 999px; color: var(--muted); margin-right: 4px; }
+.badge.ok { color: var(--ok); border-color: currentColor; }
+.badge.warn { color: var(--warn); border-color: currentColor; }
+nav { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
+nav a { color: var(--accent); text-decoration: none; font-size: 14px; }
+.grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+.card h3 { margin-top: 0; }
+.table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { background: var(--card); font-weight: 600; }
+tr:last-child td { border-bottom: 0; }
+code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+code { background: var(--code); padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--code); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; overflow-x: auto; margin: 8px 0; }
+pre code { background: none; padding: 0; }
+ul { padding-left: 20px; margin: 8px 0; }
+a { color: var(--accent); }
+.flow { font-family: ui-monospace, Menlo, monospace; font-size: 13px; white-space: pre; overflow-x: auto; background: var(--code); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+.highlight { margin: 28px 0; padding: 20px; border-radius: 12px; background: var(--hl-bg); border: 1px solid var(--hl-border); border-left: 5px solid var(--hl-border); }
+.highlight h3 { margin-top: 8px; font-size: 18px; }
+.highlight .table-wrap, .highlight th { background: var(--bg); }
+.badge.hl { color: var(--hl-border); border-color: currentColor; font-weight: 600; }
+footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
+</style></head>
+<body>
+<main>
+  <h1>Dev C handoff: deploy and wire the UI</h1>
+  <p class="lead">Everything Dev A and Dev B finished, and what you need before you start. All of it is on <code>main</code>. As of 17 Oct 2026.</p>
+  <span class="badge ok">Dev A done</span><span class="badge ok">Dev B done</span><span class="badge warn">Your turn: B6 deploy, C5 wire Page 1</span>
+  <nav>
+    <a href="#ready">What's ready</a>
+    <a href="#local">Run it locally</a>
+    <a href="#env">Env vars</a>
+    <a href="#deploy">Deploy (B6)</a>
+    <a href="#api">API for the UI</a>
+    <a href="#sse">Streams</a>
+    <a href="#gotchas">Gotchas</a>
+    <a href="#questions">Questions</a>
+  </nav>
+
+  <h2 id="ready">1. What's ready for you</h2>
+  <div class="grid">
+    <div class="card"><h3>API on <code>main</code></h3><p>Hono server on port 8787: recall, replay, outbreak, case ingest, incidents, notices, graph and chat. MCP at <code>/mcp</code>.</p></div>
+    <div class="card"><h3>Fixture for Page 1</h3><p><code>web/fixtures/outbreak.json</code> is a real <code>OutbreakResult</code>. Build the UI on it, then switch to <code>POST /outbreak</code>.</p></div>
+    <div class="card"><h3>Demo recording</h3><p><code>demo/run-L-204.json</code> replays the full L-204 recall with no API key and no database.</p></div>
+    <div class="card"><h3>Web proxy</h3><p><code>web/next.config.ts</code> already forwards every API path to <code>RECALL_API</code>, including the new outbreak, ingest and incidents routes.</p></div>
+  </div>
+  <p>Data schema, ingest format and why the graph looks the way it does: <a href="https://recall-tracer-data.vercel.app">recall-tracer-data.vercel.app</a>.</p>
+
+  <h2 id="local">2. Run it locally (about 5 minutes)</h2>
+<pre><code># 1. FalkorDB on port 6380
+docker run -d -p 6380:6379 falkordb/falkordb
+
+# 2. Install (root and web have separate package.json files)
+bun install
+cd web &amp;&amp; bun install &amp;&amp; cd ..
+
+# 3. Env: copy and add the team Claude key
+cp .env.example .env.local      # then set ANTHROPIC_API_KEY
+
+# 4. Seed the graph (seed 42, same data every time)
+bun run generate --seed 42 --reset
+
+# 5. API on :8787 and web on :3000
+bun run dev</code></pre>
+  <p>Check it works: open <code>localhost:3000</code>, or run <code>curl -N 'localhost:8787/recall/replay?lot=L-204&amp;speed=10'</code>. You should see 22 events ending in <code>done</code>. Tests: <code>bun run test</code> (32 pass, 1 skipped) and <code>bun run typecheck</code>.</p>
+
+  <h2 id="env">3. Environment variables</h2>
+  <div class="table-wrap"><table>
+    <tr><th>Variable</th><th>Where</th><th>Needed for</th><th>Default</th></tr>
+    <tr><td><code>ANTHROPIC_API_KEY</code></td><td>API</td><td>Live recall, outbreak and chat. Not needed for replay, ingest, incidents, graph.</td><td>none</td></tr>
+    <tr><td><code>FALKORDB_HOST</code></td><td>API</td><td>Every route except replay</td><td><code>localhost</code></td></tr>
+    <tr><td><code>FALKORDB_PORT</code></td><td>API</td><td>Same</td><td><code>6380</code></td></tr>
+    <tr><td><code>FALKORDB_USERNAME</code>, <code>FALKORDB_PASSWORD</code></td><td>API</td><td>FalkorDB Cloud. <b>Not read by the code yet</b>, see Deploy step 1.</td><td>none</td></tr>
+    <tr><td><code>PORT</code></td><td>API</td><td>Port the API listens on</td><td><code>8787</code></td></tr>
+    <tr><td><code>RECALL_API</code></td><td>Web (Vercel)</td><td>Where the Next.js proxy sends API calls</td><td><code>http://localhost:8787</code></td></tr>
+  </table></div>
+  <p>The API loads <code>.env.local</code> then <code>.env</code>. Never commit either.</p>
+
+  <h2 id="deploy">4. Deploy plan (B6)</h2>
+  <div class="flow">Browser ──▶ Vercel (web/, Next.js) ──rewrites──▶ API container (Docker, port 8787) ──▶ FalkorDB Cloud
+                  RECALL_API=https://&lt;api-host&gt;               ANTHROPIC_API_KEY, FALKORDB_*</div>
+  <h3>Steps</h3>
+  <ol>
+    <li><b>Add FalkorDB Cloud auth to <code>src/graph/db.ts</code>.</b> Today it passes only host and port. Add username and password (and TLS if your Cloud instance needs it). Roughly:
+<pre><code>FalkorDB.connect({
+  username: process.env.FALKORDB_USERNAME,
+  password: process.env.FALKORDB_PASSWORD,
+  socket: { host: process.env.FALKORDB_HOST ?? 'localhost', port: Number(process.env.FALKORDB_PORT ?? 6380) },
+})</code></pre>
+      Check the option names against the <code>falkordb</code> client docs before relying on this. This file is in your lane ("auth fields only").</li>
+    <li><b>Make the Dockerfile API-only.</b> It still runs <code>RUN bun run build</code>, which builds <code>web/</code>, and its comment says it serves the page too. It doesn't any more: the web app is Next.js on Vercel. Root <code>bun install</code> does not install <code>web/</code> dependencies (no workspaces), so that step will likely fail. Remove it and fix the comment.</li>
+    <li><b>Host the API container</b> anywhere that runs Docker and allows long responses (Fly.io, Railway, Render, a VM). Set <code>ANTHROPIC_API_KEY</code> and the <code>FALKORDB_*</code> vars. On start it seeds the graph (<code>generate --seed 42 --reset</code>) and serves on <code>$PORT</code>.</li>
+    <li><b>Create the Vercel project with root <code>web/</code></b> and set <code>RECALL_API</code> to the API's public URL.</li>
+    <li><b>Done when</b> (from the plan): the public URL opens the dashboard, replay works with no key, and a live run works with the team key.</li>
+  </ol>
+  <p>For local all-in-one: <code>docker compose up</code> runs FalkorDB plus the API (needs <code>ANTHROPIC_API_KEY</code> in <code>.env</code>).</p>
+
+  <h2 id="api">5. API for the UI</h2>
+  <div class="table-wrap"><table>
+    <tr><th>Page</th><th>Call</th><th>Returns</th></tr>
+    <tr><td>Page 1 Outbreak</td><td><code>POST /ingest/cases</code> <code>{cluster, pathogen?, text}</code></td><td><code>{cluster, created, loaded, rejected[{row, line, reason}]}</code>. Rejected rows are 200, show them next to the paste.</td></tr>
+    <tr><td>Page 1 Outbreak</td><td><code>POST /outbreak</code> <code>{cluster}</code> or <code>GET /outbreak/stream?cluster=</code></td><td><code>OutbreakResult</code> <code>{cluster, total_cases, candidates[], paths, summary}</code>. Same shape as the fixture. 400 bad id, 404 no cases.</td></tr>
+    <tr><td>Recall</td><td><code>GET /recall/stream?lot=&amp;hazard=</code></td><td>SSE trace, ends with <code>done{result}</code>.</td></tr>
+    <tr><td>Demo</td><td><code>GET /recall/replay?lot=L-204&amp;speed=</code></td><td>Same SSE as a live run. <code>speed</code> 0 to 20. 404 if no recording.</td></tr>
+    <tr><td>Graph view</td><td><code>GET /graph/:lot</code></td><td>Nodes and edges for the lot.</td></tr>
+    <tr><td>Approval</td><td><code>GET /incident/:lot</code>, <code>/status</code>, <code>POST /incident/:lot/confirm</code> <code>{class, depth}</code></td><td>Incident report, approval state, human confirmation.</td></tr>
+    <tr><td>Notices</td><td><code>GET /notices</code>, <code>POST /notices/approve</code> <code>{stores}</code></td><td>Drafted notices. Approve only changes status, nothing is sent.</td></tr>
+    <tr><td>Page 7 History</td><td><code>GET /incidents</code>, <code>GET /incidents/supplier/:id</code></td><td><code>IncidentSummary[]</code>: <code>id, lot, hazard, reported_at, class, confirmed_class, scoped_at, stores, minutes_to_scope, status</code>. <code>status</code> is <code>open</code>, <code>scoped</code> or <code>notices_approved</code>. Supplier id like <code>S-03</code>, 404 if unknown.</td></tr>
+    <tr><td>Chat</td><td><code>POST /chat</code> <code>{messages}</code></td><td>AI SDK UI message stream (<code>useChat</code>).</td></tr>
+  </table></div>
+  <p>Types live in <code>src/contracts.ts</code>: <code>CaseInput</code>, <code>Candidate</code>, <code>OutbreakResult</code>, <code>TraceEvent</code>, <code>ToolCall</code>, <code>OutbreakEvent</code>, <code>IncidentSummary</code>.</p>
+
+  <h2 id="sse">6. Streams (SSE)</h2>
+  <p>Every stream sends named events: <code>event: &lt;type&gt;</code> plus <code>data: JSON</code>. Listen with <code>addEventListener(type)</code>, not <code>onmessage</code>.</p>
+  <div class="table-wrap"><table>
+    <tr><th>Event</th><th>Data</th></tr>
+    <tr><td><code>start</code></td><td><code>{model, lot}</code> for a recall, <code>{model, cluster}</code> for an outbreak</td></tr>
+    <tr><td><code>note</code></td><td><code>{text, turn}</code>, the agent's reasoning text</td></tr>
+    <tr><td><code>tool_start</code></td><td><code>{id, name, input, turn}</code></td></tr>
+    <tr><td><code>tool_end</code></td><td><code>{call: {id, name, input, ms, db_ms, queries, cypher[], summary, error?, kind?}}</code></td></tr>
+    <tr><td><code>done</code></td><td><code>{result}</code> for a recall, <code>{outbreak}</code> for an outbreak. Close the stream here.</td></tr>
+    <tr><td><code>error</code></td><td><code>{message}</code></td></tr>
+  </table></div>
+<pre><code>const es = new EventSource(`/outbreak/stream?cluster=OB-2026-10`);
+es.addEventListener('tool_end', (m) =&gt; addStep(JSON.parse(m.data).call));
+es.addEventListener('done', (m) =&gt; { show(JSON.parse(m.data).outbreak); es.close(); });</code></pre>
+  <p><b>Always close on <code>done</code>.</b> If the stream ends without <code>done</code>, the browser reconnects and starts a second paid run. <code>web/app/page.tsx</code> already does this for recall: copy its pattern.</p>
+
+  <h2 id="gotchas">7. Gotchas</h2>
+  <ul>
+    <li><b>Long streams through Vercel.</b> A live run takes 20 to 30 seconds. Streaming through the Vercel rewrite may hit a time limit or get buffered (a guess, not tested). Test one live <code>/recall/stream</code> on the deployed URL early. <code>compress: false</code> in <code>next.config.ts</code> is there on purpose: gzip makes SSE arrive in one chunk at the end.</li>
+    <li><b>Every restart wipes the graph.</b> The container seeds with <code>--reset</code> on boot, so incidents, ingested cases and live recordings in <code>out/</code> are lost. The demo recording in <code>demo/</code> stays.</li>
+    <li><b>Page 7 is empty on a fresh deploy</b> until someone runs a recall.</li>
+    <li><b><code>/outbreak</code> needs the Claude key.</b> Without it, use the fixture or replay for the demo.</li>
+    <li><b>One transient error seen once.</b> <code>/outbreak/stream</code> ended once with "Failed to process successful response". It didn't repeat in two reruns. Keep replay as the demo backup.</li>
+    <li><b>MCP isn't proxied.</b> <code>/mcp</code> isn't in <code>API_PATHS</code>. MCP clients should call the API host directly.</li>
+    <li><b>Validate before you call Claude.</b> The UI checks a lot with <code>GET /incident/:lot/status</code> before opening a stream. Do the same for clusters: <code>POST /outbreak</code> returns 400 or 404 before any Claude call.</li>
+  </ul>
+
+  <h2 id="questions">8. Questions?</h2>
+  <p>If anything is unclear (a route, a type, the deploy, or why something works the way it does), ask Nishit. Happy to pair on it.</p>
+
+  <footer>Recall Tracer, handoff from Dev A and Dev B to Dev C. Sources: <code>src/api/server.ts</code>, <code>src/contracts.ts</code>, <code>Dockerfile</code>, <code>web/next.config.ts</code>, <code>src/graph/db.ts</code>.</footer>
+</main>
+</body>
+</html>
