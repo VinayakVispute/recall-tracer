@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
+import { createMcpHandler } from 'mcp-handler';
 import { streamSSE } from 'hono/streaming';
 import { fileURLToPath } from 'node:url';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -9,6 +10,7 @@ import { AFFECTED_SHIPMENTS, STORES, LOT_EXISTS, INCIDENT_DELETE, INCIDENT_CREAT
 import { traceForward, coverageGaps, unaffectedStores, traceBackward, readHold, readNotices, writeNotices, incidentId, RECALL_CLASSES, RECALL_DEPTHS } from '../tools/index.js';
 import { runAgent, type RecallResult } from '../agent/run.js';
 import { incidentReport, incidentStatus } from '../tools/incident.js';
+import { registerTools } from '../mcp/tools.js';
 
 const LOT_RE = /^L-\d{1,6}$/;
 const LAST = process.env.NOTICES_FILE ? 'out/test-last-recall.json' : 'out/last-recall.json';
@@ -206,6 +208,10 @@ app.get('/export/:file', async (c) => {
   c.header('Content-Disposition', `attachment; filename="recall-${lot}-shipping.csv"`);
   return c.body(await exportCsv(lot));
 });
+
+/** The same tools as the stdio server, over Streamable HTTP for remote MCP clients. */
+const mcp = createMcpHandler(registerTools, { serverInfo: { name: 'recall-tracer', version: '0.1.0' } });
+app.all('/mcp', (c) => mcp(c.req.raw));
 
 // Production: serve the built page from the same port (`bun run build` first).
 app.use('/*', serveStatic({ root: './web/dist' }));

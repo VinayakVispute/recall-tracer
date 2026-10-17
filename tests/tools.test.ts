@@ -141,6 +141,17 @@ describe('tools on L-204', () => {
     expect(JSON.parse((r.content as any)[0].text).drafted).toBe(1);
   });
 
+  it('the same tools are served over Streamable HTTP at /mcp', async () => {
+    const { app } = await import('../src/api/server.js');
+    const { Client, StreamableHTTPClientTransport } = await import('@modelcontextprotocol/client');
+    const c = new Client({ name: 'test', version: '0.0.0' });
+    await c.connect(new StreamableHTTPClientTransport(new URL('http://x/mcp'), { fetch: async (u, init) => app.request(String(u), init) }));
+    expect((await c.listTools()).tools.map((t) => t.name).sort()).toEqual(Object.keys(schemas).sort());
+    const r = await c.callTool({ name: 'trace_forward', arguments: { lot: LOT } });
+    expect(JSON.parse((r.content as any)[0].text).stores).toHaveLength(31);
+    await c.close();
+  });
+
   it('draft_recall_notice: 33 drafts, all pending_approval', async () => {
     rmSync(NOTICES_FILE, { force: true });
     const m = await minimalRecall({ lot: LOT });

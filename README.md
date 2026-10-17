@@ -19,12 +19,13 @@ Built for [Graph Hacks: Context for AI Agents](https://www.wemakedevs.org/hackat
 
 ```text
 React page ──> Hono API ──> agent (Claude) ──MCP stdio──> MCP server ──> tools ──Cypher──> FalkorDB
+                  └── /mcp (Streamable HTTP) ──> same tools, for any MCP client
 ```
 
 - **The graph decides; Claude doesn't.** Which stores are affected, gaps or safe comes only from Cypher results. Claude picks the tools, makes the gap decision, explains the result and writes the notice reasons. The API's final JSON is built from the `minimal_recall` tool output, not retyped by the model.
 - **One judgement is the agent's, and it is a proposal.** From the hazard on the supplier notice, the agent proposes the recall class (I, II, III) and depth (consumer, retail, wholesale) with a rationale. It is written to the `Incident` node and the coordinator confirms or changes it before any notice can be approved.
 - **The graph is the audit trail.** The incident, the hazard, the proposed and confirmed class, and the hold on inventory are all written to FalkorDB with timestamps.
-- **Tools go through MCP.** The agent starts the project's own MCP server (`src/mcp/server.ts`) as a stdio child process, lists its tools and hands them to Claude. The same server works in Claude Code or Claude Desktop (`.mcp.json` is included).
+- **Tools go through MCP.** The agent starts the project's own MCP server (`src/mcp/server.ts`) as a stdio child process, lists its tools and hands them to Claude. The same tools are also served over Streamable HTTP at `/mcp` on the API port (Vercel's `mcp-handler`), so any MCP client can call them. Both transports share one tool registration. The stdio server works in Claude Code or Claude Desktop (`.mcp.json` is included).
 - **Gap detection is the agent's decision.** `minimal_recall` takes `add_gap_stores`. The agent adds gap stores (policy: missing product is worse than pulling a few extra units); `false` only flags them.
 - **Humans approve.** Notices are written to `out/notices.json` as `pending_approval`. Approving changes their status; nothing is ever sent.
 
@@ -187,7 +188,17 @@ bun run dev                     # API on :8787, page on http://localhost:5173
 
 Enter `L-204`, pick the hazard and press **Open incident**. FalkorDB Browser on http://localhost:3001 shows the raw graph. For one-port production use, run `bun run build && bun run start` and open http://localhost:8787.
 
-To use the tools from Claude Code in this folder, the included `.mcp.json` registers the `recall-tracer` MCP server.
+To use the tools from Claude Code in this folder, the included `.mcp.json` registers the `recall-tracer` MCP server over stdio.
+
+The same 8 tools are also served over Streamable HTTP at `http://localhost:8787/mcp` (on a deployment, `<deployed URL>/mcp`). The API must be running (`bun run dev` or `bun run start`). Point an HTTP MCP client at it:
+
+```json
+{ "recall-tracer": { "url": "http://localhost:8787/mcp" } }
+```
+
+For Claude Code: `claude mcp add --transport http recall-tracer http://localhost:8787/mcp`
+
+For clients that only speak stdio: `npx -y mcp-remote http://localhost:8787/mcp`
 
 ### API
 
