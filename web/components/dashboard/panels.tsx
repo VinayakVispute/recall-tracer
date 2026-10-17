@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import type { Incident, IncidentReport } from "@server/tools/incident"
-import { JUDGEMENT, toolTotals, type Step } from "@/lib/trace"
+import { JUDGEMENT, fmtMs, graphTime, toolTotals, type Step } from "@/lib/trace"
 import type { Notice } from "@server/tools/index"
 import { cn } from "@/lib/utils"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -281,7 +281,7 @@ export function AgentTrace({ steps, running, meta, summary, error, current, repl
         <CardTitle>Investigation log</CardTitle>
         <CardAction className="flex flex-col items-end gap-1">
           {running ? <Badge>Running</Badge> : replaying ? <Badge variant="outline">Replay</Badge> : null}
-          {totals.calls > 0 && <span className="text-xs text-muted-foreground tabular-nums" title="Each tool is an MCP call that runs its Cypher on FalkorDB">{totals.calls} graph tools, {fmt(totals.ms)} ms</span>}
+          {totals.calls > 0 && <span className="text-xs text-muted-foreground tabular-nums" title={totals.db ? "FalkorDB's own execution time, summed over every query the tools ran" : "Each tool is an MCP call that runs its Cypher on FalkorDB"}>{totals.db ? `${totals.queries} queries, ${fmtMs(totals.ms)} in FalkorDB` : `${totals.calls} graph tools, ${fmtMs(totals.ms)}`}</span>}
         </CardAction>
         <CardDescription>Every step the agent took, in order, with the graph query behind it. This is the audit trail.</CardDescription>
       </CardHeader>
@@ -305,7 +305,7 @@ export function AgentTrace({ steps, running, meta, summary, error, current, repl
                     <b className="text-sm">{TITLE[s.name] ?? s.name}</b>
                     {JUDGEMENT.has(s.name) && s.call
                       ? <Badge variant="outline" className="border-chart-4 text-chart-4">Agent judgement</Badge>
-                      : <span className="font-mono text-xs whitespace-nowrap text-muted-foreground tabular-nums" title="MCP tool call, including its FalkorDB queries">{s.call ? `graph ${s.call.ms} ms` : "…"}</span>}
+                      : <span className="font-mono text-xs whitespace-nowrap text-muted-foreground tabular-nums" title={s.call && graphTime(s.call).db ? "FalkorDB's own execution time for this step's queries" : "MCP tool call, including its FalkorDB queries"}>{s.call ? `${graphTime(s.call).db ? "FalkorDB" : "graph"} ${fmtMs(graphTime(s.call).ms)}` : "…"}</span>}
                   </div>
                   <p className="text-sm text-muted-foreground">{s.running ? DOING[s.name] ?? "Querying the graph" : s.call?.summary}</p>
                   {s.call?.error && <Badge variant="destructive">Failed</Badge>}
@@ -322,7 +322,7 @@ export function AgentTrace({ steps, running, meta, summary, error, current, repl
                       </CollapsibleTrigger>
                       <CollapsibleContent className="flex flex-col gap-2 pt-1">
                         <p className="font-mono text-xs break-words"><b>Input</b> {brief(s.input)}</p>
-                        <p className="text-xs text-muted-foreground">{s.call.ms} ms for the MCP call{s.call.cypher.length > 1 ? `, ${s.call.cypher.length} queries` : ""}.</p>
+                        <p className="text-xs text-muted-foreground">{graphTime(s.call).db ? `${s.call.queries} ${s.call.queries === 1 ? "query" : "queries"}, ${fmtMs(s.call.db_ms)} in FalkorDB, ${s.call.ms} ms for the whole MCP call.` : `${s.call.ms} ms for the MCP call.`}</p>
                         {(s.call.cypher ?? []).map((q, j) => <pre key={j} className="overflow-x-auto rounded-md bg-muted p-2 font-mono text-xs">{q.trim()}</pre>)}
                       </CollapsibleContent>
                     </Collapsible>

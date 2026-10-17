@@ -323,6 +323,9 @@ describe('replay (B2)', () => {
       expect([...body.matchAll(/^event: (\w+)$/gm)].map((m) => m[1])).toEqual(['start', 'note', 'done']);
       expect((await app.request('/recall/replay?lot=L-999999&speed=0')).status).toBe(400);
       expect((await app.request('/recall/replay?lot=L-999998')).status).toBe(404);
+      // The dashboard's timeline needs the whole recording at once.
+      expect(await (await app.request('/recall/replay?lot=L-999999&format=json')).json()).toEqual({ lot: 'L-999999', recorded_at: 'x', events });
+      expect((await app.request('/recall/replay?lot=L-999998&format=json')).status).toBe(404);
       writeFileSync('out/run-L-999999.json', JSON.stringify({ lot: 'L-999999', recorded_at: 'x', events: events.slice(0, 2) }));
       expect((await app.request('/recall/replay?lot=L-999999')).status).toBe(404); // incomplete run: no done
     } finally { rmSync('out/run-L-999999.json'); }

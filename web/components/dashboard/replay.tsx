@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Pause, Play, RotateCcw, X } from "lucide-react";
-import { markersOf, type Recording, type TimedEvent } from "@/lib/trace";
+import { fmtMs, graphTime, markersOf, type Recording, type TimedEvent } from "@/lib/trace";
 import { TITLE, shortDate, shortTime } from "@/components/dashboard/panels";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -77,7 +77,7 @@ export type Replay = ReturnType<typeof useReplay>;
 
 const SOURCE: Record<Recording["source"], string> = {
   live: "Replay of the run you just watched",
-  recorded: "Recorded live run",
+  recorded: "Recorded live run from the server",
   estimated: "Saved run, step timing estimated",
 };
 
@@ -145,7 +145,7 @@ export function ReplayBar({ rec, r, onExit }: { rec: Recording; r: Replay; onExi
       </div>
       <p className="min-h-10 rounded-md bg-background px-3 py-2 text-sm" aria-live="polite">
         {r.current && call
-          ? <><b>Step {r.current.n} · {TITLE[call.name] ?? call.name}.</b> {call.summary}. <span className="text-muted-foreground">Tool {call.name}, {call.ms} ms.</span></>
+          ? <><b>Step {r.current.n} · {TITLE[call.name] ?? call.name}.</b> {call.summary}. <span className="text-muted-foreground">Tool {call.name}, {graphTime(call).db ? `${fmtMs(graphTime(call).ms)} in FalkorDB` : `${call.ms} ms`}.</span></>
           : <span className="text-muted-foreground">The agent is reading the supplier notice. Records light up as it reaches them.</span>}
       </p>
     </div>

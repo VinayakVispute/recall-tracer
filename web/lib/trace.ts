@@ -29,10 +29,16 @@ export function stepsOf(events: TraceEvent[]): Step[] {
 /** Names of tools that finished without error, in order. Drives the record network's reveal. */
 export const completedOf = (steps: Step[]) => steps.flatMap((s) => (s.kind === "tool" && s.call && !s.call.error ? [s.name] : []));
 
-/** Total time spent in tool calls (each one is an MCP call that runs Cypher on FalkorDB). */
+/** FalkorDB's own execution time for a tool's queries. Runs saved before db_ms existed fall back to the MCP call time. */
+export const graphTime = (c: ToolCall) => (typeof c.db_ms === "number" && c.queries > 0 ? { ms: c.db_ms, db: true } : { ms: c.ms, db: false });
+const round = (ms: number) => (ms < 10 ? Math.round(ms * 10) / 10 : Math.round(ms));
+export const fmtMs = (ms: number) => `${round(ms)} ms`;
+
+/** Totals for the log header: graph tool calls, queries run, and time spent in FalkorDB. */
 export const toolTotals = (steps: Step[]) => {
   const calls = steps.flatMap((s) => (s.kind === "tool" && s.call ? [s.call] : []));
-  return { calls: calls.length, ms: calls.reduce((n, c) => n + c.ms, 0) };
+  const db = calls.every((c) => graphTime(c).db);
+  return { calls: calls.length, queries: calls.reduce((n, c) => n + (c.queries ?? 0), 0), ms: calls.reduce((n, c) => n + graphTime(c).ms, 0), db };
 };
 
 /**
@@ -59,12 +65,15 @@ export function fromResult(r: RecallResult): Recording {
   return { lot: r.lot, recorded_at: r.finished_at, events, source: "estimated" };
 }
 
-/** The recorded demo run shipped with the app (public/replays), so replay works with no API key. */
+/**
+ * The server's recording of a run: the curated demo run if there is one, else the latest live run.
+ * Served by GET /recall/replay?format=json, which needs no API key and no database.
+ */
 export async function loadRecorded(lot: string): Promise<Recording | undefined> {
-  const res = await fetch(`/replays/${lot}.json`);
+  const res = await fetch(`/recall/replay?lot=${encodeURIComponent(lot)}&format=json`);
   if (!res.ok) return undefined;
-  const data = (await res.json()) as Omit<Recording, "source">;
-  return { ...data, source: "recorded" };
+  const data = (await res.json()) as { lot: string; recorded_at: string; events: { t_ms: number; event: TraceEvent }[] };
+  return { lot: data.lot, recorded_at: data.recorded_at, events: data.events.map(({ t_ms, event }) => ({ ...event, at: t_ms }) as TimedEvent), source: "recorded" };
 }
 
 /** One marker per finished tool call, at the time it finished. */
