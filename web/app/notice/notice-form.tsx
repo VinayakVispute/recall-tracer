@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 
 export type Epi = { cluster: string; explained: number; cases: number };
 export type LotFacts =
-  | { ok: true; lot: IncidentReport["lot"]; unused_kg: number; incident: { id: string } | null; prior: { id: string; lot: string; hazard: string }[] }
+  | { ok: true; lot: IncidentReport["lot"]; unused_kg: number; unused_at: string[]; incident: { id: string } | null; prior: { id: string; lot: string; hazard: string }[] }
   | { ok: false; error: string };
 
 // The common recall reasons; "Other" takes the wording from the supplier's notice.
@@ -88,7 +88,7 @@ function Facts({ facts, epi }: { facts: Promise<LotFacts>; epi?: Epi }) {
   return (
     <>
       <p className="rounded-md bg-muted px-3 py-2 text-sm">
-        {lot.supplier} ({lot.supplier_id}) · {lot.ingredient} · received {shortDate(lot.received_at)} · {fmt(lot.received_kg)} kg received · {fmt(f.unused_kg)} kg unused at the plants
+        {lot.supplier} ({lot.supplier_id}) · {lot.ingredient} · received {shortDate(lot.received_at)} · {fmt(lot.received_kg)} kg received · {fmt(f.unused_kg)} kg unused{f.unused_at.length ? ` at ${f.unused_at.join(", ")}` : ""}
       </p>
       {epi && (
         <p className="rounded-md bg-primary/10 px-3 py-2 text-sm">

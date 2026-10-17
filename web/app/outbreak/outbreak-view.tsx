@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { Candidate, OutbreakEvent, OutbreakResult } from "@server/contracts";
+import type { IncidentReport } from "@server/tools/incident";
 import { AgentTrace, shortDate, type Step } from "@/components/dashboard/panels";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +11,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Empty, EmptyDescription } from "@/components/ui/empty";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 export type CaseRow = {
@@ -25,12 +27,13 @@ export function OutbreakView({ id, cluster, loadError }: { id: string; cluster: 
   const [result, setResult] = useState<OutbreakResult>();
   const [lot, setLot] = useState<string>();
   const [caseId, setCaseId] = useState<string>();
+  const [detail, setDetail] = useState<IncidentReport>();
   const es = useRef<EventSource>(null);
   // Runs start from a click, never from an effect, so closing on unmount is safe here.
   useEffect(() => () => es.current?.close(), []);
 
   function find() {
-    setSteps([]); setError(""); setResult(undefined); setLot(undefined); setCaseId(undefined); setRunning(true);
+    setSteps([]); setError(""); setResult(undefined); setLot(undefined); setCaseId(undefined); setDetail(undefined); setRunning(true);
     const source = new EventSource(`/api/outbreak/stream?cluster=${encodeURIComponent(id)}`);
     es.current = source;
     let finished = false;
@@ -43,6 +46,8 @@ export function OutbreakView({ id, cluster, loadError }: { id: string; cluster: 
       finished = true; source.close(); setRunning(false);
       const r = ev.outbreak;
       setResult(r); setLot(r.candidates[0]?.lot); setCaseId(r.candidates[0]?.explained[0]);
+      // Dates and quantities for the evidence chain come from the top lot's records (graph only, no Claude call).
+      if (r.candidates[0]) api<IncidentReport>(`/incident/${r.candidates[0].lot}`).then(setDetail).catch(() => {});
     });
     source.addEventListener("error", (m) => {
       source.close(); // never let EventSource reconnect: a reconnect is a second agent run
@@ -111,7 +116,7 @@ export function OutbreakView({ id, cluster, loadError }: { id: string; cluster: 
                 : <Empty><EmptyDescription>{running ? "Reading the graph…" : "Press Find the source. Each case is walked backward from its store to every ingredient lot that reached it before the purchase."}</EmptyDescription></Empty>}
             </CardContent>
           </Card>
-          {result && caseId && <CaseEvidence r={result} c={cluster.cases.find((x) => x.id === caseId)} lot={lot} />}
+          {result && caseId && <CaseEvidence r={result} c={cluster.cases.find((x) => x.id === caseId)} lot={lot} detail={detail} />}
         </div>
         <AgentTrace steps={steps} running={running} summary={result?.summary} />
       </div>
@@ -154,11 +159,28 @@ function Handoff({ r, c, primary }: { r: OutbreakResult; c: Candidate; primary: 
 
 const KIND = (id: string) => (id.startsWith("ST-") ? "Store" : id.startsWith("TLC-") ? "Product lot" : id.startsWith("B-") ? "Batch" : "Ingredient lot");
 
+/** One record on the evidence chain, with its dates and quantities once the top lot's records have loaded. */
+function ChainRecord({ id, c, detail }: { id: string; c: CaseRow; detail?: IncidentReport }) {
+  const ship = detail?.stores.find((s) => s.id === c.store)?.shipments.find((x) => x.lot === id);
+  const batch = detail?.batches.find((b) => b.id === id);
+  if (ship) return <><b className="font-mono">{id}</b> {ship.product} · delivered {ship.units} units on {shortDate(ship.shipped_at)}<span className="block text-xs text-muted-foreground">before the purchase date</span></>;
+  if (batch) {
+    const used = detail!.lineage.find((l) => l.target === id && l.type === "USED_IN");
+    const rework = detail!.lineage.find((l) => l.target === id && l.type === "REWORKED_INTO");
+    return <><b className="font-mono">{id}</b> {batch.site} · produced {shortDate(batch.produced_at)}
+      <span className="block text-xs text-muted-foreground">{rework ? `reworked leftovers of ${rework.source}${rework.qty_kg ? `, ${rework.qty_kg} kg` : ""}` : used ? `used ${used.qty_kg} kg of ${used.source}` : ""}</span></>;
+  }
+  if (detail && id === detail.lot.code) return <><b className="font-mono">{id}</b> {detail.lot.ingredient} · {detail.lot.supplier} · received {shortDate(detail.lot.received_at)}</>;
+  return <><b className="font-mono">{id}</b> <span className="text-muted-foreground">{KIND(id)}</span></>;
+}
+
 /** Paths come back for the top candidate only, from the lot down to the case; shown here from the case back up. */
-function CaseEvidence({ r, c, lot }: { r: OutbreakResult; c?: CaseRow; lot?: string }) {
+function CaseEvidence({ r, c, lot, detail }: { r: OutbreakResult; c?: CaseRow; lot?: string; detail?: IncidentReport }) {
   if (!c) return null;
   const top = r.candidates[0]?.lot;
-  const path = lot === top ? r.paths[c.id]?.[0] : undefined;
+  // Lot ids from the top candidate's path, minus the case and its store (the first line already names both).
+  const path = lot === top ? r.paths[c.id]?.[0]?.slice(0, -2).reverse() : undefined;
+  const also = r.candidates.filter((x) => x.lot !== top && x.explained.includes(c.id)).map((x) => x.lot);
   return (
     <Card>
       <CardHeader>
@@ -167,11 +189,11 @@ function CaseEvidence({ r, c, lot }: { r: OutbreakResult; c?: CaseRow; lot?: str
       </CardHeader>
       <CardContent>
         <ol className="flex flex-col gap-2 border-l-2 pl-4 text-sm">
-          <li><b>{c.id}</b> bought {c.product ?? "an unknown product"} on {shortDate(c.bought_at)} <span className="block text-xs text-muted-foreground">onset {shortDate(c.onset)}, reported {shortDate(c.reported_at)}</span></li>
-          {path ? path.slice(0, -1).reverse().map((id) => (
+          <li><b>{c.id}</b> bought {c.product ?? "an unknown product"} on {shortDate(c.bought_at)} at {c.store_name} <span className="font-mono text-xs text-muted-foreground">{c.store}</span><span className="block text-xs text-muted-foreground">onset {shortDate(c.onset)}, reported {shortDate(c.reported_at)}</span></li>
+          {path ? path.map((id) => (
             <li key={id}>
-              <span className="font-mono">{id}</span> <span className="text-muted-foreground">{KIND(id)}</span>
-              {id === top && <> <Badge variant="destructive">candidate</Badge></>}
+              <ChainRecord id={id} c={c} detail={detail} />
+              {id === top && <> <Badge variant="destructive">candidate</Badge>{also.map((o) => <Badge key={o} variant="outline" className="ml-1">{o} also possible</Badge>)}</>}
             </li>
           )) : <li className="text-muted-foreground">
             {lot !== top ? `Evidence paths are drawn for the top candidate, ${top}.` : `No path from ${c.store} back to ${top}: it does not explain ${c.id}.`}

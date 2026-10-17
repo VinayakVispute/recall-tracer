@@ -7,6 +7,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { api } from "@/lib/api";
 
 const STATUS: Record<IncidentSummary["status"], string> = { open: "Open", scoped: "Scoped", notices_approved: "Notices approved" };
+// The date part only: a server in UTC and a coordinator elsewhere agree on it. (panels.tsx is a client module, so its helpers are not callable here.)
+const day = (iso: string) => new Date(`${iso.slice(0, 10)}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
 /** Page 7. Every incident the graph remembers, newest first, read on the server. */
 export default async function Page() {
@@ -21,14 +23,16 @@ export default async function Page() {
         <CardContent className="overflow-x-auto">
           {incidents.length ? (
             <Table>
-              <TableHeader><TableRow><TableHead>Incident</TableHead><TableHead>Lot</TableHead><TableHead>Hazard</TableHead><TableHead>Class</TableHead><TableHead className="text-right">Stores</TableHead><TableHead className="text-right">Notice to scope</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead>Incident</TableHead><TableHead>Lot</TableHead><TableHead>Hazard</TableHead><TableHead>Opened</TableHead><TableHead>Proposed</TableHead><TableHead>Confirmed</TableHead><TableHead className="text-right">Stores</TableHead><TableHead className="text-right">Notice to scope</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
               <TableBody>
                 {incidents.map((i) => (
                   <TableRow key={i.id}>
                     <TableCell className="font-mono text-xs">{i.id}</TableCell>
                     <TableCell><Link href={`/incident/${i.lot}`} className="font-mono underline">{i.lot}</Link></TableCell>
                     <TableCell className="max-w-64 whitespace-normal">{i.hazard}</TableCell>
-                    <TableCell>{i.confirmed_class ? `Class ${i.confirmed_class}` : i.class ? `Class ${i.class} (proposed)` : "—"}</TableCell>
+                    <TableCell className="whitespace-nowrap">{day(i.reported_at)}</TableCell>
+                    <TableCell>{i.class ? `Class ${i.class}` : "—"}</TableCell>
+                    <TableCell>{i.confirmed_class ? `Class ${i.confirmed_class}` : "not yet"}</TableCell>
                     <TableCell className="text-right tabular-nums">{i.stores ?? "—"}</TableCell>
                     <TableCell className="text-right tabular-nums">{i.minutes_to_scope === null ? "—" : `${i.minutes_to_scope} min`}</TableCell>
                     <TableCell><Badge variant={i.status === "open" ? "outline" : "secondary"}>{STATUS[i.status]}</Badge></TableCell>

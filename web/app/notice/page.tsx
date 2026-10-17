@@ -26,7 +26,7 @@ async function lotFacts(lot: string): Promise<LotFacts> {
     // Needs the supplier id from the lot, so it follows rather than runs alongside.
     const history = await apiOrNull<{ incidents: IncidentSummary[] }>(`/incidents/supplier/${r.lot.supplier_id}`);
     const prior = (history?.incidents ?? []).filter((i) => i.lot !== lot).map((i) => ({ id: i.id, lot: i.lot, hazard: i.hazard }));
-    return { ok: true, lot: r.lot, unused_kg: r.hold.totals.raw_kg, incident: r.incident && { id: r.incident.id }, prior };
+    return { ok: true, lot: r.lot, unused_kg: r.hold.totals.raw_kg, unused_at: r.hold.raw.map((h) => h.name), incident: r.incident && { id: r.incident.id }, prior };
   } catch (e) {
     return { ok: false, error: e instanceof ApiError ? e.message : "Cannot reach the Recall Tracer API. Check that it is running." };
   }

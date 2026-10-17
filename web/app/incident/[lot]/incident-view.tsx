@@ -124,16 +124,17 @@ export function IncidentView({ lot, hazard, autostart, playback, initial }: { lo
   const canApprove = !!incident?.confirmed_at;
   const done = (name: string) => steps.some((s) => s.kind === "tool" && s.name === name && s.call && !s.call.error);
   const approved = notices.filter((n) => n.status === "approved").length;
-  const stages = [
-    ["Assessed", done("propose_classification")],
-    ["Held", done("place_hold")],
-    ["Traced", done("trace_forward")],
-    ["Scoped", done("minimal_recall")],
-    ["Verified", done("trace_backward")],
-    ["Drafted", done("draft_recall_notice")],
-    ["Confirmed", canApprove],
-    [notices.length ? `Approved ${approved}/${notices.length}` : "Approved", notices.length > 0 && approved === notices.length],
-  ] as const;
+  /** A failed tool call's one-line error, so its stage can turn red and say why. */
+  const failed = (name: string) => {
+    const s = steps.findLast((x) => x.kind === "tool" && x.name === name && x.call?.error);
+    return s?.kind === "tool" ? s.call?.summary : undefined;
+  };
+  // The plan's eight stages: one per agent step, plus Approved.
+  const stages: [label: string, ok: boolean, error?: string][] = ([
+    ["Hazard", "propose_classification"], ["Hold", "place_hold"], ["Forward trace", "trace_forward"], ["Records", "coverage_gaps"],
+    ["Scope", "minimal_recall"], ["Backward", "trace_backward"], ["Notices", "draft_recall_notice"],
+  ] as const).map(([label, tool]) => [label, done(tool), done(tool) ? undefined : failed(tool)]);
+  stages.push([notices.length ? `Approved ${approved}/${notices.length}` : "Approved", notices.length > 0 && approved === notices.length]);
   const store = report?.stores.find((s) => s.id === selected);
   const depth = incident?.confirmed_depth ?? incident?.depth;
   // Same moment the clock stops at: the first scope decision (finished_at for runs from before scoped_at existed).
@@ -155,10 +156,11 @@ export function IncidentView({ lot, hazard, autostart, playback, initial }: { lo
           </div>
           {incident && <Clock since={incident.reported_at} until={incident.scoped_at} />}
           <ol className="flex w-full flex-wrap gap-2" aria-label="Recall progress">
-            {stages.map(([label, ok], i) => (
+            {stages.map(([label, ok, error], i) => (
               <li key={i}>
-                <Badge variant={ok ? "default" : "outline"} className={cn(!ok && running && (i === 0 || stages[i - 1][1]) && "animate-pulse border-primary")}>
-                  <span aria-hidden="true">{ok ? "✓" : "○"}</span>{label}
+                <Badge variant={ok ? "default" : error ? "destructive" : "outline"} title={error}
+                  className={cn(!ok && !error && running && (i === 0 || stages[i - 1][1]) && "animate-pulse border-primary")}>
+                  <span aria-hidden="true">{ok ? "✓" : error ? "✕" : "○"}</span>{label}{error && <span className="sr-only">: failed, {error}</span>}
                 </Badge>
               </li>
             ))}
