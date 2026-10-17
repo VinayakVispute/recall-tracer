@@ -62,7 +62,7 @@ export function OutbreakView({ id, cluster, loadError }: { id: string; cluster: 
     return (
       <div className="mx-auto w-full max-w-[1500px] p-4">
         {loadError ? <Alert variant="destructive" role="alert"><AlertDescription>{loadError}</AlertDescription></Alert>
-          : <Empty className="border"><EmptyDescription>No cases in cluster {id} yet. Paste the case reports above, or <Link href="/outbreak" className="underline">load the example cluster</Link>.</EmptyDescription></Empty>}
+          : <Empty className="border"><EmptyDescription>No cases in cluster {id} yet. Paste the case reports above, or <Link href="/outbreak" className="underline">open another cluster</Link>.</EmptyDescription></Empty>}
       </div>
     );
   }
@@ -83,7 +83,7 @@ export function OutbreakView({ id, cluster, loadError }: { id: string; cluster: 
             <TableHeader><TableRow><TableHead>Case</TableHead><TableHead>State</TableHead><TableHead>Onset</TableHead><TableHead>Store</TableHead><TableHead>Bought</TableHead><TableHead>Product</TableHead></TableRow></TableHeader>
             <TableBody>
               {cluster.cases.map((c) => (
-                <TableRow key={c.id} data-state={caseId === c.id ? "selected" : undefined} className={cn(explains.has(c.id) && "bg-destructive/10")}>
+                <TableRow key={c.id} className={cn(explains.has(c.id) && "bg-destructive/10", caseId === c.id && "outline-2 -outline-offset-2 outline-primary")}>
                   <TableCell>
                     <Button variant="link" size="xs" className="px-0" onClick={() => setCaseId(c.id)} disabled={!result} aria-pressed={caseId === c.id}>{c.id}</Button>
                   </TableCell>
@@ -118,7 +118,7 @@ export function OutbreakView({ id, cluster, loadError }: { id: string; cluster: 
           </Card>
           {result && caseId && <CaseEvidence r={result} c={cluster.cases.find((x) => x.id === caseId)} lot={lot} detail={detail} />}
         </div>
-        <AgentTrace steps={steps} running={running} summary={result?.summary} />
+        <AgentTrace steps={steps} running={running} summary={result?.summary} empty="Press Find the source. Each step appears here as it happens." />
       </div>
     </div>
   );

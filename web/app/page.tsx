@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-/** The Incident tab decides: the incident under review, or how to open one. */
+/** The app opens where the coordinator's work starts: the outbreak, then the supplier notice, then the incident. */
 export default function Page() {
-  redirect("/incident");
+  redirect("/outbreak");
 }

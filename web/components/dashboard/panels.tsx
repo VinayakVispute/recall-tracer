@@ -262,8 +262,8 @@ function brief(input: unknown) {
   return Object.entries(input).map(([k, v]) => `${k}: ${Array.isArray(v) ? `${v.length} items` : JSON.stringify(v)}`).join(", ")
 }
 
-export function AgentTrace({ steps, running, meta, summary, error, current, replaying, onRetry }: {
-  steps: Step[]; running: boolean; error?: string; summary?: string;
+export function AgentTrace({ steps, running, meta, summary, error, current, replaying, onRetry, empty = "Open an incident to start. Each step appears here as it happens." }: {
+  steps: Step[]; running: boolean; error?: string; summary?: string; empty?: string;
   meta?: { model: string; ms: number; turns: number; input_tokens: number; output_tokens: number };
   /** Id of the tool call at the replay playhead; highlighted and scrolled into view. */
   current?: string; replaying?: boolean; onRetry?: () => void;
@@ -291,9 +291,9 @@ export function AgentTrace({ steps, running, meta, summary, error, current, repl
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         {!steps.length && !running && !replaying && (
-          <Empty><EmptyDescription>Open an incident to start. Each step appears here as it happens.</EmptyDescription></Empty>
+          <Empty><EmptyDescription>{empty}</EmptyDescription></Empty>
         )}
-        <div ref={box} className="max-h-[32rem] overflow-y-auto pr-1">
+        <div ref={box} className="max-h-[32rem] overflow-y-auto pr-1 pb-6 [mask-image:linear-gradient(to_bottom,black_calc(100%-1.5rem),transparent)]">
           <ol className="flex flex-col gap-3">
             {steps.map((s, i) => s.kind === "note" ? (
               <li key={i} className="text-sm text-muted-foreground italic">{s.text}</li>

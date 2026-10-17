@@ -14,9 +14,9 @@ import { api } from "@/lib/api";
 type Ingested = { cluster: string; created: boolean; loaded: number; rejected: { row: number; line: string; reason: string }[] };
 
 /** Lives outside the per-cluster view, so its report survives the navigation to the cluster it just loaded. */
-export function PasteCases({ id, example }: { id: string; example: string }) {
+export function PasteCases({ id, example, defaultOpen = false }: { id: string; example: string; defaultOpen?: boolean }) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const [cluster, setCluster] = useState(id);
   const [pathogen, setPathogen] = useState("");
   const [text, setText] = useState("");
@@ -47,7 +47,7 @@ export function PasteCases({ id, example }: { id: string; example: string }) {
         <CardDescription>Illness reports from the health department, linked into one cluster.</CardDescription>
         <CardAction className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => setOpen((o) => !o)} aria-expanded={open}>Paste reports</Button>
-          {id !== example && <Link href="/outbreak" className={buttonVariants({ variant: "outline", size: "sm" })}>Load example</Link>}
+          {id && id !== example && <Link href={`/outbreak?cluster=${example}`} className={buttonVariants({ variant: "outline", size: "sm" })}>Load example</Link>}
         </CardAction>
       </CardHeader>
       {(open || report || error) && (

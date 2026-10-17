@@ -7,6 +7,7 @@ import type { RecallResult, TraceEvent } from "@server/agent/run";
 import type { IncidentReport, Incident } from "@server/tools/incident";
 import type { Notice } from "@server/tools/index";
 import { FlowChart, StateBars, Exposure, NetworkGraph } from "@/components/dashboard/charts";
+import { Play } from "lucide-react";
 import {
   AgentTrace, StoreRegister, Evidence, Notices, Assessment, ScopeTable, ScopeStory, PublicNotice,
   fmt, shortDate, shortTime, type Filter,
@@ -16,7 +17,7 @@ import { Drawer } from "@/components/dashboard/drawer";
 import { completedOf, fromResult, loadRecorded, stepsOf, type Recording, type TimedEvent } from "@/lib/trace";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardAction } from "@/components/ui/card";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -182,6 +183,24 @@ export function IncidentView({ lot, hazard, autostart, playback, initial }: { lo
   const scopedAt = incident?.scoped_at ?? result?.finished_at;
   const scopedAfter = scopedAt && incident?.reported_at ? Math.floor((Date.parse(scopedAt) - Date.parse(incident.reported_at)) / 1000) : undefined;
 
+  // A lot with no incident yet: one clear next step, not empty tiles. Hold figures here would be stock on hand, not a hold.
+  if (!incident && !result && !running && !replaying && !playback && !events.length) {
+    return (
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-4">
+        {error && <Alert variant="destructive" role="alert"><AlertDescription>{error}</AlertDescription></Alert>}
+        <Empty className="border">
+          <EmptyHeader>
+            <EmptyTitle>No incident open on {lot}</EmptyTitle>
+            <EmptyDescription>The lot is in the traceability records, but nobody has opened an incident on it. Open one from the supplier notice: the agent then traces it through the graph and builds the recall here for you to confirm.</EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent className="flex-row justify-center gap-2">
+            <Link href={`/notice?lot=${lot}`} className={buttonVariants()}>Open an incident on {lot}</Link>
+            <Link href="/incident" className={buttonVariants({ variant: "outline" })}>Find another lot</Link>
+          </EmptyContent>
+        </Empty>
+      </div>
+    );
+  }
   return (
     <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-4 p-4">
       <Card>
@@ -190,7 +209,7 @@ export function IncidentView({ lot, hazard, autostart, playback, initial }: { lo
             <h2 className="flex flex-wrap items-center gap-2 text-xl font-semibold">
               {report || status?.incident ? <>Lot {lot}{report ? `, ${report.lot.ingredient}` : ""}</> : running ? `Opening incident for ${lot}` : `No incident open on ${lot}`}
               {replaying && <Badge variant="outline">Replay</Badge>}
-              {!replaying && !running && <Button size="sm" variant="outline" className="ml-auto" onClick={() => startReplay()}>Replay the trace</Button>}
+              {!replaying && !running && (incident || result) && <Button size="sm" variant="outline" className="ml-auto" onClick={() => startReplay()}>Replay the trace</Button>}
             </h2>
             {report && <p className="text-sm text-muted-foreground">
               {fmt(report.lot.received_kg)} kg from {report.lot.supplier} ({report.lot.supplier_id}), received {shortDate(report.lot.received_at)}.
@@ -247,7 +266,17 @@ export function IncidentView({ lot, hazard, autostart, playback, initial }: { lo
                     items={[["lot", "Ingredient lot"], ["recall", `Contains ${lot}`], ["hold", "Held at plant or DC"], ["gap", "No lot code"], ["safe", "Cleared"], ["verified", "Backward check"]]}
                     note={running ? "Each record lights up as the agent reaches it." : replaying ? "The graph shows what the agent had reached at the playhead." : "Click a store to keep only the records that reach it."} />
                 </>}
-                {rec && <ReplayBar rec={rec} r={replay} onExit={exitReplay} />}
+                {rec ? <ReplayBar rec={rec} r={replay} onExit={exitReplay} />
+                  : view === "network" && !running && (incident || result) && (
+                    // The replay is always one click away under the graph, not only from the header button.
+                    <div className="flex items-center gap-3 rounded-lg border p-3">
+                      <Button size="icon-lg" className="size-10 shrink-0 rounded-full" onClick={() => startReplay()} aria-label="Play the trace"><Play className="ml-0.5 size-4 fill-current" /></Button>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium">Play the trace</p>
+                        <p className="text-xs text-muted-foreground">The agent&apos;s steps light up this graph again with their real timing. Pause, step or jump to any step. No Claude call.</p>
+                      </div>
+                    </div>
+                  )}
               </CardContent>
             </Card>
             {showReport && <>

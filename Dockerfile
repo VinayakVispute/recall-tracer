@@ -25,4 +25,4 @@ COPY --from=build /app/web/public web/public
 ENV PORT=3000 RECALL_API=http://localhost:8787 HOSTNAME=0.0.0.0
 EXPOSE 3000
 # Seeds the demo graph (deterministic, seed 42) on every start. If either process dies, the container exits and restarts.
-CMD ["sh", "-c", "bun run generate --seed 42 --reset && exec npx concurrently -k -n api,web \"PORT=8787 npx tsx src/api/server.ts\" \"node web/server.js\""]
+CMD ["sh", "-c", "bun run generate --seed 42 --reset && bun run real && exec npx concurrently -k -n api,web \"PORT=8787 npx tsx src/api/server.ts\" \"node web/server.js\""]

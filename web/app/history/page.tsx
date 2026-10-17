@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Empty, EmptyDescription } from "@/components/ui/empty";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 
 const STATUS: Record<IncidentSummary["status"], string> = { open: "Open", scoped: "Scoped", notices_approved: "Notices approved" };
 // The date part only: a server in UTC and a coordinator elsewhere agree on it. (panels.tsx is a client module, so its helpers are not callable here.)
@@ -12,7 +12,8 @@ const day = (iso: string) => new Date(`${iso.slice(0, 10)}T00:00:00`).toLocaleDa
 
 /** Page 7. Every incident the graph remembers, newest first, read on the server. */
 export default async function Page() {
-  const incidents = await api<IncidentSummary[]>("/incidents");
+  let incidents: IncidentSummary[] = [], error = "";
+  try { incidents = await api<IncidentSummary[]>("/incidents"); } catch (e) { error = e instanceof ApiError ? e.message : "Cannot reach the Recall Tracer API. Check that it is running."; }
   return (
     <div className="mx-auto w-full max-w-5xl p-4">
       <Card>
@@ -21,7 +22,7 @@ export default async function Page() {
           <CardDescription>Every incident is an Incident node in the graph, so the next notice on the same supplier knows about it.</CardDescription>
         </CardHeader>
         <CardContent className="overflow-x-auto">
-          {incidents.length ? (
+          {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : incidents.length ? (
             <Table>
               <TableHeader><TableRow><TableHead>Incident</TableHead><TableHead>Lot</TableHead><TableHead>Hazard</TableHead><TableHead>Opened</TableHead><TableHead>Proposed</TableHead><TableHead>Confirmed</TableHead><TableHead className="text-right">Stores</TableHead><TableHead className="text-right">Notice to scope</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
               <TableBody>

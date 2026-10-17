@@ -50,7 +50,7 @@ export function NoticeForm({ lot, epi, facts }: { lot: string; epi?: Epi; facts:
         <CardContent className="flex flex-col gap-4">
           <Field>
             <FieldLabel htmlFor="lot">Lot code</FieldLabel>
-            <Input id="lot" className="w-32 font-mono" value={code} onChange={(e) => setCode(e.target.value.toUpperCase().trim())}
+            <Input id="lot" className="max-w-40 font-mono" value={code} onChange={(e) => setCode(e.target.value.toUpperCase().trim())}
               placeholder="L-204" spellCheck={false} autoComplete="off" aria-invalid={code !== "" && !valid} aria-describedby="lot-hint" />
             <FieldDescription id="lot-hint">{code !== "" && !valid ? "A lot code is L- followed by digits, like L-204." : "As printed on the supplier's alert."}</FieldDescription>
           </Field>
