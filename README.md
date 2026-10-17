@@ -18,7 +18,7 @@ Built for [Graph Hacks: Context for AI Agents](https://www.wemakedevs.org/hackat
 ## How it works
 
 ```text
-React page ──> Hono API ──> agent (Claude) ──MCP stdio──> MCP server ──> tools ──Cypher──> FalkorDB
+Next.js app (web/) ──rewrites──> Hono API ──> agent (Claude) ──MCP stdio──> MCP server ──> tools ──Cypher──> FalkorDB
                   └── /mcp (Streamable HTTP) ──> same tools, for any MCP client
 ```
 
@@ -183,10 +183,10 @@ bun install
 cp .env.example .env          # add ANTHROPIC_API_KEY; FALKORDB_PORT=6380
 bun run generate --seed 42 --reset
 bun run test                    # 17 tests, no API calls; E2E=1 bun run test adds one live agent run
-bun run dev                     # API on :8787, page on http://localhost:5173
+bun run dev                     # API on :8787, Next.js app on http://localhost:3000 (dashboard at /, agent chat at /agent)
 ```
 
-Enter `L-204`, pick the hazard and press **Open incident**. FalkorDB Browser on http://localhost:3001 shows the raw graph. For one-port production use, run `bun run build && bun run start` and open http://localhost:8787.
+Enter `L-204`, pick the hazard and press **Open incident**. FalkorDB Browser on http://localhost:3001 shows the raw graph. For production, run `bun run build`, then `bun run start` (API on :8787) and `cd web && bun run start` (`next start` on :3000). The Next.js app proxies the API paths to `RECALL_API` (default `http://localhost:8787`).
 
 To use the tools from Claude Code in this folder, the included `.mcp.json` registers the `recall-tracer` MCP server over stdio.
 

@@ -1,5 +1,5 @@
 import { config } from 'dotenv';
-config({ quiet: true }); // stdout belongs to the MCP stdio transport
+config({ path: ['.env.local', '.env'], quiet: true }); // stdout belongs to the MCP stdio transport
 import { FalkorDB, type Graph } from 'falkordb';
 
 let db: Promise<FalkorDB> | undefined;

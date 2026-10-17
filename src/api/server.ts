@@ -1,6 +1,5 @@
 import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
-import { serveStatic } from '@hono/node-server/serve-static';
 import { createMcpHandler } from 'mcp-handler';
 import { streamSSE } from 'hono/streaming';
 import { fileURLToPath } from 'node:url';
@@ -8,6 +7,8 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { query } from '../graph/db.js';
 import { AFFECTED_SHIPMENTS, STORES, LOT_EXISTS, INCIDENT_DELETE, INCIDENT_CREATE, INCIDENT_CONFIRM } from '../graph/queries.js';
 import { traceForward, coverageGaps, unaffectedStores, traceBackward, readHold, readNotices, writeNotices, incidentId, RECALL_CLASSES, RECALL_DEPTHS } from '../tools/index.js';
+import { createAgentUIStreamResponse } from 'ai';
+import { getRecallAgent } from '../agent/ai-agent.js';
 import { runAgent, type RecallResult } from '../agent/run.js';
 import { incidentReport, incidentStatus } from '../tools/incident.js';
 import { registerTools } from '../mcp/tools.js';
@@ -213,8 +214,11 @@ app.get('/export/:file', async (c) => {
 const mcp = createMcpHandler(registerTools, { serverInfo: { name: 'recall-tracer', version: '0.1.0' } });
 app.all('/mcp', (c) => mcp(c.req.raw));
 
-// Production: serve the built page from the same port (`bun run build` first).
-app.use('/*', serveStatic({ root: './web/dist' }));
+/** Chat with the recall agent: useChat sends its UI messages here, and tool-approval replies come back the same way. */
+app.post('/chat', async (c) => {
+  const { messages } = await c.req.json();
+  return createAgentUIStreamResponse({ agent: await getRecallAgent(), uiMessages: messages, abortSignal: c.req.raw.signal });
+});
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const port = Number(process.env.PORT ?? 8787);

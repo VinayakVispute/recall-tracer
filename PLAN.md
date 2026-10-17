@@ -19,7 +19,7 @@ Source of truth: `../Recall Tracer Build Spec.md`. This file records only how we
 | 4 | `src/mcp/server.ts` (stdio) | MCP client lists 5 tools and calls one |
 | 5 | `src/agent/run.ts` + `prompt.md` (MCP client → Claude tool loop) | `POST /recall` < 60 s, counts match |
 | 6 | `src/api/server.ts` (Hono, :8787) | all 5 routes respond |
-| 7 | `web/` (Vite + React + cytoscape) | page runs the demo end to end |
+| 7 | `web/` (Next.js + shadcn + cytoscape) | page runs the demo end to end |
 | 8 | README (graph model, Cypher per tool, AI disclosure) | — |
 
 ## Planted data layout (seed 42)
