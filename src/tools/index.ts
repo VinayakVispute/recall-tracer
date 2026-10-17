@@ -1,11 +1,14 @@
 import { z } from 'zod';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { query } from '../graph/db.js';
-import { TRACE_FORWARD, COVERAGE_GAPS, SKU_RECIPIENTS, STORES } from '../graph/queries.js';
+import { TRACE_FORWARD, COVERAGE_GAPS, SKU_RECIPIENTS, STORES, TRACE_BACKWARD } from '../graph/queries.js';
 
 // --- Schemas (shared by the MCP server) ------------------------------------
 
 const lot = z.string().describe('Ingredient lot code, e.g. L-204');
+/** Models occasionally send an array argument as a JSON string; accept both. */
+const list = <T extends z.ZodTypeAny>(item: T) =>
+  z.preprocess((v) => { if (typeof v !== 'string') return v; try { return JSON.parse(v); } catch { return v; } }, z.array(item));
 export const schemas = {
   trace_forward: { lot },
   coverage_gaps: { lot },
@@ -15,9 +18,13 @@ export const schemas = {
     add_gap_stores: z.boolean().default(true)
       .describe('true: add gap stores to the recall (cannot prove them safe). false: only flag them for the approver.'),
   },
+  trace_backward: {
+    product_lots: list(z.string()).pipe(z.array(z.string()).min(1).max(200)).describe('Product lot codes (traceability lot codes), e.g. TLC-06A'),
+    lot: lot.optional().describe('If given, report whether each product lot contains this ingredient lot'),
+  },
   draft_recall_notice: {
     lot,
-    notices: z.array(z.object({ store: z.string(), reason: z.string() })).describe('One entry per store to notify'),
+    notices: list(z.object({ store: z.string(), reason: z.string() })).describe('One entry per store to notify'),
   },
 };
 
@@ -107,6 +114,18 @@ export async function minimalRecall({ lot, add_gap_stores = true }: { lot: strin
   };
 }
 
+/** Independent check: walk each product lot back to every ingredient lot in it. */
+export async function traceBackward({ product_lots, lot }: { product_lots: string[]; lot?: string }) {
+  const rows = await query<{ product_lot: string; ingredient_lots: string[] }>(TRACE_BACKWARD, { product_lots });
+  const byLot = new Map(rows.map((r) => [r.product_lot, r.ingredient_lots.sort()]));
+  const results = product_lots.map((id) => ({
+    product_lot: id,
+    ingredient_lots: byLot.get(id) ?? [],
+    ...(lot ? { contains_lot: (byLot.get(id) ?? []).includes(lot) } : {}),
+  }));
+  return { lot, results, ...(lot ? { containing: results.filter((r) => r.contains_lot).map((r) => r.product_lot) } : {}) };
+}
+
 export const NOTICES_FILE = process.env.NOTICES_FILE ?? 'out/notices.json'; // tests use their own file
 export type Notice = { lot: string; store: string; name: string; city: string; reason: string; status: 'pending_approval' | 'approved'; drafted_at: string; text: string };
 
@@ -156,6 +175,10 @@ export const tools = {
   minimal_recall: {
     handler: minimalRecall,
     description: 'Combine trace_forward, coverage_gaps and unaffected_stores into the targeted recall: stores to recall, units to pull, and blanket vs targeted vs safe counts. Set add_gap_stores to decide whether gap stores join the recall.',
+  },
+  trace_backward: {
+    handler: traceBackward,
+    description: 'Walk product lots backward to every ingredient lot in them (including through rework). Pass lot to check whether each product lot contains it. Use it to independently verify that the lots held by safe stores do not contain the bad lot.',
   },
   draft_recall_notice: {
     handler: draftRecallNotice,

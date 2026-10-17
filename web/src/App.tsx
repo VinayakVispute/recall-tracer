@@ -1,14 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import cytoscape from 'cytoscape';
-import type { RecallResult } from '../../src/agent/run';
+import type { RecallResult, TraceEvent } from '../../src/agent/run';
+import type { IncidentReport } from '../../src/tools/incident';
 import type { Notice } from '../../src/tools/index';
+import { FlowChart, TileMap, ExposureStrip, NetworkGraph } from './charts';
+import { AgentTrace, StoreRegister, Evidence, Notices, type Step } from './panels';
 
-type Elements = { nodes: { data: { id: string; kind: string } }[]; edges: { data: { id: string; source: string; target: string; kind: string } }[] };
-
-const COLOR: Record<string, string> = {
-  lot: '#c8231e', batch: '#e8771a', 'product-lot': '#e8771a', 'store-affected': '#e8771a',
-  product: '#f2c230', 'store-gap': '#f2c230', 'store-safe': '#a9b1ae', 'product-lot-clean': '#c9cfcc',
-};
+const fmt = (n: number) => n.toLocaleString();
+const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
 async function api<T>(path: string, body?: unknown): Promise<T> {
   const res = await fetch(path, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : undefined);
@@ -17,198 +15,185 @@ async function api<T>(path: string, body?: unknown): Promise<T> {
   return data;
 }
 
+/** Rebuild the trace timeline from a saved run: each turn's notes, then its tool calls. */
+function stepsFrom(r: RecallResult): Step[] {
+  const notes = r.meta?.notes ?? [];
+  const turns = [...new Set([...notes.map((n) => n.turn), ...r.tool_calls.map((c) => c.turn)])].sort((a, b) => a - b);
+  return turns.flatMap((t) => [
+    ...notes.filter((n) => n.turn === t).map((n) => ({ kind: 'note' as const, text: n.text })),
+    ...r.tool_calls.filter((c) => c.turn === t).map((c) => ({ kind: 'tool' as const, id: c.id, name: c.name, input: c.input, running: false, call: c })),
+  ]);
+}
+
 export function App() {
   const [lot, setLot] = useState('L-204');
-  const [busy, setBusy] = useState(false);
+  const [steps, setSteps] = useState<Step[]>([]);
+  const [running, setRunning] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<RecallResult>();
-  const [graph, setGraph] = useState<Elements>();
+  const [report, setReport] = useState<IncidentReport>();
   const [notices, setNotices] = useState<Notice[]>([]);
+  const [selected, setSelected] = useState<string>();
+  const [stateFilter, setStateFilter] = useState<string>();
+  const [view, setView] = useState<'flow' | 'network'>('flow');
+  const es = useRef<EventSource>(null);
 
-  async function show(r: RecallResult) {
-    setLot(r.lot);
-    setResult(r);
-    const [g, n] = await Promise.all([api<Elements>(`/graph/${r.lot}`), api<Notice[]>('/notices')]);
-    setGraph(g);
-    setNotices(n.filter((x) => x.lot === r.lot));
-  }
+  const loadNotices = async (l: string) => setNotices((await api<Notice[]>('/notices')).filter((n) => n.lot === l));
 
-  useEffect(() => { api<RecallResult>('/recall/last').then(show).catch(() => {}); }, []);
+  useEffect(() => {
+    api<RecallResult>('/recall/last').then(async (r) => {
+      setLot(r.lot); setResult(r); setSteps(stepsFrom(r));
+      setReport(await api<IncidentReport>(`/incident/${r.lot}${r.add_gap_stores === false ? '?gaps=flag' : ''}`));
+      await loadNotices(r.lot);
+    }).catch(() => {});
+    return () => es.current?.close();
+  }, []);
 
   async function trace(e: React.FormEvent) {
     e.preventDefault();
-    setBusy(true); setError(''); setResult(undefined); setGraph(undefined);
-    try {
-      await show(await api<RecallResult>('/recall', { lot }));
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setBusy(false);
-    }
+    setError(''); setResult(undefined); setReport(undefined); setSteps([]); setNotices([]); setSelected(undefined); setStateFilter(undefined);
+    try { await api(`/incident/${lot}`); } catch (err) { setError((err as Error).message); return; } // validates the lot without spending a Claude call
+    setRunning(true);
+    const source = new EventSource(`/recall/stream?lot=${encodeURIComponent(lot)}`);
+    es.current = source;
+    const on = <K extends TraceEvent['type']>(type: K, fn: (ev: Extract<TraceEvent, { type: K }>) => void) =>
+      source.addEventListener(type, (m) => fn(JSON.parse((m as MessageEvent).data)));
+    on('note', (ev) => setSteps((s) => [...s, { kind: 'note', text: ev.text }]));
+    on('tool_start', (ev) => setSteps((s) => [...s, { kind: 'tool', id: ev.id, name: ev.name, input: ev.input, running: true }]));
+    on('tool_end', (ev) => {
+      setSteps((s) => s.map((x) => (x.kind === 'tool' && x.id === ev.call.id ? { ...x, running: false, call: ev.call } : x)));
+      // The dashboard appears once the agent has made its recall decision.
+      if (ev.call.name === 'minimal_recall' && !ev.call.error)
+        api<IncidentReport>(`/incident/${lot}${(ev.call.input as any)?.add_gap_stores === false ? '?gaps=flag' : ''}`).then(setReport);
+    });
+    on('done', (ev) => { setResult(ev.result); setRunning(false); source.close(); loadNotices(lot); });
+    let finished = false;
+    source.addEventListener('done', () => (finished = true));
+    source.addEventListener('error', (m) => {
+      if (finished) return;
+      const data = (m as MessageEvent).data;
+      setError(data ? JSON.parse(data).message : 'Lost connection to the agent. Check the API server and try again.');
+      setRunning(false); source.close();
+    });
   }
 
-  async function approveAll() {
-    await api('/notices/approve', { stores: notices.filter((n) => n.status === 'pending_approval').map((n) => n.store) });
-    setNotices((await api<Notice[]>('/notices')).filter((n) => n.lot === lot));
+  async function approve(stores: string[]) {
+    await api('/notices/approve', { stores });
+    await loadNotices(result?.lot ?? lot);
   }
 
-  const pending = notices.filter((n) => n.status === 'pending_approval').length;
+  const done = (name: string) => steps.some((s) => s.kind === 'tool' && s.name === name && s.call && !s.call.error);
+  const approved = notices.filter((n) => n.status === 'approved').length;
+  const stages = [
+    ['Traced', done('trace_forward')],
+    ['Gaps decided', done('minimal_recall')],
+    ['Safe stores verified', done('trace_backward')],
+    ['Notices drafted', done('draft_recall_notice')],
+    [notices.length ? `Approved ${approved}/${notices.length}` : 'Approved', notices.length > 0 && approved === notices.length],
+  ] as const;
+  const store = report?.stores.find((s) => s.id === selected);
 
   return (
-    <main>
-      <header className="masthead">
+    <div className="app">
+      <header className="topbar">
         <h1>Recall Tracer</h1>
         <form onSubmit={trace} className="lot-form">
           <label htmlFor="lot">Contaminated lot</label>
           <input id="lot" value={lot} onChange={(e) => setLot(e.target.value.toUpperCase())} pattern="L-\d+" required spellCheck={false} />
-          <button disabled={busy}>{busy ? 'Tracing…' : 'Trace'}</button>
+          <button className="primary" disabled={running}>{running ? 'Tracing…' : 'Trace'}</button>
         </form>
       </header>
 
-      {busy && <p className="status" role="status">The agent is following {lot} through batches, rework and shipments. This takes about half a minute.</p>}
-      {error && <p className="error" role="alert">{error}</p>}
-      {!result && !busy && !error && <p className="status">Enter the lot code from the supplier's alert and press Trace.</p>}
+      <section className="incident">
+        <div>
+          <h2>{report ? <>Lot {report.lot.code}, {report.lot.ingredient}</> : running ? `Tracing ${lot}` : 'No incident open'}</h2>
+          {report && <p className="muted">
+            Supplier {report.lot.supplier} ({report.lot.supplier_id}), received {shortDate(report.lot.received_at)}
+            {result?.finished_at && <>. Traced {new Date(result.finished_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</>}
+          </p>}
+        </div>
+        <ol className="stages" aria-label="Recall progress">
+          {stages.map(([label, ok], i) => (
+            <li key={i} className={ok ? 'ok' : running && !ok && (i === 0 || stages[i - 1][1]) ? 'active' : ''}>{label}</li>
+          ))}
+        </ol>
+      </section>
 
-      {result && (
-        <>
-          <Comparison r={result} />
-          <p className="summary">{result.summary}</p>
+      {error && !running && !steps.length && <p className="error banner" role="alert">{error}</p>}
 
-          <section className="graph-wrap" aria-label="Trace graph">
-            <Graph elements={graph} />
-            <p className="hint">Click a store to see the records that reach it.</p>
-            <ul className="legend">
-              <li><i style={{ background: COLOR.lot }} />Bad lot</li>
-              <li><i style={{ background: COLOR.batch }} />Affected (orange lines: lot-coded path)</li>
-              <li><i style={{ background: COLOR['store-gap'] }} />Gap: shipped with no lot code (dashed)</li>
-              <li><i style={{ background: COLOR['store-safe'] }} />Proven safe, with the clean lots it received</li>
-            </ul>
-          </section>
+      {report && <Kpis r={report} />}
 
-          <section className="lists">
-            <div>
-              <h2>Affected <span>{result.affected.length}</span></h2>
-              <ul>{result.affected.map((a) => (
-                <li key={a.store}><b>{a.store}</b>{a.path.map((p) => <span className="path" key={p.join()}>{p.join(' › ')}</span>)}</li>
-              ))}</ul>
+      <div className="grid">
+        <main className="main">
+          {report ? <>
+            <section className="panel">
+              <header className="panel-head">
+                <h2>How {report.lot.code} spread</h2>
+                <div className="tabs" role="tablist">
+                  <button role="tab" aria-selected={view === 'flow'} onClick={() => setView('flow')}>Units flow</button>
+                  <button role="tab" aria-selected={view === 'network'} onClick={() => setView('network')}>Record network</button>
+                </div>
+              </header>
+              {view === 'flow'
+                ? <><FlowChart r={report} /><p className="legend"><i className="sw lot" />Bad lot <i className="sw recall" />Contains {report.lot.code} <i className="sw gap" />Shipped with no lot code. Band width is units shipped to stores.</p></>
+                : <><NetworkGraph lot={report.lot.code} focus={selected} onPick={setSelected} /><p className="legend">Every record in the graph. Click a store to keep only the records that reach it.</p></>}
+            </section>
+            <div className="pair">
+              <section className="panel"><header className="panel-head"><h2>Where it went</h2><span className="muted small">Click a state to filter stores</span></header><TileMap r={report} onPick={setStateFilter} /></section>
+              <section className="panel"><header className="panel-head"><h2>Exposure window</h2></header><ExposureStrip r={report} /></section>
             </div>
-            <div>
-              <h2>Gaps <span>{result.gaps.length}</span></h2>
-              <ul>{result.gaps.map((g) => (
-                <li key={g.store} className="gap"><b>{g.store}</b>{g.added_to_recall ? ' added to recall' : ' flagged only'}<span className="path">{g.reason}</span></li>
-              ))}</ul>
-            </div>
-            <div>
-              <h2>Safe <span>{result.safe.length}</span></h2>
-              <ul>{result.safe.map((s) => (
-                <li key={s.store}><b>{s.store}</b><span className="path">Checked {s.received_lots.map((l) => l.lot).join(', ')}: none trace to {result.lot}</span></li>
-              ))}</ul>
-            </div>
-          </section>
+            <StoreRegister r={report} notices={notices} onPick={setSelected} selected={selected} stateFilter={stateFilter} clearState={() => setStateFilter(undefined)} />
+          </> : (
+            <section className="panel empty">
+              {running
+                ? <p>The agent is tracing {lot} through batches, rework and shipments. The dashboard opens as soon as it has decided the recall.</p>
+                : <p>Enter the lot code from the supplier's alert and press Trace. The agent follows the lot through the FalkorDB graph and builds the recall here.</p>}
+            </section>
+          )}
+        </main>
+        <div className="rail">
+          <AgentTrace steps={steps} running={running} error={running || steps.length ? error : undefined} summary={result?.summary} meta={result?.meta} />
+          {result && <Notices lot={result.lot} notices={notices} onApprove={approve} onPick={setSelected} />}
+        </div>
+      </div>
 
-          <section className="steps">
-            <h2>How the agent got here</h2>
-            <ol>{result.tool_calls.map((c, i) => (
-              <li key={i}><code>{c.name}</code> {c.ms} ms{c.error && ' (failed)'}</li>
-            ))}</ol>
-          </section>
-
-          <section className="notices">
-            <div className="notices-head">
-              <h2>Draft notices <span>{notices.length}</span></h2>
-              <div className="actions">
-                <a href={`/export/${result.lot}.csv`} download>Download FDA shipping CSV</a>
-                <button onClick={approveAll} disabled={!pending}>{pending ? `Approve all ${pending}` : 'All approved'}</button>
-              </div>
-            </div>
-            <p className="note">Approving marks notices ready. Nothing is sent from here.</p>
-            <ul>{notices.map((n) => (
-              <li key={n.store} data-status={n.status}>
-                <b>{n.name}</b> {n.city}
-                <span className="badge">{n.status === 'approved' ? 'Approved' : 'Awaiting approval'}</span>
-                <span className="path">{n.reason}</span>
-              </li>
-            ))}</ul>
-          </section>
-        </>
-      )}
-    </main>
+      {report && store && <Evidence r={report} store={store} notice={notices.find((n) => n.store === store.id)} onClose={() => setSelected(undefined)} onApprove={(id) => approve([id])} />}
+    </div>
   );
 }
 
-/** One tick per store that got an affected SKU: the blanket recall. Coloured ticks are the targeted recall. */
-function Comparison({ r }: { r: RecallResult }) {
-  const ticks = [
-    ...r.affected.map(() => 'affected'),
-    ...r.gaps.map((g) => (g.added_to_recall ? 'gap' : 'gap-flag')),
-    ...r.safe.map(() => 'safe'),
-  ];
+function Kpis({ r }: { r: IncidentReport }) {
+  const c = r.counts;
+  const rework = r.lineage.filter((e) => e.type === 'REWORKED_INTO');
+  const saved = 1 - c.units_to_pull / c.blanket_units;
   return (
-    <section className="compare" aria-label="Blanket versus targeted recall">
-      <div className="figures">
-        <p><strong className="struck">{r.counts.blanket}</strong> stores in a blanket recall</p>
-        <p><strong>{r.counts.targeted}</strong> stores in the targeted recall</p>
-        <p><strong>{r.units_to_pull.toLocaleString()}</strong> units to pull</p>
-        <p><strong className="quiet">{r.counts.safe}</strong> stores proven safe</p>
+    <section className="kpis">
+      <div className="kpi hero">
+        <p className="label">Stores to recall</p>
+        <p className="value">{c.targeted}<span className="of">of {c.blanket}</span></p>
+        <div className="ticks" aria-hidden="true" style={{ gridTemplateColumns: `repeat(${r.stores.length}, 1fr)` }}>{r.stores.map((s) => <i key={s.id} className={s.status} />)}</div>
+        <p className="foot">{c.blanket} stores got these products. A blanket recall would pull all of them.</p>
       </div>
-      <div className="ticks" aria-hidden="true">{ticks.map((t, i) => <i key={i} className={t} />)}</div>
+      <div className="kpi">
+        <p className="label">Units to pull</p>
+        <p className="value">{fmt(c.units_to_pull)}</p>
+        <p className="foot">A blanket recall pulls {fmt(c.blanket_units)}. Targeting saves {Math.round(saved * 100)}%.</p>
+      </div>
+      <div className="kpi">
+        <p className="label">Spread</p>
+        <p className="value">{c.product_lots}<span className="of">product lots</span></p>
+        <p className="foot">{c.batches} batches, {r.skus.length} products{rework.length ? `. Rework ${rework.map((e) => `${e.source}→${e.target}`).join(', ')} carried it on` : ''}.</p>
+      </div>
+      <div className="kpi warn">
+        <p className="label">Can't be cleared</p>
+        <p className="value">{c.gaps}<span className="of">stores</span></p>
+        <p className="foot">Got {[...new Set(r.stores.flatMap((s) => s.untracked.map((u) => u.product)))].join(', ') || 'affected product'} with no lot code. {r.add_gap_stores ? 'Added to the recall.' : 'Flagged for review.'}</p>
+      </div>
+      <div className="kpi">
+        <p className="label">Proven safe</p>
+        <p className="value">{c.safe}<span className="of">stores</span></p>
+        <p className="foot">Every lot they hold was traced back to its ingredients. None contains {r.lot.code}.</p>
+      </div>
     </section>
   );
-}
-
-function Graph({ elements }: { elements?: Elements }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!elements || !ref.current) return;
-    const cy = cytoscape({
-      container: ref.current,
-      elements: [...elements.nodes, ...elements.edges],
-      layout: { name: 'preset', positions: layered(elements) as never },
-      style: [
-        { selector: 'node', style: { 'background-color': (n: any) => COLOR[n.data('kind')] ?? '#888', width: 12, height: 12, label: 'data(id)', 'font-size': 9, 'font-family': 'IBM Plex Sans', color: '#3a4441', 'text-valign': 'bottom', 'text-margin-y': 2 } },
-        { selector: 'node[kind = "lot"]', style: { width: 26, height: 26, 'font-size': 11, 'font-weight': 600 } },
-        { selector: 'edge', style: { width: 1, 'line-color': '#d4d9d6', 'curve-style': 'bezier', 'target-arrow-shape': 'triangle', 'target-arrow-color': '#d4d9d6', 'arrow-scale': 0.5 } },
-        { selector: 'edge[kind = "affected"]', style: { 'line-color': '#e8771a', 'target-arrow-color': '#e8771a', width: 1.4 } },
-        { selector: 'edge[kind = "untracked"]', style: { 'line-color': '#d9a514', 'target-arrow-color': '#d9a514', 'line-style': 'dashed', width: 1.4 } },
-        { selector: '.dim', style: { opacity: 0.12 } },
-      ],
-      userZoomingEnabled: false, // keep the mouse wheel for page scroll
-    });
-    if (import.meta.env.DEV) (window as unknown as { cy: typeof cy }).cy = cy; // lets the demo recorder click nodes
-    // Click a node to see only the records that lead to it; click the background to reset.
-    cy.on('tap', (e) => {
-      cy.elements().removeClass('dim');
-      if (e.target === cy) return;
-      cy.elements().not(e.target.predecessors().add(e.target)).addClass('dim');
-    });
-    return () => cy.destroy();
-  }, [elements]);
-  return <div className="graph" ref={ref} />;
-}
-
-const ROW = 30, COL = 260;
-
-/** Columns: lot → batches (rework one step right) → product lots → stores in four sub-columns. */
-function layered({ nodes, edges }: Elements) {
-  const reworked = new Set(edges.filter((e) => e.data.source.startsWith('B-') && e.data.target.startsWith('B-')).map((e) => e.data.target));
-  const order = ['store-affected', 'store-gap', 'store-safe'];
-  const stores = nodes.filter((n) => n.data.kind.startsWith('store')).sort((a, b) => order.indexOf(a.data.kind) - order.indexOf(b.data.kind));
-  const col = (kind: string, id: string) =>
-    kind === 'lot' ? 0 : kind === 'batch' ? (reworked.has(id) ? 1.6 : 1) : kind.startsWith('product') ? 2.4 : 3.4;
-  const pos: Record<string, { x: number; y: number }> = {};
-  const rows: Record<number, number> = {};
-  for (const n of nodes.filter((n) => !n.data.kind.startsWith('store'))) {
-    const c = col(n.data.kind, n.data.id);
-    rows[c] = (rows[c] ?? 0) + 1;
-    pos[n.data.id] = { x: c * COL, y: rows[c] * ROW };
-  }
-  const perCol = Math.ceil(stores.length / 4);
-  stores.forEach((n, i) => { pos[n.data.id] = { x: 3.4 * COL + Math.floor(i / perCol) * 110, y: (i % perCol + 1) * ROW }; });
-  // centre short columns against the tallest
-  const height = Math.max(perCol, ...Object.values(rows)) * ROW;
-  for (const n of nodes.filter((n) => !n.data.kind.startsWith('store'))) {
-    const c = col(n.data.kind, n.data.id);
-    pos[n.data.id].y += (height - rows[c] * ROW) / 2;
-  }
-  return pos;
 }

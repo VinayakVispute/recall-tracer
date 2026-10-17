@@ -1,12 +1,14 @@
 import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
+import { streamSSE } from 'hono/streaming';
 import { fileURLToPath } from 'node:url';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { query } from '../graph/db.js';
 import { AFFECTED_SHIPMENTS, STORES, LOT_EXISTS } from '../graph/queries.js';
 import { traceForward, coverageGaps, unaffectedStores, readNotices, writeNotices } from '../tools/index.js';
-import { runAgent } from '../agent/run.js';
+import { runAgent, type RecallResult } from '../agent/run.js';
+import { incidentReport } from '../tools/incident.js';
 
 const LOT_RE = /^L-\d{1,6}$/;
 const LAST = process.env.NOTICES_FILE ? 'out/test-last-recall.json' : 'out/last-recall.json';
@@ -20,15 +22,57 @@ app.onError((err, c) => {
   return c.json({ error: message }, 500);
 });
 
-app.post('/recall', async (c) => {
-  const { lot } = await c.req.json<{ lot?: string }>();
-  if (!lot || !LOT_RE.test(lot)) return c.json({ error: 'Enter a lot code like L-204.' }, 400);
+/** Validates the lot and checks it exists, so bad input never spends a Claude call. Returns an error message or null. */
+async function checkLot(lot?: string): Promise<[number, string] | null> {
+  if (!lot || !LOT_RE.test(lot)) return [400, 'Enter a lot code like L-204.'];
   const [{ n }] = await query<{ n: number }>(LOT_EXISTS, { lot });
-  if (!n) return c.json({ error: `No lot ${lot} in the traceability records. Check the code on the supplier's alert.` }, 404); // don't spend a Claude call
-  const result = await runAgent(lot);
+  return n ? null : [404, `No lot ${lot} in the traceability records. Check the code on the supplier's alert.`];
+}
+/** A new trace supersedes earlier drafts for the same lot, so stale notices never show as this run's. */
+function clearDrafts(lot: string) {
+  writeNotices(readNotices().filter((n) => n.lot !== lot));
+}
+function save(result: RecallResult) {
   mkdirSync('out', { recursive: true });
   writeFileSync(LAST, JSON.stringify(result));
+}
+
+app.post('/recall', async (c) => {
+  const { lot } = await c.req.json<{ lot?: string }>();
+  const bad = await checkLot(lot);
+  if (bad) return c.json({ error: bad[1] }, bad[0] as 400);
+  clearDrafts(lot!);
+  const result = await runAgent(lot!);
+  save(result);
   return c.json(result);
+});
+
+/** Same as POST /recall, but streams each agent step (Server-Sent Events) so the dashboard fills in live. */
+app.get('/recall/stream', async (c) => {
+  const lot = c.req.query('lot');
+  const bad = await checkLot(lot);
+  if (bad) return c.json({ error: bad[1] }, bad[0] as 400);
+  return streamSSE(c, async (stream) => {
+    let writes = Promise.resolve(); // keep events in order and flushed before the stream closes
+    const send = (e: { type: string }) => (writes = writes.then(() => stream.writeSSE({ event: e.type, data: JSON.stringify(e) })));
+    try {
+      clearDrafts(lot!);
+      const result = await runAgent(lot!, send);
+      save(result);
+      await writes;
+    } catch (e) {
+      await writes;
+      await stream.writeSSE({ event: 'error', data: JSON.stringify({ type: 'error', message: (e as Error).message }) });
+    }
+  });
+});
+
+/** Everything the dashboard draws, straight from the graph. No Claude call. */
+app.get('/incident/:lot', async (c) => {
+  const lot = c.req.param('lot');
+  const bad = await checkLot(lot);
+  if (bad) return c.json({ error: bad[1] }, bad[0] as 400);
+  return c.json(await incidentReport(lot, c.req.query('gaps') !== 'flag'));
 });
 
 /** The recall decision currently under review, so a page reload doesn't rerun the agent. */

@@ -34,6 +34,39 @@ RETURN DISTINCT pl.id AS tlc, p.name AS product, s.units AS units, s.shipped_at 
        st.id AS store, st.name AS store_name, st.city AS city, st.region AS region, b.site AS site
 ORDER BY tlc, store`;
 
+/** trace_backward: every ingredient lot that went into each product lot, directly or through rework. */
+export const TRACE_BACKWARD = `
+MATCH (l:Lot)-[:USED_IN]->(:Batch)-[:REWORKED_INTO*0..3]->(:Batch)-[:PRODUCED]->(pl:ProductLot)
+WHERE pl.id IN $product_lots
+RETURN pl.id AS product_lot, collect(DISTINCT l.code) AS ingredient_lots`;
+
+// --- Incident dashboard (read-only, no agent) -----------------------------
+
+export const LOT_INFO = `
+MATCH (s:Supplier)-[:SUPPLIED]->(l:Lot {code: $lot})
+RETURN l.code AS code, l.ingredient AS ingredient, l.received_at AS received_at, s.id AS supplier_id, s.name AS supplier`;
+
+/** Every hop from the lot down to its product lots, with quantities. */
+export const LINEAGE = `
+MATCH p = (:Lot {code: $lot})-[:USED_IN|REWORKED_INTO|PRODUCED*1..6]->(:ProductLot)
+UNWIND relationships(p) AS r
+WITH DISTINCT r, startNode(r) AS a, endNode(r) AS b
+RETURN coalesce(a.code, a.id) AS source, b.id AS target, type(r) AS type, r.qty_kg AS qty_kg, r.units AS units`;
+
+export const BATCHES = `MATCH (b:Batch) WHERE b.id IN $ids RETURN b.id AS id, b.site AS site, b.produced_at AS produced_at`;
+
+export const SKUS_OF = `MATCH (pl:ProductLot) WHERE pl.id IN $ids RETURN DISTINCT pl.sku AS sku`;
+
+export const PRODUCT_LOTS = `
+MATCH (b:Batch)-[r:PRODUCED]->(pl:ProductLot)-[:OF]->(p:Product) WHERE p.sku IN $skus
+RETURN pl.id AS id, pl.sku AS sku, p.name AS product, pl.produced_at AS produced_at, b.id AS batch, r.units AS units`;
+
+/** All lot-coded shipments of the given SKUs, with store details. */
+export const SKU_SHIPMENTS = `
+MATCH (pl:ProductLot)-[s:SHIPPED_TO]->(st:Store) WHERE pl.sku IN $skus
+RETURN pl.id AS lot, pl.sku AS sku, s.units AS units, s.shipped_at AS shipped_at,
+       st.id AS store, st.name AS name, st.city AS city, st.region AS region`;
+
 export const LOT_EXISTS = `MATCH (l:Lot {code: $lot}) RETURN count(l) AS n`;
 
 export const STORES = `MATCH (st:Store) WHERE st.id IN $ids RETURN st.id AS id, st.name AS name, st.city AS city, st.region AS region`;
