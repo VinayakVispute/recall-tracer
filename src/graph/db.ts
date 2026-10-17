@@ -7,7 +7,13 @@ let db: Promise<FalkorDB> | undefined;
 
 export async function graph(name = 'recall'): Promise<Graph> {
   db ??= FalkorDB.connect({
-    socket: { host: process.env.FALKORDB_HOST ?? 'localhost', port: Number(process.env.FALKORDB_PORT ?? 6380) },
+    // Unset locally; FalkorDB Cloud needs them.
+    username: process.env.FALKORDB_USERNAME || undefined,
+    password: process.env.FALKORDB_PASSWORD || undefined,
+    socket: {
+      host: process.env.FALKORDB_HOST ?? 'localhost', port: Number(process.env.FALKORDB_PORT ?? 6380),
+      ...(process.env.FALKORDB_TLS === 'true' ? { tls: true as const } : {}),
+    },
   }).then((d) => {
     d.on('error', (e) => console.error('FalkorDB:', e.message)); // unhandled, this would crash the process; the client reconnects itself
     return d;

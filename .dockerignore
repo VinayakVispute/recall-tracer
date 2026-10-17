@@ -1,6 +1,9 @@
 node_modules
+web/node_modules
+web/.next
 out
 web/dist
 demo/*.mp4
 .env
+.env.local
 .git
