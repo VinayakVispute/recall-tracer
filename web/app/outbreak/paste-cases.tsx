@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Form from "next/form";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -44,12 +45,24 @@ export function PasteCases({ id, example }: { id: string; example: string }) {
     <Card size="sm">
       <CardHeader>
         <CardTitle>Case reports</CardTitle>
-        <CardDescription>Illness reports from the health department, linked into one cluster.</CardDescription>
-        <CardAction className="flex gap-2">
+        <CardDescription>Illness reports from the health department, linked into one cluster. A case needs the state, the onset date, the store and the purchase date; the product is optional.</CardDescription>
+        <CardAction className="hidden @md/card-header:flex flex-wrap items-center gap-2">
+          <Form action="/outbreak" className="flex items-center gap-1">
+            <Input name="cluster" aria-label="Open another cluster by id" placeholder="Cluster id" required pattern="[A-Za-z0-9\-]{1,40}" spellCheck={false} autoComplete="off" className="h-7 w-32 text-xs" />
+            <Button type="submit" variant="outline" size="sm">Open</Button>
+          </Form>
           <Button variant="outline" size="sm" onClick={() => setOpen((o) => !o)} aria-expanded={open}>Paste reports</Button>
-          {id && id !== example && <Link href={`/outbreak?cluster=${example}`} className={buttonVariants({ variant: "outline", size: "sm" })}>Load example</Link>}
+          {id !== example && <Link href={`/outbreak?cluster=${example}`} className={buttonVariants({ variant: "outline", size: "sm" })}>Load example</Link>}
         </CardAction>
       </CardHeader>
+      <div className="flex flex-wrap items-center gap-2 px-(--card-spacing) @md/card-header:hidden" data-slot="toolbar">
+        <Form action="/outbreak" className="flex items-center gap-1">
+          <Input name="cluster" aria-label="Open another cluster by id" placeholder="Cluster id" required pattern="[A-Za-z0-9\-]{1,40}" spellCheck={false} autoComplete="off" className="h-7 w-32 text-xs" />
+          <Button type="submit" variant="outline" size="sm">Open</Button>
+        </Form>
+        <Button variant="outline" size="sm" onClick={() => setOpen((o) => !o)} aria-expanded={open}>Paste reports</Button>
+        {id !== example && <Link href={`/outbreak?cluster=${example}`} className={buttonVariants({ variant: "outline", size: "sm" })}>Load example</Link>}
+      </div>
       {(open || report || error) && (
         <CardContent className="flex flex-col gap-3">
           {open && (

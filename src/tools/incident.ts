@@ -93,7 +93,7 @@ export async function incidentReport(lot: string, add_gap_stores = true) {
 }
 export type IncidentReport = Awaited<ReturnType<typeof incidentReport>>;
 
-type IncidentRow = { id: string; lot: string; hazard: string; reported_at: string; class: string | null; confirmed_class: string | null; scoped_at: string | null; stores: number | null };
+type IncidentRow = { id: string; lot: string; hazard: string; reported_at: string; class: string | null; confirmed_class: string | null; scoped_at: string | null; stores: number | null; supplier_id: string; supplier: string };
 export type IncidentSummary = IncidentRow & {
   /** scoped_at minus reported_at, in minutes. null until the agent's first minimal_recall. */
   minutes_to_scope: number | null;

@@ -227,6 +227,6 @@ export const INCIDENTS = `
 MATCH (i:Incident)-[:CONCERNS]->(l:Lot)<-[:SUPPLIED]-(s:Supplier)
 WHERE $supplier IS NULL OR s.id = $supplier
 RETURN i.id AS id, i.lot AS lot, i.hazard AS hazard, i.reported_at AS reported_at, i.class AS class,
-       i.confirmed_class AS confirmed_class, i.scoped_at AS scoped_at, i.stores AS stores
+       i.confirmed_class AS confirmed_class, i.scoped_at AS scoped_at, i.stores AS stores, s.id AS supplier_id, s.name AS supplier
 ORDER BY reported_at DESC`;
 export const SUPPLIER_GET = 'MATCH (s:Supplier {id: $id}) RETURN s.id AS id, s.name AS name';

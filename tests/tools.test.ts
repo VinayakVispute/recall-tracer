@@ -286,7 +286,7 @@ describe('case ingest (A6)', () => {
 
 describe('incident history (B5)', () => {
   it('summarizeIncident derives time to scope and status', () => {
-    const row = { id: 'INC-1', lot: 'L-1', hazard: 'h', reported_at: '2026-10-17T10:00:00.000Z', class: 'I', confirmed_class: null, scoped_at: '2026-10-17T10:00:45.000Z', stores: 33 };
+    const row = { id: 'INC-1', lot: 'L-1', hazard: 'h', reported_at: '2026-10-17T10:00:00.000Z', class: 'I', confirmed_class: null, scoped_at: '2026-10-17T10:00:45.000Z', stores: 33, supplier_id: 'S-03', supplier: 'Harlow Farms' };
     expect(summarizeIncident(row, new Set())).toMatchObject({ minutes_to_scope: 0.8, status: 'scoped' });
     expect(summarizeIncident({ ...row, scoped_at: null }, new Set())).toMatchObject({ minutes_to_scope: null, status: 'open' });
     expect(summarizeIncident(row, new Set(['L-1'])).status).toBe('notices_approved');

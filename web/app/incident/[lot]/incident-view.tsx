@@ -205,7 +205,7 @@ export function IncidentView({ lot, hazard, autostart, playback, initial }: { lo
     <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-4 p-4">
       <Card>
         <CardContent className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <div className="flex min-w-0 flex-1 basis-72 flex-col gap-1">
             <h2 className="flex flex-wrap items-center gap-2 text-xl font-semibold">
               {report || status?.incident ? <>Lot {lot}{report ? `, ${report.lot.ingredient}` : ""}</> : running ? `Opening incident for ${lot}` : `No incident open on ${lot}`}
               {replaying && <Badge variant="outline">Replay</Badge>}
