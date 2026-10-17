@@ -227,7 +227,7 @@ export function Exposure({ r }: { r: Report }) {
 // --- Network: every record as a node, revealed step by step as the agent works --------
 
 type Palette = Record<'destructive' | 'chart1' | 'chart2' | 'chart3' | 'fg' | 'muted' | 'border' | 'bg' | 'card', string>;
-const readPalette = (): Palette => ({
+export const readPalette = (): Palette => ({
   destructive: themeColor('--destructive'), chart1: themeColor('--chart-1'), chart2: themeColor('--chart-2'), chart3: themeColor('--chart-3'),
   fg: themeColor('--foreground'), muted: themeColor('--muted-foreground'), border: themeColor('--border'), bg: themeColor('--background'), card: themeColor('--card'),
 });
@@ -253,7 +253,7 @@ export function NetworkGraph({ lot, stages, animating, focus, onPick }: { lot: s
   const revealed = useRef(new Set<string>());
   const timers = useRef<number[]>([]);
   const [els, setEls] = useState<Elements>();
-  useEffect(() => { fetch(`/graph/${lot}`).then((r) => r.json()).then(setEls); }, [lot]);
+  useEffect(() => { fetch(`/api/graph/${lot}`).then((r) => r.json()).then(setEls); }, [lot]);
 
   useEffect(() => {
     if (!els || !ref.current) return;

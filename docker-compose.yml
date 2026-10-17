@@ -1,4 +1,4 @@
-# One command: FalkorDB + the app. Needs ANTHROPIC_API_KEY in .env.
+# One command: FalkorDB + the app (page and API). Needs ANTHROPIC_API_KEY in .env for live runs.
 services:
   falkordb:
     image: falkordb/falkordb:latest
@@ -9,7 +9,7 @@ services:
     environment:
       FALKORDB_HOST: falkordb
       FALKORDB_PORT: "6379"
-    ports: ["${APP_PORT:-8787}:8787"]
+    ports: ["${APP_PORT:-3000}:3000"]
     depends_on: [falkordb]
 volumes:
   falkordb_compose:

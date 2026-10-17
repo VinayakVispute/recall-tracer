@@ -169,6 +169,73 @@ export async function realOutbreaks(): Promise<RealOutbreak[]> {
   });
 }
 
+type Row = Record<string, unknown>;
+/** One query on the fda graph with FalkorDB's own execution time, read from the result metadata. */
+async function timed<T = Row>(g: Awaited<ReturnType<typeof graph>>, cypher: string) {
+  const res = await g.query<T>(cypher);
+  const db_ms = Number(res.metadata?.find((m) => m.startsWith('Query internal execution time'))?.match(/[\d.]+/)?.[0] ?? 0);
+  return { rows: res.data ?? [], db_ms: Math.round(db_ms * 100) / 100 };
+}
+
+export type RealGraph = {
+  nodes: { data: { id: string; kind: string; label: string } }[];
+  edges: { data: { id: string; source: string; target: string; kind: string; label?: string } }[];
+  db_ms: number;
+};
+
+/** The outbreak's neighbourhood as nodes and edges for the record network: outbreak, firm, recalls, hazards, states, downstream firms. */
+export async function realGraph(): Promise<RealGraph> {
+  const g = await graph(GRAPH);
+  const nodes = new Map<string, { id: string; kind: string; label: string }>();
+  const edges = new Map<string, { id: string; source: string; target: string; kind: string; label?: string }>();
+  const node = (id: string, kind: string, label = id) => { if (!nodes.has(id)) nodes.set(id, { id, kind, label }); };
+  const edge = (source: string, target: string, kind: string, label?: string) => edges.set(`${source}>${target}`, { id: `${source}>${target}`, source, target, kind, label });
+  let db_ms = 0;
+
+  const a = await timed<{ o: string; pathogen: string; f: string; s: string | null; n: number | null }>(g, `
+    MATCH (o:Outbreak)-[:LINKED_TO]->(f:Firm) OPTIONAL MATCH (o)-[c:CASES_IN]->(s:State)
+    RETURN o.id AS o, o.pathogen AS pathogen, f.name AS f, s.code AS s, c.count AS n`);
+  db_ms += a.db_ms;
+  const caseStates = new Set<string>();
+  for (const r of a.rows) {
+    node(r.o, 'outbreak', `${r.pathogen} outbreak`); node(r.f, 'firm'); edge(r.o, r.f, 'linked', 'linked to');
+    if (r.s) { caseStates.add(r.s); node(r.s, 'state'); edge(r.o, r.s, 'cases', `${r.n} sick`); }
+  }
+  const b = await timed<{ f: string; r: string; cls: string; s: string | null; h: string | null }>(g, `
+    MATCH (:Outbreak)-[:LINKED_TO]->(f:Firm)-[:RECALLED]->(r:Recall)
+    OPTIONAL MATCH (r)-[:DISTRIBUTED_TO]->(s:State) OPTIONAL MATCH (r)-[:HAZARD]->(h:Hazard)
+    RETURN f.name AS f, r.id AS r, r.classification AS cls, s.code AS s, h.name AS h`);
+  db_ms += b.db_ms;
+  const shipped = new Set<string>();
+  for (const x of b.rows) {
+    node(x.r, 'recall', x.r); edge(x.f, x.r, 'recalled', x.cls);
+    if (x.s) { shipped.add(x.s); node(x.s, 'state'); edge(x.r, x.s, 'distributed'); }
+    if (x.h) { node(x.h, 'hazard'); edge(x.r, x.h, 'hazard'); }
+  }
+  const c = await timed<{ f: string; b: string; basis: string; r: string | null; s: string | null }>(g, `
+    MATCH (:Outbreak)-[:LINKED_TO]->(f:Firm)-[e:SUPPLIED]->(b:Firm)
+    OPTIONAL MATCH (b)-[:RECALLED]->(r:Recall) OPTIONAL MATCH (r)-[:DISTRIBUTED_TO]->(s:State)
+    RETURN f.name AS f, b.name AS b, e.basis AS basis, r.id AS r, s.code AS s`);
+  db_ms += c.db_ms;
+  for (const x of c.rows) {
+    node(x.b, 'firm-downstream'); edge(x.f, x.b, 'supplied', `supplied (${x.basis})`);
+    if (x.r) { node(x.r, 'recall-downstream'); edge(x.b, x.r, 'recalled'); if (x.s) { node(x.s, 'state'); edge(x.r, x.s, 'distributed'); } }
+  }
+  // A state with sick people that no recall of the firm reached is the gap; it gets its own colour.
+  for (const s of caseStates) { const n = nodes.get(s)!; n.kind = shipped.has(s) ? 'state-both' : 'state-gap'; }
+  for (const s of shipped) if (!caseStates.has(s)) nodes.get(s)!.kind = 'state-shipped';
+  return { nodes: [...nodes.values()].map((data) => ({ data })), edges: [...edges.values()].map((data) => ({ data })), db_ms: Math.round(db_ms * 100) / 100 };
+}
+
+export type DemoQueryResult = { title: string; cypher: string; rows: Row[]; db_ms: number };
+/** Every demo query, run now, with its rows and FalkorDB time. */
+export async function runDemoQueries(): Promise<DemoQueryResult[]> {
+  const g = await graph(GRAPH);
+  const out: DemoQueryResult[] = [];
+  for (const [title, cypher] of DEMO_QUERIES) out.push({ title, cypher: cypher.trim().replace(/\n {4}/g, '\n'), ...(await timed(g, cypher)) });
+  return out;
+}
+
 /** The questions the demo asks of the real graph. */
 export const DEMO_QUERIES: [string, string][] = [
   ['Outbreak to firm to recalls: where it shipped vs where people got sick', `

@@ -6,14 +6,14 @@ import type { Context } from 'hono';
 import { fileURLToPath } from 'node:url';
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { query } from '../graph/db.js';
-import { AFFECTED_SHIPMENTS, STORES, LOT_EXISTS, INCIDENT_DELETE, INCIDENT_CREATE, INCIDENT_CONFIRM, CLUSTER_CASES } from '../graph/queries.js';
+import { AFFECTED_SHIPMENTS, STORES, LOT_EXISTS, INCIDENT_DELETE, INCIDENT_CREATE, INCIDENT_CONFIRM, CLUSTER_CASES, CLUSTER_DETAIL, COUNT_NODES, COUNT_EDGES } from '../graph/queries.js';
 import { traceForward, coverageGaps, unaffectedStores, traceBackward, readHold, readNotices, writeNotices, incidentId, RECALL_CLASSES, RECALL_DEPTHS } from '../tools/index.js';
 import { createAgentUIStreamResponse } from 'ai';
 import { getRecallAgent, runOutbreak } from '../agent/ai-agent.js';
 import { runAgent, type RecallResult, type TraceEvent } from '../agent/run.js';
 import { incidentReport, incidentStatus, listIncidents, supplierIncidents } from '../tools/incident.js';
 import { ingestCases, CASE_ID } from '../data/cases.js';
-import { realOutbreaks } from '../data/real.js';
+import { realOutbreaks, realGraph, runDemoQueries } from '../data/real.js';
 import { registerTools } from '../mcp/tools.js';
 
 const LOT_RE = /^L-\d{1,6}$/;
@@ -154,6 +154,17 @@ app.post('/ingest/cases', async (c) => {
   }
 });
 
+/** A cluster and its cases, for Page 1's table. No Claude call. */
+app.get('/clusters/:id', async (c) => {
+  const id = c.req.param('id');
+  if (!CASE_ID.test(id)) return c.json({ error: 'Enter a cluster id like OB-2026-10.' }, 400);
+  type Row = { pathogen: string; opened_at: string; id: string; region: string; onset: string; reported_at: string; sku: string | null; product: string | null; store: string; store_name: string; city: string; bought_at: string };
+  const rows = await query<Row>(CLUSTER_DETAIL, { cluster: id });
+  if (!rows.length) return c.json({ error: `No cases in cluster ${id}. Paste the case list first.` }, 404);
+  const { pathogen, opened_at } = rows[0];
+  return c.json({ id, pathogen, opened_at, cases: rows.map(({ pathogen: _p, opened_at: _o, ...r }) => r) });
+});
+
 /** B4. Finds the common source of a cluster. Validated before any Claude call. */
 app.post('/outbreak', async (c) => {
   const { cluster } = await c.req.json<{ cluster?: string }>();
@@ -175,6 +186,9 @@ app.get('/incidents', async (c) => c.json(await listIncidents()));
 
 /** Real CDC outbreaks joined to their firm's openFDA recalls, from the separate "fda" graph (`bun run real`). */
 app.get('/real/outbreaks', async (c) => c.json(await realOutbreaks()));
+/** The outbreak's neighbourhood as a record network, and the demo queries run live with FalkorDB's time. */
+app.get('/real/graph', async (c) => c.json(await realGraph()));
+app.get('/real/queries', async (c) => c.json(await runDemoQueries()));
 
 app.get('/incidents/supplier/:id', async (c) => {
   const id = c.req.param('id');
@@ -209,6 +223,19 @@ app.post('/incident/:lot/confirm', async (c) => {
   const [row] = await query<{ id: string }>(INCIDENT_CONFIRM, { lot, class: cls, depth, at: new Date().toISOString() });
   if (!row) return c.json({ error: 'No open incident for this lot' }, 404);
   return c.json(await incidentStatus(lot));
+});
+
+/** The shell's graph line: graph size, and FalkorDB's own average time per query over the last run. No Claude call. */
+app.get('/stats', async (c) => {
+  const [[{ n: nodes }], [{ n: edges }]] = await Promise.all([query<{ n: number }>(COUNT_NODES), query<{ n: number }>(COUNT_EDGES)]);
+  let last_run: { lot: string; queries: number; avg_db_ms: number } | null = null;
+  try {
+    const r = JSON.parse(readFileSync(LAST, 'utf8')) as RecallResult;
+    const queries = r.tool_calls.reduce((n, t) => n + (t.queries ?? 0), 0);
+    const ms = r.tool_calls.reduce((n, t) => n + (t.db_ms ?? 0), 0);
+    if (queries) last_run = { lot: r.lot, queries, avg_db_ms: Math.round((ms / queries) * 10) / 10 };
+  } catch { /* no run yet */ }
+  return c.json({ graph: 'recall', nodes, edges, last_run });
 });
 
 /** The recall decision currently under review, so a page reload doesn't rerun the agent. */

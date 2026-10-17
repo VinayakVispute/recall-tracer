@@ -1,15 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Pause, Play, RotateCcw, X } from "lucide-react";
+import { Pause, Play, RotateCcw, SkipBack, SkipForward, X } from "lucide-react";
 import { fmtMs, graphTime, markersOf, type Recording, type TimedEvent } from "@/lib/trace";
 import { TITLE, shortDate, shortTime } from "@/components/dashboard/panels";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const TICK = 50;
-const SPEEDS = [0.5, 1, 2, 4] as const;
+const SPEEDS = [0.5, 1, 2] as const;
 const clock = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, "0")}`;
 const stepFromHash = () => {
   const m = typeof location !== "undefined" ? /^#step-(\d+)$/.exec(location.hash) : null;
@@ -81,10 +80,23 @@ const SOURCE: Record<Recording["source"], string> = {
   estimated: "Saved run, step timing estimated",
 };
 
-/** Timeline under the record network: one marker per agent step at its real time, a draggable playhead, controls. */
+// Step colours follow the rest of the dashboard: judgement steps as in the log, the backward check as on the graph.
+const TONE = { step: "var(--foreground)", judgement: "var(--chart-4)", backward: "var(--chart-3)", error: "var(--destructive)" };
+const toneOf = (m: { name: string; judgement: boolean; error: boolean }) =>
+  m.error ? TONE.error : m.judgement ? TONE.judgement : m.name === "trace_backward" ? TONE.backward : TONE.step;
+
+/** Media-player controls under the record network: play, step, restart, speed, and a scrubber with one dot per agent step. */
 export function ReplayBar({ rec, r, onExit }: { rec: Recording; r: Replay; onExit: () => void }) {
   const track = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
+  const [width, setWidth] = useState(800);
+  useEffect(() => {
+    const el = track.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([e]) => setWidth(e.contentRect.width));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   const at = (clientX: number) => {
     const box = track.current!.getBoundingClientRect();
     return ((clientX - box.left) / box.width) * r.duration;
@@ -92,16 +104,33 @@ export function ReplayBar({ rec, r, onExit }: { rec: Recording; r: Replay; onExi
   const pct = (ms: number) => `${r.duration ? (100 * ms) / r.duration : 0}%`;
   const end = rec.events.findLast((e) => e.type === "tool_end" && e.at <= r.pos);
   const call = end?.type === "tool_end" ? end.call : undefined;
+  // Dots sit at their real time; the step numbers under them are nudged apart when parallel steps finish together.
+  const num: number[] = [];
+  r.markers.forEach((m, i) => num.push(Math.max((r.duration ? m.at / r.duration : 0) * width, i ? num[i - 1] + 18 : 6)));
+  const jumpTo = (ms: number) => { r.pause(); r.seek(ms); };
+
   return (
-    <div className="flex flex-col gap-2 rounded-lg border bg-muted/30 p-3" aria-label="Replay controls">
-      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-        <Badge variant="outline">Replay</Badge>
-        <span>{SOURCE[rec.source]}, {shortDate(rec.recorded_at)} {shortTime(rec.recorded_at)}</span>
-        <span className="ml-auto">Space play or pause, arrow keys step</span>
+    <div className="flex flex-col gap-2 rounded-lg border p-3" aria-label="Replay controls">
+      <div className="flex flex-wrap items-center gap-1">
+        <Button size="icon-lg" className="mr-1 size-10 rounded-full" onClick={r.toggle} aria-label={r.playing ? "Pause" : r.pos >= r.duration ? "Play again" : "Play"} title="Space">
+          {r.playing ? <Pause className="size-4 fill-current" /> : <Play className="ml-0.5 size-4 fill-current" />}
+        </Button>
+        <Button size="icon" variant="ghost" onClick={() => { r.pause(); r.jump(-1); }} aria-label="Previous step" title="Previous step (←)"><SkipBack /></Button>
+        <Button size="icon" variant="ghost" onClick={() => { r.pause(); r.jump(1); }} aria-label="Next step" title="Next step (→)"><SkipForward /></Button>
+        <Button size="icon" variant="ghost" onClick={r.restart} aria-label="Restart" title="Restart"><RotateCcw /></Button>
+        <span className="ml-2 font-mono text-sm tabular-nums" aria-hidden="true">{clock(r.pos)}<span className="text-muted-foreground"> / {clock(r.duration)}</span></span>
+        <div className="ml-auto inline-flex rounded-md border p-0.5" role="group" aria-label="Replay speed">
+          {SPEEDS.map((sp) => (
+            <button key={sp} type="button" aria-pressed={r.speed === sp} onClick={() => r.setSpeed(sp)}
+              className={cn("rounded px-2.5 py-0.5 text-xs font-semibold tabular-nums transition-colors", r.speed === sp ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground")}>{sp}×</button>
+          ))}
+        </div>
+        <Button size="icon" variant="ghost" onClick={onExit} aria-label="Exit replay" title="Exit replay"><X /></Button>
       </div>
+
       <div
         ref={track}
-        className="relative h-7 cursor-pointer touch-none rounded-md bg-muted"
+        className="group relative h-5 cursor-pointer touch-none"
         role="slider"
         tabIndex={0}
         aria-label="Replay position"
@@ -113,41 +142,31 @@ export function ReplayBar({ rec, r, onExit }: { rec: Recording; r: Replay; onExi
         onPointerMove={(e) => dragging.current && r.seek(at(e.clientX))}
         onPointerUp={() => (dragging.current = false)}
       >
-        <div className="absolute inset-y-0 left-0 rounded-l-md bg-destructive/15" style={{ width: pct(r.pos) }} />
+        <div className="absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-muted" />
+        <div className="absolute left-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-primary/70" style={{ width: pct(r.pos) }} />
         {r.markers.map((m) => (
-          <button
-            key={m.n}
-            type="button"
-            title={`Step ${m.n}: ${TITLE[m.name] ?? m.name} at ${clock(m.at)}`}
-            aria-label={`Jump to step ${m.n}, ${TITLE[m.name] ?? m.name}`}
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={() => { r.pause(); r.seek(m.at); }}
-            className={cn(
-              "absolute top-1/2 flex size-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 bg-background text-[10px] font-semibold tabular-nums",
-              m.error ? "border-destructive text-destructive" : m.judgement ? "border-chart-4 text-chart-4" : m.name === "trace_backward" ? "border-chart-3 text-chart-3" : "border-destructive text-destructive",
-              m.at <= r.pos && (m.error ? "bg-destructive text-background" : m.judgement ? "bg-chart-4 text-background" : m.name === "trace_backward" ? "bg-chart-3 text-background" : "bg-destructive text-background"),
-            )}
-            style={{ left: pct(m.at) }}
-          >{m.n}</button>
+          <span key={m.n} className={cn("pointer-events-none absolute top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-card", r.current?.n === m.n ? "size-3.5" : "size-2.5")}
+            style={{ left: pct(m.at), background: toneOf(m), opacity: m.at <= r.pos ? 1 : 0.45 }} />
         ))}
-        <div className="pointer-events-none absolute -inset-y-1 w-0.5 bg-foreground" style={{ left: pct(r.pos) }} />
+        <span className="pointer-events-none absolute top-1/2 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary shadow ring-4 ring-primary/15 transition-transform group-active:scale-110" style={{ left: pct(r.pos) }} />
       </div>
-      <div className="flex justify-between font-mono text-[10.5px] text-muted-foreground tabular-nums"><span>{clock(r.pos)}</span><span>{clock(r.duration)}</span></div>
-      <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" onClick={r.toggle}>{r.playing ? <><Pause />Pause</> : <><Play />{r.pos >= r.duration ? "Play again" : "Play"}</>}</Button>
-        <Button size="sm" variant="outline" onClick={r.restart}><RotateCcw />Restart</Button>
-        <div className="flex gap-1" role="group" aria-label="Replay speed">
-          {SPEEDS.map((s) => (
-            <Button key={s} size="sm" variant={r.speed === s ? "secondary" : "ghost"} aria-pressed={r.speed === s} onClick={() => r.setSpeed(s)}>{s}×</Button>
-          ))}
-        </div>
-        <Button size="sm" variant="ghost" className="ml-auto" onClick={onExit}><X />Exit replay</Button>
+      <div className="relative h-4 text-[11px] font-semibold tabular-nums">
+        {r.markers.map((m, i) => (
+          <button key={m.n} type="button" onClick={() => jumpTo(m.at)} title={`Step ${m.n}: ${TITLE[m.name] ?? m.name} at ${clock(m.at)}`}
+            aria-label={`Jump to step ${m.n}, ${TITLE[m.name] ?? m.name}`} aria-current={r.current?.n === m.n ? "step" : undefined}
+            className={cn("absolute -translate-x-1/2 rounded px-1 leading-4 hover:bg-muted", r.current?.n !== m.n && "opacity-60")}
+            style={{ left: Math.min(num[i], width - 6), color: toneOf(m) }}>{m.n}</button>
+        ))}
       </div>
-      <p className="min-h-10 rounded-md bg-background px-3 py-2 text-sm" aria-live="polite">
-        {r.current && call
-          ? <><b>Step {r.current.n} · {TITLE[call.name] ?? call.name}.</b> {call.summary}. <span className="text-muted-foreground">Tool {call.name}, {graphTime(call).db ? `${fmtMs(graphTime(call).ms)} in FalkorDB` : `${call.ms} ms`}.</span></>
-          : <span className="text-muted-foreground">The agent is reading the supplier notice. Records light up as it reaches them.</span>}
+
+      <p className="flex min-h-5 flex-wrap items-baseline gap-x-1.5 text-sm" aria-live="polite">
+        {r.current && call ? <>
+          <span className="inline-block size-2 shrink-0 self-center rounded-full" style={{ background: toneOf(r.current) }} aria-hidden="true" />
+          <b>Step {r.current.n} · {TITLE[call.name] ?? call.name}</b>
+          <span className="text-muted-foreground">· {call.summary} · {graphTime(call).db ? `FalkorDB ${fmtMs(graphTime(call).ms)}` : `${call.ms} ms`}</span>
+        </> : <span className="text-muted-foreground">The agent is reading the supplier notice. Records light up as it reaches them.</span>}
       </p>
+      <p className="text-xs text-muted-foreground">{SOURCE[rec.source]}, {shortDate(rec.recorded_at)} {shortTime(rec.recorded_at)} · ← → step · space play or pause</p>
     </div>
   );
 }

@@ -5,3 +5,4 @@ web/.next
 web/node_modules
 .DS_Store
 .env.local
+web/dist/

@@ -241,6 +241,8 @@ export const TITLE: Record<string, string> = {
   minimal_recall: "Scope decision",
   trace_backward: "Backward check on cleared stores",
   draft_recall_notice: "Store notices drafted",
+  find_common_source: "Common source search",
+  case_path: "Case evidence path",
 }
 const DOING: Record<string, string> = {
   propose_classification: "Recording the proposed class and depth",
@@ -250,6 +252,8 @@ const DOING: Record<string, string> = {
   minimal_recall: "Combining the traces into a decision",
   trace_backward: "Walking every cleared lot back to its ingredients",
   draft_recall_notice: "Writing one draft per store",
+  find_common_source: "Walking every case back to the ingredient lots that could have reached it",
+  case_path: "Reading one case's path back to its lot",
 }
 
 /** Big inputs (33 notices, 60 product lots) are condensed so the log stays readable. */
@@ -258,8 +262,8 @@ function brief(input: unknown) {
   return Object.entries(input).map(([k, v]) => `${k}: ${Array.isArray(v) ? `${v.length} items` : JSON.stringify(v)}`).join(", ")
 }
 
-export function AgentTrace({ steps, running, meta, summary, error, current, replaying, onRetry }: {
-  steps: Step[]; running: boolean; error?: string; summary?: string;
+export function AgentTrace({ steps, running, meta, summary, error, current, replaying, onRetry, empty = "Open an incident to start. Each step appears here as it happens." }: {
+  steps: Step[]; running: boolean; error?: string; summary?: string; empty?: string;
   meta?: { model: string; ms: number; turns: number; input_tokens: number; output_tokens: number };
   /** Id of the tool call at the replay playhead; highlighted and scrolled into view. */
   current?: string; replaying?: boolean; onRetry?: () => void;
@@ -287,9 +291,9 @@ export function AgentTrace({ steps, running, meta, summary, error, current, repl
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         {!steps.length && !running && !replaying && (
-          <Empty><EmptyDescription>Open an incident to start. Each step appears here as it happens.</EmptyDescription></Empty>
+          <Empty><EmptyDescription>{empty}</EmptyDescription></Empty>
         )}
-        <div ref={box} className="max-h-[32rem] overflow-y-auto pr-1">
+        <div ref={box} className="max-h-[32rem] overflow-y-auto pr-1 pb-6 [mask-image:linear-gradient(to_bottom,black_calc(100%-1.5rem),transparent)]">
           <ol className="flex flex-col gap-3">
             {steps.map((s, i) => s.kind === "note" ? (
               <li key={i} className="text-sm text-muted-foreground italic">{s.text}</li>
@@ -554,7 +558,7 @@ export function Notices({ lot, notices, canApprove, onApprove, onPick }: { lot: 
         </ul>
         <div className="flex flex-wrap gap-2">
           <Button disabled={!pending.length || !canApprove} onClick={() => onApprove(pending.map((n) => n.store))}>{pending.length ? `Approve all ${pending.length}` : "All approved"}</Button>
-          <Button variant="outline" nativeButton={false} render={<a href={`/export/${lot}.csv`} download />}>FDA shipping CSV</Button>
+          <Button variant="outline" nativeButton={false} render={<a href={`/api/export/${lot}.csv`} download />}>FDA shipping CSV</Button>
         </div>
         <Muted className="text-xs">{canApprove ? "Approving marks a notice ready for the distribution team. Nothing is sent from here." : "Confirm the class and depth in the assessment card before approving notices."}</Muted>
       </CardContent>

@@ -4,28 +4,35 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
+// The order a coordinator works in: find the source, take the supplier's notice, run the incident.
 const LINKS = [
-  { href: "/", label: "Dashboard" },
-  { href: "/agent", label: "Agent" },
+  { href: "/outbreak", label: "Outbreak" },
+  { href: "/notice", label: "Supplier notice" },
+  { href: "/incident", label: "Incident" },
+  { href: "/history", label: "History" },
 ];
 
-export function Nav() {
+/** `graphLine` is a server component passed in by the layout, streamed under its own Suspense boundary. */
+export function Nav({ graphLine }: { graphLine: React.ReactNode }) {
   const pathname = usePathname();
+  const link = (href: string, label: string, extra?: string) => {
+    const on = pathname === href || pathname.startsWith(`${href}/`);
+    return (
+      <Link key={href} href={href} aria-current={on ? "page" : undefined}
+        className={cn("rounded-md px-2.5 py-1 text-muted-foreground hover:text-foreground", on && "bg-muted text-foreground", extra)}>
+        {label}
+      </Link>
+    );
+  };
   return (
-    <header className="sticky top-0 z-40 flex h-14 items-center gap-6 border-b bg-background px-4">
+    <header className="sticky top-0 z-40 flex min-h-14 flex-wrap items-center gap-x-6 gap-y-1 border-b bg-background px-4 py-2">
       <span className="font-semibold">Recall Tracer</span>
-      <nav className="flex items-center gap-4 text-sm">
-        {LINKS.map((l) => (
-          <Link
-            key={l.href}
-            href={l.href}
-            aria-current={pathname === l.href ? "page" : undefined}
-            className={cn("text-muted-foreground hover:text-foreground", pathname === l.href && "text-foreground")}
-          >
-            {l.label}
-          </Link>
-        ))}
-      </nav>
+      <nav aria-label="Sections" className="flex flex-wrap items-center gap-1 text-sm">{LINKS.map((l) => link(l.href, l.label))}</nav>
+      <div className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+        {graphLine}
+        {link("/real", "Real data", "text-xs")}
+        {link("/agent", "Ask the agent", "text-xs")}
+      </div>
     </header>
   );
 }

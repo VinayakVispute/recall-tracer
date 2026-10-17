@@ -70,7 +70,7 @@ export function fromResult(r: RecallResult): Recording {
  * Served by GET /recall/replay?format=json, which needs no API key and no database.
  */
 export async function loadRecorded(lot: string): Promise<Recording | undefined> {
-  const res = await fetch(`/recall/replay?lot=${encodeURIComponent(lot)}&format=json`);
+  const res = await fetch(`/api/recall/replay?lot=${encodeURIComponent(lot)}&format=json`);
   if (!res.ok) return undefined;
   const data = (await res.json()) as { lot: string; recorded_at: string; events: { t_ms: number; event: TraceEvent }[] };
   return { lot: data.lot, recorded_at: data.recorded_at, events: data.events.map(({ t_ms, event }) => ({ ...event, at: t_ms }) as TimedEvent), source: "recorded" };
