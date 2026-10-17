@@ -1,0 +1,1709 @@
+{
+ "lot": "L-204",
+ "recorded_at": "2026-10-17T11:05:14.479Z",
+ "events": [
+  {
+   "at": 1135,
+   "type": "start",
+   "lot": "L-204",
+   "model": "claude-opus-5-5"
+  },
+  {
+   "at": 3884,
+   "type": "note",
+   "text": "Listeria in chilled ready-to-eat food can cause serious harm, so I'm proposing the recall class and depth first.",
+   "turn": 0
+  },
+  {
+   "at": 3884,
+   "type": "tool_start",
+   "id": "toolu_01U7V7cFRLsEr4HgBaSPpk8N",
+   "name": "propose_classification",
+   "input": {
+    "lot": "L-204",
+    "class": "I",
+    "depth": "consumer",
+    "rationale": "Listeria monocytogenes in chilled ready-to-eat soups and sauces carries a reasonable probability of serious illness or death, and the product is already on store shelves, so the public must be told."
+   },
+   "turn": 0
+  },
+  {
+   "at": 3979,
+   "type": "tool_end",
+   "call": {
+    "id": "toolu_01U7V7cFRLsEr4HgBaSPpk8N",
+    "name": "propose_classification",
+    "input": {
+     "lot": "L-204",
+     "class": "I",
+     "depth": "consumer",
+     "rationale": "Listeria monocytogenes in chilled ready-to-eat soups and sauces carries a reasonable probability of serious illness or death, and the product is already on store shelves, so the public must be told."
+    },
+    "ms": 97,
+    "error": false,
+    "summary": "Proposed Class I, consumer-level recall. Awaiting confirmation",
+    "cypher": [
+     "\nMERGE (i:Incident {lot: $lot})\nON CREATE SET i.id = $id, i.reported_at = $at, i.hazard = 'not recorded'\nSET i.class = $class, i.depth = $depth, i.rationale = $rationale, i.classified_at = $at\nRETURN i.id AS id, i.hazard AS hazard"
+    ],
+    "turn": 0
+   }
+  },
+  {
+   "at": 5199,
+   "type": "note",
+   "text": "Next I'm placing a hold so nothing more ships.",
+   "turn": 1
+  },
+  {
+   "at": 5199,
+   "type": "tool_start",
+   "id": "toolu_01MzubYMwjdajCp2vSGfuaKm",
+   "name": "place_hold",
+   "input": {
+    "lot": "L-204"
+   },
+   "turn": 1
+  },
+  {
+   "at": 5221,
+   "type": "tool_end",
+   "call": {
+    "id": "toolu_01MzubYMwjdajCp2vSGfuaKm",
+    "name": "place_hold",
+    "input": {
+     "lot": "L-204"
+    },
+    "ms": 21,
+    "error": false,
+    "summary": "2,652 units and 93 kg of raw L-204 held at 5 locations",
+    "cypher": [
+     "\nMATCH (l:Lot {code: $lot})-[s:STORED_AT]->(site:Site)\nRETURN site.id AS id, site.name AS name, site.city AS city, site.region AS region, s.qty_kg AS qty_kg, l.received_kg AS received_kg",
+     "\nMATCH (:Lot {code: $lot})-[:USED_IN|REWORKED_INTO|PRODUCED*1..6]->(pl:ProductLot)-[h:HELD_AT]->(loc)\nWITH DISTINCT pl, h, loc\nMATCH (pl)-[:OF]->(p:Product)\nRETURN pl.id AS product_lot, p.name AS product, labels(loc)[0] AS kind, loc.id AS id, loc.name AS name,\n       loc.city AS city, loc.region AS region, h.units AS units\nORDER BY kind, id, product_lot",
+     "\nMATCH (:Lot {code: $lot})-[:USED_IN|REWORKED_INTO|PRODUCED*1..6]->(:ProductLot)-[h:HELD_AT]->()\nSET h.held_for = $lot, h.held_at = $at"
+    ],
+    "turn": 1
+   }
+  },
+  {
+   "at": 6723,
+   "type": "note",
+   "text": "Now I'm tracing the lot forward to every store and checking for deliveries with no lot code.",
+   "turn": 2
+  },
+  {
+   "at": 6723,
+   "type": "tool_start",
+   "id": "toolu_016ndxM4Cy6ZAcU6uM3dPnML",
+   "name": "trace_forward",
+   "input": {
+    "lot": "L-204"
+   },
+   "turn": 2
+  },
+  {
+   "at": 6730,
+   "type": "tool_end",
+   "call": {
+    "id": "toolu_016ndxM4Cy6ZAcU6uM3dPnML",
+    "name": "trace_forward",
+    "input": {
+     "lot": "L-204"
+    },
+    "ms": 6,
+    "error": false,
+    "summary": "4 batches, 7 product lots, 31 stores reached",
+    "cypher": [
+     "\nMATCH path = (l:Lot {code: $lot})-[:USED_IN|REWORKED_INTO|PRODUCED|SHIPPED_TO*1..8]->(st:Store)\nRETURN st.id AS store,\n       [n IN nodes(path) | coalesce(n.code, n.id)] AS path,\n       [n IN nodes(path) | labels(n)[0]] AS kinds,\n       last(relationships(path)).units AS units"
+    ],
+    "turn": 2
+   }
+  },
+  {
+   "at": 6730,
+   "type": "tool_start",
+   "id": "toolu_01HjYwLBXFGcuQjVQ6jzuGr4",
+   "name": "coverage_gaps",
+   "input": {
+    "lot": "L-204"
+   },
+   "turn": 2
+  },
+  {
+   "at": 6735,
+   "type": "tool_end",
+   "call": {
+    "id": "toolu_01HjYwLBXFGcuQjVQ6jzuGr4",
+    "name": "coverage_gaps",
+    "input": {
+     "lot": "L-204"
+    },
+    "ms": 6,
+    "error": false,
+    "summary": "2 stores got Garden Vegetable Stew with no lot code on the delivery record",
+    "cypher": [
+     "\nMATCH (:Lot {code: $lot})-[:USED_IN|REWORKED_INTO|PRODUCED*1..6]->(pl:ProductLot)\nWITH collect(DISTINCT pl.sku) AS skus\nMATCH (p:Product)-[u:SHIPPED_UNTRACKED]->(st:Store)\nWHERE p.sku IN skus\nRETURN st.id AS store, p.sku AS sku, p.name AS product, u.units AS units, u.shipped_at AS shipped_at"
+    ],
+    "turn": 2
+   }
+  },
+  {
+   "at": 8208,
+   "type": "note",
+   "text": "Per policy, I'm adding both gap stores and building the targeted recall.",
+   "turn": 3
+  },
+  {
+   "at": 8208,
+   "type": "tool_start",
+   "id": "toolu_016YQUsf5xVJDA4LY91ULFAS",
+   "name": "minimal_recall",
+   "input": {
+    "lot": "L-204",
+    "add_gap_stores": true
+   },
+   "turn": 3
+  },
+  {
+   "at": 8218,
+   "type": "tool_end",
+   "call": {
+    "id": "toolu_016YQUsf5xVJDA4LY91ULFAS",
+    "name": "minimal_recall",
+    "input": {
+     "lot": "L-204",
+     "add_gap_stores": true
+    },
+    "ms": 10,
+    "error": false,
+    "summary": "33 of 71 stores, 2,256 units; gaps added",
+    "cypher": [
+     "\nMATCH path = (l:Lot {code: $lot})-[:USED_IN|REWORKED_INTO|PRODUCED|SHIPPED_TO*1..8]->(st:Store)\nRETURN st.id AS store,\n       [n IN nodes(path) | coalesce(n.code, n.id)] AS path,\n       [n IN nodes(path) | labels(n)[0]] AS kinds,\n       last(relationships(path)).units AS units",
+     "\nMATCH (:Lot {code: $lot})-[:USED_IN|REWORKED_INTO|PRODUCED*1..6]->(pl:ProductLot)\nWITH collect(DISTINCT pl.sku) AS skus\nMATCH (p:Product)-[u:SHIPPED_UNTRACKED]->(st:Store)\nWHERE p.sku IN skus\nRETURN st.id AS store, p.sku AS sku, p.name AS product, u.units AS units, u.shipped_at AS shipped_at",
+     "\nMATCH (:Lot {code: $lot})-[:USED_IN|REWORKED_INTO|PRODUCED*1..6]->(pl:ProductLot)\nWITH collect(DISTINCT pl.sku) AS skus\nMATCH (pl2:ProductLot)-[:SHIPPED_TO]->(st:Store)\nWHERE pl2.sku IN skus\nRETURN st.id AS store, collect(DISTINCT pl2.id) AS received_lots"
+    ],
+    "turn": 3
+   }
+  },
+  {
+   "at": 10264,
+   "type": "note",
+   "text": "I'm checking the cleared stores' lots backward on their own to confirm none of them contain L-204.",
+   "turn": 4
+  },
+  {
+   "at": 10264,
+   "type": "tool_start",
+   "id": "toolu_018H5TqQPC4shYbNgRX3dznE",
+   "name": "trace_backward",
+   "input": {
+    "lot": "L-204",
+    "product_lots": [
+     "TLC-04A",
+     "TLC-04B",
+     "TLC-06A",
+     "TLC-06B",
+     "TLC-08A",
+     "TLC-08B",
+     "TLC-10A",
+     "TLC-10B"
+    ]
+   },
+   "turn": 4
+  },
+  {
+   "at": 10268,
+   "type": "tool_end",
+   "call": {
+    "id": "toolu_018H5TqQPC4shYbNgRX3dznE",
+    "name": "trace_backward",
+    "input": {
+     "lot": "L-204",
+     "product_lots": [
+      "TLC-04A",
+      "TLC-04B",
+      "TLC-06A",
+      "TLC-06B",
+      "TLC-08A",
+      "TLC-08B",
+      "TLC-10A",
+      "TLC-10B"
+     ]
+    },
+    "ms": 4,
+    "error": false,
+    "summary": "8 product lots walked back; 0 contain L-204",
+    "cypher": [
+     "\nMATCH (l:Lot)-[:USED_IN]->(:Batch)-[:REWORKED_INTO*0..3]->(:Batch)-[:PRODUCED]->(pl:ProductLot)\nWHERE pl.id IN $product_lots\nRETURN pl.id AS product_lot, collect(DISTINCT l.code) AS ingredient_lots"
+    ],
+    "turn": 4
+   }
+  },
+  {
+   "at": 20394,
+   "type": "note",
+   "text": "None of the cleared lots contain L-204, so I'm drafting the 33 notices for approval.",
+   "turn": 5
+  },
+  {
+   "at": 20394,
+   "type": "tool_start",
+   "id": "toolu_0197JLnuLZEsp1WmTXa65Ksj",
+   "name": "draft_recall_notice",
+   "input": {
+    "lot": "L-204",
+    "notices": [
+     {
+      "store": "ST-002",
+      "reason": "Received TLC-03A from batch B-03, made with L-204"
+     },
+     {
+      "store": "ST-004",
+      "reason": "Received TLC-03B from batch B-03, made with L-204"
+     },
+     {
+      "store": "ST-006",
+      "reason": "Received TLC-07B from batch B-07, made with L-204"
+     },
+     {
+      "store": "ST-008",
+      "reason": "Received TLC-03B from batch B-03, made with L-204"
+     },
+     {
+      "store": "ST-017",
+      "reason": "Received TLC-05A from batch B-05, made with L-204"
+     },
+     {
+      "store": "ST-018",
+      "reason": "Received TLC-05A from batch B-05, made with L-204"
+     },
+     {
+      "store": "ST-022",
+      "reason": "Received TLC-07B from batch B-07 and TLC-03B from batch B-03, both made with L-204"
+     },
+     {
+      "store": "ST-024",
+      "reason": "Received TLC-07B from batch B-07, made with L-204"
+     },
+     {
+      "store": "ST-029",
+      "reason": "Received TLC-03B from batch B-03, made with L-204"
+     },
+     {
+      "store": "ST-031",
+      "reason": "Received TLC-05A from batch B-05, made with L-204, and TLC-09A from batch B-09, which reused leftovers of B-03 made with L-204"
+     },
+     {
+      "store": "ST-033",
+      "reason": "Received TLC-09A from batch B-09, which reused leftovers of B-03 made with L-204"
+     },
+     {
+      "store": "ST-034",
+      "reason": "Received TLC-05B from batch B-05, made with L-204"
+     },
+     {
+      "store": "ST-035",
+      "reason": "Received TLC-05B from batch B-05, made with L-204"
+     },
+     {
+      "store": "ST-038",
+      "reason": "Received TLC-07B from batch B-07, made with L-204"
+     },
+     {
+      "store": "ST-043",
+      "reason": "Received TLC-05A from batch B-05, made with L-204"
+     },
+     {
+      "store": "ST-045",
+      "reason": "Received TLC-03B from batch B-03, made with L-204"
+     },
+     {
+      "store": "ST-048",
+      "reason": "Received TLC-09A from batch B-09, which reused leftovers of B-03 made with L-204"
+     },
+     {
+      "store": "ST-053",
+      "reason": "Received TLC-07A from batch B-07 and TLC-05A from batch B-05, both made with L-204"
+     },
+     {
+      "store": "ST-054",
+      "reason": "Received TLC-03A from batch B-03, made with L-204"
+     },
+     {
+      "store": "ST-055",
+      "reason": "Received TLC-05B from batch B-05, made with L-204"
+     },
+     {
+      "store": "ST-056",
+      "reason": "Received TLC-07A from batch B-07, made with L-204"
+     },
+     {
+      "store": "ST-057",
+      "reason": "Received TLC-03B from batch B-03, made with L-204"
+     },
+     {
+      "store": "ST-058",
+      "reason": "Received TLC-03A from batch B-03, made with L-204"
+     },
+     {
+      "store": "ST-062",
+      "reason": "Received TLC-09A from batch B-09, which reused leftovers of B-03 made with L-204"
+     },
+     {
+      "store": "ST-064",
+      "reason": "Received TLC-05B from batch B-05, made with L-204"
+     },
+     {
+      "store": "ST-067",
+      "reason": "Received TLC-09A from batch B-09, which reused leftovers of B-03 made with L-204"
+     },
+     {
+      "store": "ST-068",
+      "reason": "Received TLC-03A from batch B-03, made with L-204"
+     },
+     {
+      "store": "ST-069",
+      "reason": "Received TLC-07A from batch B-07, made with L-204"
+     },
+     {
+      "store": "ST-070",
+      "reason": "Received TLC-05A from batch B-05, made with L-204"
+     },
+     {
+      "store": "ST-073",
+      "reason": "Received TLC-03A from batch B-03, made with L-204"
+     },
+     {
+      "store": "ST-075",
+      "reason": "Received TLC-07A from batch B-07, made with L-204"
+     },
+     {
+      "store": "ST-013",
+      "reason": "Received 25 units of Garden Vegetable Stew (P-02) on 2026-10-09 with no lot code recorded; P-02 is made from L-204, so the store cannot be proven safe"
+     },
+     {
+      "store": "ST-021",
+      "reason": "Received 24 units of Garden Vegetable Stew (P-02) on 2026-10-10 with no lot code recorded; P-02 is made from L-204, so the store cannot be proven safe"
+     }
+    ]
+   },
+   "turn": 5
+  },
+  {
+   "at": 20399,
+   "type": "tool_end",
+   "call": {
+    "id": "toolu_0197JLnuLZEsp1WmTXa65Ksj",
+    "name": "draft_recall_notice",
+    "input": {
+     "lot": "L-204",
+     "notices": [
+      {
+       "store": "ST-002",
+       "reason": "Received TLC-03A from batch B-03, made with L-204"
+      },
+      {
+       "store": "ST-004",
+       "reason": "Received TLC-03B from batch B-03, made with L-204"
+      },
+      {
+       "store": "ST-006",
+       "reason": "Received TLC-07B from batch B-07, made with L-204"
+      },
+      {
+       "store": "ST-008",
+       "reason": "Received TLC-03B from batch B-03, made with L-204"
+      },
+      {
+       "store": "ST-017",
+       "reason": "Received TLC-05A from batch B-05, made with L-204"
+      },
+      {
+       "store": "ST-018",
+       "reason": "Received TLC-05A from batch B-05, made with L-204"
+      },
+      {
+       "store": "ST-022",
+       "reason": "Received TLC-07B from batch B-07 and TLC-03B from batch B-03, both made with L-204"
+      },
+      {
+       "store": "ST-024",
+       "reason": "Received TLC-07B from batch B-07, made with L-204"
+      },
+      {
+       "store": "ST-029",
+       "reason": "Received TLC-03B from batch B-03, made with L-204"
+      },
+      {
+       "store": "ST-031",
+       "reason": "Received TLC-05A from batch B-05, made with L-204, and TLC-09A from batch B-09, which reused leftovers of B-03 made with L-204"
+      },
+      {
+       "store": "ST-033",
+       "reason": "Received TLC-09A from batch B-09, which reused leftovers of B-03 made with L-204"
+      },
+      {
+       "store": "ST-034",
+       "reason": "Received TLC-05B from batch B-05, made with L-204"
+      },
+      {
+       "store": "ST-035",
+       "reason": "Received TLC-05B from batch B-05, made with L-204"
+      },
+      {
+       "store": "ST-038",
+       "reason": "Received TLC-07B from batch B-07, made with L-204"
+      },
+      {
+       "store": "ST-043",
+       "reason": "Received TLC-05A from batch B-05, made with L-204"
+      },
+      {
+       "store": "ST-045",
+       "reason": "Received TLC-03B from batch B-03, made with L-204"
+      },
+      {
+       "store": "ST-048",
+       "reason": "Received TLC-09A from batch B-09, which reused leftovers of B-03 made with L-204"
+      },
+      {
+       "store": "ST-053",
+       "reason": "Received TLC-07A from batch B-07 and TLC-05A from batch B-05, both made with L-204"
+      },
+      {
+       "store": "ST-054",
+       "reason": "Received TLC-03A from batch B-03, made with L-204"
+      },
+      {
+       "store": "ST-055",
+       "reason": "Received TLC-05B from batch B-05, made with L-204"
+      },
+      {
+       "store": "ST-056",
+       "reason": "Received TLC-07A from batch B-07, made with L-204"
+      },
+      {
+       "store": "ST-057",
+       "reason": "Received TLC-03B from batch B-03, made with L-204"
+      },
+      {
+       "store": "ST-058",
+       "reason": "Received TLC-03A from batch B-03, made with L-204"
+      },
+      {
+       "store": "ST-062",
+       "reason": "Received TLC-09A from batch B-09, which reused leftovers of B-03 made with L-204"
+      },
+      {
+       "store": "ST-064",
+       "reason": "Received TLC-05B from batch B-05, made with L-204"
+      },
+      {
+       "store": "ST-067",
+       "reason": "Received TLC-09A from batch B-09, which reused leftovers of B-03 made with L-204"
+      },
+      {
+       "store": "ST-068",
+       "reason": "Received TLC-03A from batch B-03, made with L-204"
+      },
+      {
+       "store": "ST-069",
+       "reason": "Received TLC-07A from batch B-07, made with L-204"
+      },
+      {
+       "store": "ST-070",
+       "reason": "Received TLC-05A from batch B-05, made with L-204"
+      },
+      {
+       "store": "ST-073",
+       "reason": "Received TLC-03A from batch B-03, made with L-204"
+      },
+      {
+       "store": "ST-075",
+       "reason": "Received TLC-07A from batch B-07, made with L-204"
+      },
+      {
+       "store": "ST-013",
+       "reason": "Received 25 units of Garden Vegetable Stew (P-02) on 2026-10-09 with no lot code recorded; P-02 is made from L-204, so the store cannot be proven safe"
+      },
+      {
+       "store": "ST-021",
+       "reason": "Received 24 units of Garden Vegetable Stew (P-02) on 2026-10-10 with no lot code recorded; P-02 is made from L-204, so the store cannot be proven safe"
+      }
+     ]
+    },
+    "ms": 4,
+    "error": false,
+    "summary": "33 notices drafted, pending approval",
+    "cypher": [
+     "MATCH (st:Store) WHERE st.id IN $ids RETURN st.id AS id, st.name AS name, st.city AS city, st.region AS region"
+    ],
+    "turn": 5
+   }
+  },
+  {
+   "at": 24988,
+   "type": "done",
+   "result": {
+    "lot": "L-204",
+    "affected": [
+     {
+      "store": "ST-002",
+      "path": [
+       [
+        "L-204",
+        "B-03",
+        "TLC-03A",
+        "ST-002"
+       ]
+      ],
+      "units": 119
+     },
+     {
+      "store": "ST-004",
+      "path": [
+       [
+        "L-204",
+        "B-03",
+        "TLC-03B",
+        "ST-004"
+       ]
+      ],
+      "units": 63
+     },
+     {
+      "store": "ST-006",
+      "path": [
+       [
+        "L-204",
+        "B-07",
+        "TLC-07B",
+        "ST-006"
+       ]
+      ],
+      "units": 39
+     },
+     {
+      "store": "ST-008",
+      "path": [
+       [
+        "L-204",
+        "B-03",
+        "TLC-03B",
+        "ST-008"
+       ]
+      ],
+      "units": 28
+     },
+     {
+      "store": "ST-017",
+      "path": [
+       [
+        "L-204",
+        "B-05",
+        "TLC-05A",
+        "ST-017"
+       ]
+      ],
+      "units": 90
+     },
+     {
+      "store": "ST-018",
+      "path": [
+       [
+        "L-204",
+        "B-05",
+        "TLC-05A",
+        "ST-018"
+       ]
+      ],
+      "units": 62
+     },
+     {
+      "store": "ST-022",
+      "path": [
+       [
+        "L-204",
+        "B-07",
+        "TLC-07B",
+        "ST-022"
+       ],
+       [
+        "L-204",
+        "B-03",
+        "TLC-03B",
+        "ST-022"
+       ]
+      ],
+      "units": 106
+     },
+     {
+      "store": "ST-024",
+      "path": [
+       [
+        "L-204",
+        "B-07",
+        "TLC-07B",
+        "ST-024"
+       ]
+      ],
+      "units": 70
+     },
+     {
+      "store": "ST-029",
+      "path": [
+       [
+        "L-204",
+        "B-03",
+        "TLC-03B",
+        "ST-029"
+       ]
+      ],
+      "units": 55
+     },
+     {
+      "store": "ST-031",
+      "path": [
+       [
+        "L-204",
+        "B-05",
+        "TLC-05A",
+        "ST-031"
+       ],
+       [
+        "L-204",
+        "B-03",
+        "B-09",
+        "TLC-09A",
+        "ST-031"
+       ]
+      ],
+      "units": 91
+     },
+     {
+      "store": "ST-033",
+      "path": [
+       [
+        "L-204",
+        "B-03",
+        "B-09",
+        "TLC-09A",
+        "ST-033"
+       ]
+      ],
+      "units": 20
+     },
+     {
+      "store": "ST-034",
+      "path": [
+       [
+        "L-204",
+        "B-05",
+        "TLC-05B",
+        "ST-034"
+       ]
+      ],
+      "units": 13
+     },
+     {
+      "store": "ST-035",
+      "path": [
+       [
+        "L-204",
+        "B-05",
+        "TLC-05B",
+        "ST-035"
+       ]
+      ],
+      "units": 64
+     },
+     {
+      "store": "ST-038",
+      "path": [
+       [
+        "L-204",
+        "B-07",
+        "TLC-07B",
+        "ST-038"
+       ]
+      ],
+      "units": 110
+     },
+     {
+      "store": "ST-043",
+      "path": [
+       [
+        "L-204",
+        "B-05",
+        "TLC-05A",
+        "ST-043"
+       ]
+      ],
+      "units": 71
+     },
+     {
+      "store": "ST-045",
+      "path": [
+       [
+        "L-204",
+        "B-03",
+        "TLC-03B",
+        "ST-045"
+       ]
+      ],
+      "units": 91
+     },
+     {
+      "store": "ST-048",
+      "path": [
+       [
+        "L-204",
+        "B-03",
+        "B-09",
+        "TLC-09A",
+        "ST-048"
+       ]
+      ],
+      "units": 96
+     },
+     {
+      "store": "ST-053",
+      "path": [
+       [
+        "L-204",
+        "B-07",
+        "TLC-07A",
+        "ST-053"
+       ],
+       [
+        "L-204",
+        "B-05",
+        "TLC-05A",
+        "ST-053"
+       ]
+      ],
+      "units": 156
+     },
+     {
+      "store": "ST-054",
+      "path": [
+       [
+        "L-204",
+        "B-03",
+        "TLC-03A",
+        "ST-054"
+       ]
+      ],
+      "units": 48
+     },
+     {
+      "store": "ST-055",
+      "path": [
+       [
+        "L-204",
+        "B-05",
+        "TLC-05B",
+        "ST-055"
+       ]
+      ],
+      "units": 115
+     },
+     {
+      "store": "ST-056",
+      "path": [
+       [
+        "L-204",
+        "B-07",
+        "TLC-07A",
+        "ST-056"
+       ]
+      ],
+      "units": 110
+     },
+     {
+      "store": "ST-057",
+      "path": [
+       [
+        "L-204",
+        "B-03",
+        "TLC-03B",
+        "ST-057"
+       ]
+      ],
+      "units": 84
+     },
+     {
+      "store": "ST-058",
+      "path": [
+       [
+        "L-204",
+        "B-03",
+        "TLC-03A",
+        "ST-058"
+       ]
+      ],
+      "units": 50
+     },
+     {
+      "store": "ST-062",
+      "path": [
+       [
+        "L-204",
+        "B-03",
+        "B-09",
+        "TLC-09A",
+        "ST-062"
+       ]
+      ],
+      "units": 43
+     },
+     {
+      "store": "ST-064",
+      "path": [
+       [
+        "L-204",
+        "B-05",
+        "TLC-05B",
+        "ST-064"
+       ]
+      ],
+      "units": 52
+     },
+     {
+      "store": "ST-067",
+      "path": [
+       [
+        "L-204",
+        "B-03",
+        "B-09",
+        "TLC-09A",
+        "ST-067"
+       ]
+      ],
+      "units": 45
+     },
+     {
+      "store": "ST-068",
+      "path": [
+       [
+        "L-204",
+        "B-03",
+        "TLC-03A",
+        "ST-068"
+       ]
+      ],
+      "units": 28
+     },
+     {
+      "store": "ST-069",
+      "path": [
+       [
+        "L-204",
+        "B-07",
+        "TLC-07A",
+        "ST-069"
+       ]
+      ],
+      "units": 92
+     },
+     {
+      "store": "ST-070",
+      "path": [
+       [
+        "L-204",
+        "B-05",
+        "TLC-05A",
+        "ST-070"
+       ]
+      ],
+      "units": 83
+     },
+     {
+      "store": "ST-073",
+      "path": [
+       [
+        "L-204",
+        "B-03",
+        "TLC-03A",
+        "ST-073"
+       ]
+      ],
+      "units": 39
+     },
+     {
+      "store": "ST-075",
+      "path": [
+       [
+        "L-204",
+        "B-07",
+        "TLC-07A",
+        "ST-075"
+       ]
+      ],
+      "units": 74
+     }
+    ],
+    "gaps": [
+     {
+      "store": "ST-013",
+      "sku": "P-02",
+      "reason": "Received 25 units of P-02 (Garden Vegetable Stew) on 2026-10-09 with no lot code recorded; P-02 is made from L-204, so this store cannot be proven safe.",
+      "units": 25,
+      "added_to_recall": true
+     },
+     {
+      "store": "ST-021",
+      "sku": "P-02",
+      "reason": "Received 24 units of P-02 (Garden Vegetable Stew) on 2026-10-10 with no lot code recorded; P-02 is made from L-204, so this store cannot be proven safe.",
+      "units": 24,
+      "added_to_recall": true
+     }
+    ],
+    "safe": [
+     {
+      "store": "ST-001",
+      "received_lots": [
+       {
+        "lot": "TLC-04A",
+        "reachable_from_bad_lot": false
+       }
+      ]
+     },
+     {
+      "store": "ST-003",
+      "received_lots": [
+       {
+        "lot": "TLC-10A",
+        "reachable_from_bad_lot": false
+       },
+       {
+        "lot": "TLC-10B",
+        "reachable_from_bad_lot": false
+       }
+      ]
+     },
+     {
+      "store": "ST-005",
+      "received_lots": [
+       {
+        "lot": "TLC-04B",
+        "reachable_from_bad_lot": false
+       },
+       {
+        "lot": "TLC-10A",
+        "reachable_from_bad_lot": false
+       }
+      ]
+     },
+     {
+      "store": "ST-009",
+      "received_lots": [
+       {
+        "lot": "TLC-06A",
+        "reachable_from_bad_lot": false
+       },
+       {
+        "lot": "TLC-10A",
+        "reachable_from_bad_lot": false
+       }
+      ]
+     },
+     {
+      "store": "ST-011",
+      "received_lots": [
+       {
+        "lot": "TLC-08B",
+        "reachable_from_bad_lot": false
+       }
+      ]
+     },
+     {
+      "store": "ST-012",
+      "received_lots": [
+       {
+        "lot": "TLC-04A",
+        "reachable_from_bad_lot": false
+       }
+      ]
+     },
+     {
+      "store": "ST-014",
+      "received_lots": [
+       {
+        "lot": "TLC-04B",
+        "reachable_from_bad_lot": false
+       },
+       {
+        "lot": "TLC-08A",
+        "reachable_from_bad_lot": false
+       }
+      ]
+     },
+     {
+      "store": "ST-015",
+      "received_lots": [
+       {
+        "lot": "TLC-06B",
+        "reachable_from_bad_lot": false
+       },
+       {
+        "lot": "TLC-10A",
+        "reachable_from_bad_lot": false
+       }
+      ]
+     },
+     {
+      "store": "ST-016",
+      "received_lots": [
+       {
+        "lot": "TLC-04A",
+        "reachable_from_bad_lot": false
+       },
+       {
+        "lot": "TLC-10A",
+        "reachable_from_bad_lot": false
+       }
+      ]
+     },
+     {
+      "store": "ST-019",
+      "received_lots": [
+       {
+        "lot": "TLC-08A",
+        "reachable_from_bad_lot": false
+       },
+       {
+        "lot": "TLC-10A",
+        "reachable_from_bad_lot": false
+       }
+      ]
+     },
+     {
+      "store": "ST-020",
+      "received_lots": [
+       {
+        "lot": "TLC-04A",
+        "reachable_from_bad_lot": false
+       }
+      ]
+     },
+     {
+      "store": "ST-023",
+      "received_lots": [
+       {
+        "lot": "TLC-04A",
+        "reachable_from_bad_lot": false
+       },
+       {
+        "lot": "TLC-08A",
+        "reachable_from_bad_lot": false
+       }
+      ]
+     },
+     {
+      "store": "ST-025",
+      "received_lots": [
+       {
+        "lot": "TLC-06B",
+        "reachable_from_bad_lot": false
+       },
+       {
+        "lot": "TLC-08A",
+        "reachable_from_bad_lot": false
+       }
+      ]
+     },
+     {
+      "store": "ST-026",
+      "received_lots": [
+       {
+        "lot": "TLC-04A",
+        "reachable_from_bad_lot": false
+       },
+       {
+        "lot": "TLC-06B",
+        "reachable_from_bad_lot": false
+       }
+      ]
+     },
+     {
+      "store": "ST-028",
+      "received_lots": [
+       {
+        "lot": "TLC-08A",
+        "reachable_from_bad_lot": false
+       }
+      ]
+     },
+     {
+      "store": "ST-030",
+      "received_lots": [
+       {
+        "lot": "TLC-10B",
+        "reachable_from_bad_lot": false
+       }
+      ]
+     },
+     {
+      "store": "ST-032",
+      "received_lots": [
+       {
+        "lot": "TLC-08A",
+        "reachable_from_bad_lot": false
+       }
+      ]
+     },
+     {
+      "store": "ST-036",
+      "received_lots": [
+       {
+        "lot": "TLC-04A",
+        "reachable_from_bad_lot": false
+       },
+       {
+        "lot": "TLC-06A",
+        "reachable_from_bad_lot": false
+       }
+      ]
+     },
+     {
+      "store": "ST-037",
+      "received_lots": [
+       {
+        "lot": "TLC-04B",
+        "reachable_from_bad_lot": false
+       },
+       {
+        "lot": "TLC-06B",
+        "reachable_from_bad_lot": false
+       }
+      ]
+     },
+     {
+      "store": "ST-040",
+      "received_lots": [
+       {
+        "lot": "TLC-04B",
+        "reachable_from_bad_lot": false
+       },
+       {
+        "lot": "TLC-10A",
+        "reachable_from_bad_lot": false
+       }
+      ]
+     },
+     {
+      "store": "ST-041",
+      "received_lots": [
+       {
+        "lot": "TLC-06B",
+        "reachable_from_bad_lot": false
+       },
+       {
+        "lot": "TLC-10B",
+        "reachable_from_bad_lot": false
+       }
+      ]
+     },
+     {
+      "store": "ST-042",
+      "received_lots": [
+       {
+        "lot": "TLC-04B",
+        "reachable_from_bad_lot": false
+       }
+      ]
+     },
+     {
+      "store": "ST-044",
+      "received_lots": [
+       {
+        "lot": "TLC-06A",
+        "reachable_from_bad_lot": false
+       }
+      ]
+     },
+     {
+      "store": "ST-046",
+      "received_lots": [
+       {
+        "lot": "TLC-06A",
+        "reachable_from_bad_lot": false
+       },
+       {
+        "lot": "TLC-10A",
+        "reachable_from_bad_lot": false
+       }
+      ]
+     },
+     {
+      "store": "ST-047",
+      "received_lots": [
+       {
+        "lot": "TLC-08A",
+        "reachable_from_bad_lot": false
+       },
+       {
+        "lot": "TLC-10B",
+        "reachable_from_bad_lot": false
+       }
+      ]
+     },
+     {
+      "store": "ST-049",
+      "received_lots": [
+       {
+        "lot": "TLC-08B",
+        "reachable_from_bad_lot": false
+       },
+       {
+        "lot": "TLC-10B",
+        "reachable_from_bad_lot": false
+       }
+      ]
+     },
+     {
+      "store": "ST-050",
+      "received_lots": [
+       {
+        "lot": "TLC-06B",
+        "reachable_from_bad_lot": false
+       },
+       {
+        "lot": "TLC-08A",
+        "reachable_from_bad_lot": false
+       }
+      ]
+     },
+     {
+      "store": "ST-051",
+      "received_lots": [
+       {
+        "lot": "TLC-04B",
+        "reachable_from_bad_lot": false
+       },
+       {
+        "lot": "TLC-08B",
+        "reachable_from_bad_lot": false
+       }
+      ]
+     },
+     {
+      "store": "ST-052",
+      "received_lots": [
+       {
+        "lot": "TLC-06A",
+        "reachable_from_bad_lot": false
+       },
+       {
+        "lot": "TLC-10A",
+        "reachable_from_bad_lot": false
+       }
+      ]
+     },
+     {
+      "store": "ST-059",
+      "received_lots": [
+       {
+        "lot": "TLC-06A",
+        "reachable_from_bad_lot": false
+       },
+       {
+        "lot": "TLC-08B",
+        "reachable_from_bad_lot": false
+       }
+      ]
+     },
+     {
+      "store": "ST-060",
+      "received_lots": [
+       {
+        "lot": "TLC-04A",
+        "reachable_from_bad_lot": false
+       }
+      ]
+     },
+     {
+      "store": "ST-061",
+      "received_lots": [
+       {
+        "lot": "TLC-10B",
+        "reachable_from_bad_lot": false
+       }
+      ]
+     },
+     {
+      "store": "ST-063",
+      "received_lots": [
+       {
+        "lot": "TLC-04B",
+        "reachable_from_bad_lot": false
+       },
+       {
+        "lot": "TLC-06A",
+        "reachable_from_bad_lot": false
+       }
+      ]
+     },
+     {
+      "store": "ST-065",
+      "received_lots": [
+       {
+        "lot": "TLC-10B",
+        "reachable_from_bad_lot": false
+       }
+      ]
+     },
+     {
+      "store": "ST-066",
+      "received_lots": [
+       {
+        "lot": "TLC-04A",
+        "reachable_from_bad_lot": false
+       },
+       {
+        "lot": "TLC-10B",
+        "reachable_from_bad_lot": false
+       }
+      ]
+     },
+     {
+      "store": "ST-071",
+      "received_lots": [
+       {
+        "lot": "TLC-06A",
+        "reachable_from_bad_lot": false
+       }
+      ]
+     },
+     {
+      "store": "ST-072",
+      "received_lots": [
+       {
+        "lot": "TLC-06B",
+        "reachable_from_bad_lot": false
+       }
+      ]
+     },
+     {
+      "store": "ST-074",
+      "received_lots": [
+       {
+        "lot": "TLC-04A",
+        "reachable_from_bad_lot": false
+       }
+      ]
+     }
+    ],
+    "counts": {
+     "blanket": 71,
+     "targeted": 33,
+     "safe": 38
+    },
+    "batches": [
+     "B-03",
+     "B-05",
+     "B-07",
+     "B-09"
+    ],
+    "product_lots": [
+     "TLC-03A",
+     "TLC-03B",
+     "TLC-05A",
+     "TLC-05B",
+     "TLC-07A",
+     "TLC-07B",
+     "TLC-09A"
+    ],
+    "units_to_pull": 2256,
+    "add_gap_stores": true,
+    "summary": "I've proposed Class I with consumer depth for Listeria monocytogenes in diced carrot lot L-204, because it can cause serious illness or death in chilled ready-to-eat soups and sauces that are already on shelves. A hold now covers the 93 kg of unused carrot at Northfield Plant 2 and 2,652 unshipped units at three distribution centres and two plants. The lot went into batches B-03, B-05, B-07 and B-09 and seven product lots, reaching 31 stores (2,207 units); B-09 reused leftovers from B-03, so it spread the carrot further as Carrot & Lentil Soup lot TLC-09A. Following policy, I added stores ST-013 and ST-021 (25 and 24 units of Garden Vegetable Stew) because their deliveries have no lot code, so we can't prove they're safe. A separate backward trace of the eight lots the cleared stores received found none containing L-204. A blanket recall would cover 71 stores, the targeted recall covers 33 and pulls 2,256 units, 38 stores are cleared, and the class, the hold release and the 33 draft notices (not sent) all need the recall coordinator's approval.",
+    "tool_calls": [
+     {
+      "id": "toolu_01U7V7cFRLsEr4HgBaSPpk8N",
+      "name": "propose_classification",
+      "input": {
+       "lot": "L-204",
+       "class": "I",
+       "depth": "consumer",
+       "rationale": "Listeria monocytogenes in chilled ready-to-eat soups and sauces carries a reasonable probability of serious illness or death, and the product is already on store shelves, so the public must be told."
+      },
+      "ms": 97,
+      "error": false,
+      "summary": "Proposed Class I, consumer-level recall. Awaiting confirmation",
+      "cypher": [
+       "\nMERGE (i:Incident {lot: $lot})\nON CREATE SET i.id = $id, i.reported_at = $at, i.hazard = 'not recorded'\nSET i.class = $class, i.depth = $depth, i.rationale = $rationale, i.classified_at = $at\nRETURN i.id AS id, i.hazard AS hazard"
+      ],
+      "turn": 0
+     },
+     {
+      "id": "toolu_01MzubYMwjdajCp2vSGfuaKm",
+      "name": "place_hold",
+      "input": {
+       "lot": "L-204"
+      },
+      "ms": 21,
+      "error": false,
+      "summary": "2,652 units and 93 kg of raw L-204 held at 5 locations",
+      "cypher": [
+       "\nMATCH (l:Lot {code: $lot})-[s:STORED_AT]->(site:Site)\nRETURN site.id AS id, site.name AS name, site.city AS city, site.region AS region, s.qty_kg AS qty_kg, l.received_kg AS received_kg",
+       "\nMATCH (:Lot {code: $lot})-[:USED_IN|REWORKED_INTO|PRODUCED*1..6]->(pl:ProductLot)-[h:HELD_AT]->(loc)\nWITH DISTINCT pl, h, loc\nMATCH (pl)-[:OF]->(p:Product)\nRETURN pl.id AS product_lot, p.name AS product, labels(loc)[0] AS kind, loc.id AS id, loc.name AS name,\n       loc.city AS city, loc.region AS region, h.units AS units\nORDER BY kind, id, product_lot",
+       "\nMATCH (:Lot {code: $lot})-[:USED_IN|REWORKED_INTO|PRODUCED*1..6]->(:ProductLot)-[h:HELD_AT]->()\nSET h.held_for = $lot, h.held_at = $at"
+      ],
+      "turn": 1
+     },
+     {
+      "id": "toolu_016ndxM4Cy6ZAcU6uM3dPnML",
+      "name": "trace_forward",
+      "input": {
+       "lot": "L-204"
+      },
+      "ms": 6,
+      "error": false,
+      "summary": "4 batches, 7 product lots, 31 stores reached",
+      "cypher": [
+       "\nMATCH path = (l:Lot {code: $lot})-[:USED_IN|REWORKED_INTO|PRODUCED|SHIPPED_TO*1..8]->(st:Store)\nRETURN st.id AS store,\n       [n IN nodes(path) | coalesce(n.code, n.id)] AS path,\n       [n IN nodes(path) | labels(n)[0]] AS kinds,\n       last(relationships(path)).units AS units"
+      ],
+      "turn": 2
+     },
+     {
+      "id": "toolu_01HjYwLBXFGcuQjVQ6jzuGr4",
+      "name": "coverage_gaps",
+      "input": {
+       "lot": "L-204"
+      },
+      "ms": 6,
+      "error": false,
+      "summary": "2 stores got Garden Vegetable Stew with no lot code on the delivery record",
+      "cypher": [
+       "\nMATCH (:Lot {code: $lot})-[:USED_IN|REWORKED_INTO|PRODUCED*1..6]->(pl:ProductLot)\nWITH collect(DISTINCT pl.sku) AS skus\nMATCH (p:Product)-[u:SHIPPED_UNTRACKED]->(st:Store)\nWHERE p.sku IN skus\nRETURN st.id AS store, p.sku AS sku, p.name AS product, u.units AS units, u.shipped_at AS shipped_at"
+      ],
+      "turn": 2
+     },
+     {
+      "id": "toolu_016YQUsf5xVJDA4LY91ULFAS",
+      "name": "minimal_recall",
+      "input": {
+       "lot": "L-204",
+       "add_gap_stores": true
+      },
+      "ms": 10,
+      "error": false,
+      "summary": "33 of 71 stores, 2,256 units; gaps added",
+      "cypher": [
+       "\nMATCH path = (l:Lot {code: $lot})-[:USED_IN|REWORKED_INTO|PRODUCED|SHIPPED_TO*1..8]->(st:Store)\nRETURN st.id AS store,\n       [n IN nodes(path) | coalesce(n.code, n.id)] AS path,\n       [n IN nodes(path) | labels(n)[0]] AS kinds,\n       last(relationships(path)).units AS units",
+       "\nMATCH (:Lot {code: $lot})-[:USED_IN|REWORKED_INTO|PRODUCED*1..6]->(pl:ProductLot)\nWITH collect(DISTINCT pl.sku) AS skus\nMATCH (p:Product)-[u:SHIPPED_UNTRACKED]->(st:Store)\nWHERE p.sku IN skus\nRETURN st.id AS store, p.sku AS sku, p.name AS product, u.units AS units, u.shipped_at AS shipped_at",
+       "\nMATCH (:Lot {code: $lot})-[:USED_IN|REWORKED_INTO|PRODUCED*1..6]->(pl:ProductLot)\nWITH collect(DISTINCT pl.sku) AS skus\nMATCH (pl2:ProductLot)-[:SHIPPED_TO]->(st:Store)\nWHERE pl2.sku IN skus\nRETURN st.id AS store, collect(DISTINCT pl2.id) AS received_lots"
+      ],
+      "turn": 3
+     },
+     {
+      "id": "toolu_018H5TqQPC4shYbNgRX3dznE",
+      "name": "trace_backward",
+      "input": {
+       "lot": "L-204",
+       "product_lots": [
+        "TLC-04A",
+        "TLC-04B",
+        "TLC-06A",
+        "TLC-06B",
+        "TLC-08A",
+        "TLC-08B",
+        "TLC-10A",
+        "TLC-10B"
+       ]
+      },
+      "ms": 4,
+      "error": false,
+      "summary": "8 product lots walked back; 0 contain L-204",
+      "cypher": [
+       "\nMATCH (l:Lot)-[:USED_IN]->(:Batch)-[:REWORKED_INTO*0..3]->(:Batch)-[:PRODUCED]->(pl:ProductLot)\nWHERE pl.id IN $product_lots\nRETURN pl.id AS product_lot, collect(DISTINCT l.code) AS ingredient_lots"
+      ],
+      "turn": 4
+     },
+     {
+      "id": "toolu_0197JLnuLZEsp1WmTXa65Ksj",
+      "name": "draft_recall_notice",
+      "input": {
+       "lot": "L-204",
+       "notices": [
+        {
+         "store": "ST-002",
+         "reason": "Received TLC-03A from batch B-03, made with L-204"
+        },
+        {
+         "store": "ST-004",
+         "reason": "Received TLC-03B from batch B-03, made with L-204"
+        },
+        {
+         "store": "ST-006",
+         "reason": "Received TLC-07B from batch B-07, made with L-204"
+        },
+        {
+         "store": "ST-008",
+         "reason": "Received TLC-03B from batch B-03, made with L-204"
+        },
+        {
+         "store": "ST-017",
+         "reason": "Received TLC-05A from batch B-05, made with L-204"
+        },
+        {
+         "store": "ST-018",
+         "reason": "Received TLC-05A from batch B-05, made with L-204"
+        },
+        {
+         "store": "ST-022",
+         "reason": "Received TLC-07B from batch B-07 and TLC-03B from batch B-03, both made with L-204"
+        },
+        {
+         "store": "ST-024",
+         "reason": "Received TLC-07B from batch B-07, made with L-204"
+        },
+        {
+         "store": "ST-029",
+         "reason": "Received TLC-03B from batch B-03, made with L-204"
+        },
+        {
+         "store": "ST-031",
+         "reason": "Received TLC-05A from batch B-05, made with L-204, and TLC-09A from batch B-09, which reused leftovers of B-03 made with L-204"
+        },
+        {
+         "store": "ST-033",
+         "reason": "Received TLC-09A from batch B-09, which reused leftovers of B-03 made with L-204"
+        },
+        {
+         "store": "ST-034",
+         "reason": "Received TLC-05B from batch B-05, made with L-204"
+        },
+        {
+         "store": "ST-035",
+         "reason": "Received TLC-05B from batch B-05, made with L-204"
+        },
+        {
+         "store": "ST-038",
+         "reason": "Received TLC-07B from batch B-07, made with L-204"
+        },
+        {
+         "store": "ST-043",
+         "reason": "Received TLC-05A from batch B-05, made with L-204"
+        },
+        {
+         "store": "ST-045",
+         "reason": "Received TLC-03B from batch B-03, made with L-204"
+        },
+        {
+         "store": "ST-048",
+         "reason": "Received TLC-09A from batch B-09, which reused leftovers of B-03 made with L-204"
+        },
+        {
+         "store": "ST-053",
+         "reason": "Received TLC-07A from batch B-07 and TLC-05A from batch B-05, both made with L-204"
+        },
+        {
+         "store": "ST-054",
+         "reason": "Received TLC-03A from batch B-03, made with L-204"
+        },
+        {
+         "store": "ST-055",
+         "reason": "Received TLC-05B from batch B-05, made with L-204"
+        },
+        {
+         "store": "ST-056",
+         "reason": "Received TLC-07A from batch B-07, made with L-204"
+        },
+        {
+         "store": "ST-057",
+         "reason": "Received TLC-03B from batch B-03, made with L-204"
+        },
+        {
+         "store": "ST-058",
+         "reason": "Received TLC-03A from batch B-03, made with L-204"
+        },
+        {
+         "store": "ST-062",
+         "reason": "Received TLC-09A from batch B-09, which reused leftovers of B-03 made with L-204"
+        },
+        {
+         "store": "ST-064",
+         "reason": "Received TLC-05B from batch B-05, made with L-204"
+        },
+        {
+         "store": "ST-067",
+         "reason": "Received TLC-09A from batch B-09, which reused leftovers of B-03 made with L-204"
+        },
+        {
+         "store": "ST-068",
+         "reason": "Received TLC-03A from batch B-03, made with L-204"
+        },
+        {
+         "store": "ST-069",
+         "reason": "Received TLC-07A from batch B-07, made with L-204"
+        },
+        {
+         "store": "ST-070",
+         "reason": "Received TLC-05A from batch B-05, made with L-204"
+        },
+        {
+         "store": "ST-073",
+         "reason": "Received TLC-03A from batch B-03, made with L-204"
+        },
+        {
+         "store": "ST-075",
+         "reason": "Received TLC-07A from batch B-07, made with L-204"
+        },
+        {
+         "store": "ST-013",
+         "reason": "Received 25 units of Garden Vegetable Stew (P-02) on 2026-10-09 with no lot code recorded; P-02 is made from L-204, so the store cannot be proven safe"
+        },
+        {
+         "store": "ST-021",
+         "reason": "Received 24 units of Garden Vegetable Stew (P-02) on 2026-10-10 with no lot code recorded; P-02 is made from L-204, so the store cannot be proven safe"
+        }
+       ]
+      },
+      "ms": 4,
+      "error": false,
+      "summary": "33 notices drafted, pending approval",
+      "cypher": [
+       "MATCH (st:Store) WHERE st.id IN $ids RETURN st.id AS id, st.name AS name, st.city AS city, st.region AS region"
+      ],
+      "turn": 5
+     }
+    ],
+    "meta": {
+     "model": "claude-opus-5-5",
+     "ms": 23877,
+     "turns": 7,
+     "input_tokens": 55096,
+     "output_tokens": 2584,
+     "notes": [
+      {
+       "turn": 0,
+       "text": "Listeria in chilled ready-to-eat food can cause serious harm, so I'm proposing the recall class and depth first."
+      },
+      {
+       "turn": 1,
+       "text": "Next I'm placing a hold so nothing more ships."
+      },
+      {
+       "turn": 2,
+       "text": "Now I'm tracing the lot forward to every store and checking for deliveries with no lot code."
+      },
+      {
+       "turn": 3,
+       "text": "Per policy, I'm adding both gap stores and building the targeted recall."
+      },
+      {
+       "turn": 4,
+       "text": "I'm checking the cleared stores' lots backward on their own to confirm none of them contain L-204."
+      },
+      {
+       "turn": 5,
+       "text": "None of the cleared lots contain L-204, so I'm drafting the 33 notices for approval."
+      }
+     ]
+    },
+    "finished_at": "2026-10-17T11:05:39.463Z"
+   }
+  }
+ ]
+}
