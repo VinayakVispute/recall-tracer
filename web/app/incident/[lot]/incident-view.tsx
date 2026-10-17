@@ -6,11 +6,13 @@ import { useRouter } from "next/navigation";
 import type { RecallResult, TraceEvent } from "@server/agent/run";
 import type { IncidentReport, Incident } from "@server/tools/incident";
 import type { Notice } from "@server/tools/index";
-import { FlowChart, StateBars, Exposure } from "@/components/dashboard/charts";
+import { UnitsFlow } from "@/components/dashboard/units-flow";
+import { StateBars, Exposure } from "@/components/dashboard/state-exposure";
+import { ScopeTable } from "@/components/dashboard/scope-table";
 import { NetworkGraph } from "@/components/dashboard/record-network";
 import { Play } from "lucide-react";
 import {
-  AgentTrace, StoreRegister, Evidence, Notices, Assessment, ScopeTable, ScopeStory, PublicNotice,
+  AgentTrace, StoreRegister, Evidence, Notices, Assessment, ScopeStory, PublicNotice,
   fmt, shortDate, shortTime, type Filter,
 } from "@/components/dashboard/panels";
 import { ReplayBar, useReplay } from "@/components/dashboard/replay";
@@ -256,11 +258,8 @@ export function IncidentView({ lot, hazard, autostart, playback, initial }: { lo
               </CardHeader>
               <CardContent className="flex flex-col gap-3">
                 {showReport && view !== "network" && <ScopeStory r={showReport} />}
-                {view === "scope" && showReport && <ScopeTable r={showReport} />}
-                {view === "flow" && showReport && <>
-                  <FlowChart r={showReport} />
-                  <Legend items={[["lot", "Bad lot"], ["recall", `Contains ${showReport.lot.code}`], ["gap", "Delivered with no lot code"]]} note="Band width is units delivered to stores; held units are not shown." />
-                </>}
+                {view === "scope" && showReport && <ScopeTable r={showReport} focus={selected} onPick={setSelected} />}
+                {view === "flow" && showReport && <UnitsFlow r={showReport} focus={selected ?? stateFilter} />}
                 {view === "network" && <>
                   <NetworkGraph lot={lot} stages={graphStages} animating={active} focus={selected} onPick={setSelected} />
                   <Legend

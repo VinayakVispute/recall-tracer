@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
-import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
 type Report = IncidentReport
 type Store = Report["stores"][number]
@@ -105,50 +105,6 @@ export function Assessment({ incident, running, onConfirm }: { incident: Inciden
         </form>
       </CardContent>
     </Card>
-  )
-}
-
-// --- Scope table: one row per affected product lot --------------------------
-
-export function ScopeTable({ r }: { r: Report }) {
-  const lots = r.product_lots.filter((p) => p.affected).sort((a, b) => a.id.localeCompare(b.id))
-  const batch = (id: string) => r.batches.find((b) => b.id === id)
-  const sum = (k: "units" | "shipped" | "held") => lots.reduce((n, p) => n + p[k], 0)
-  return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Product lot</TableHead><TableHead>Product</TableHead><TableHead>Made</TableHead><TableHead>Contains {r.lot.code} via</TableHead><TableHead>Best by</TableHead>
-          <TableHead className="text-right">Made</TableHead><TableHead className="text-right">Shipped to stores</TableHead><TableHead className="text-right">On hold</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {lots.map((p) => {
-          const b = batch(p.batch)
-          const how = via(r, p.batch)
-          return (
-            <TableRow key={p.id}>
-              <TableCell className="font-mono font-medium">{p.id}</TableCell>
-              <TableCell>{p.product}<Sub>UPC {p.upc}</Sub></TableCell>
-              <TableCell>{shortDate(p.produced_at)}<Sub>{b?.site.split(",")[0]}</Sub></TableCell>
-              <TableCell className="whitespace-normal">{how.includes("rework") ? <Badge variant="outline" className="h-auto whitespace-normal">{how}</Badge> : how}</TableCell>
-              <TableCell>{shortDate(p.best_by)}</TableCell>
-              <TableCell className="text-right tabular-nums">{fmt(p.units)}</TableCell>
-              <TableCell className="text-right tabular-nums">{fmt(p.shipped)}<Sub>{p.stores} stores</Sub></TableCell>
-              <TableCell className="text-right tabular-nums">{fmt(p.held)}</TableCell>
-            </TableRow>
-          )
-        })}
-      </TableBody>
-      <TableFooter>
-        <TableRow>
-          <TableCell colSpan={5}>{lots.length} product lots</TableCell>
-          <TableCell className="text-right tabular-nums">{fmt(sum("units"))}</TableCell>
-          <TableCell className="text-right tabular-nums">{fmt(sum("shipped"))}</TableCell>
-          <TableCell className="text-right tabular-nums">{fmt(sum("held"))}</TableCell>
-        </TableRow>
-      </TableFooter>
-    </Table>
   )
 }
 
