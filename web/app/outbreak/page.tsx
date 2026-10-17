@@ -58,7 +58,7 @@ function Start() {
           <p className="text-xs text-muted-foreground">New cluster? Paste its case reports below. No outbreak, just a supplier&apos;s alert? Go to the <Link href="/notice" className="underline">supplier notice</Link>.</p>
         </CardContent>
       </Card>
-      <PasteCases id="" example={EXAMPLE_CLUSTER} defaultOpen />
+      <PasteCases id="" example={EXAMPLE_CLUSTER} />
     </div>
   );
 }

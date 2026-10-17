@@ -8,6 +8,7 @@ import { api, ApiError } from "@/lib/api";
 
 const STATUS: Record<IncidentSummary["status"], string> = { open: "Open", scoped: "Scoped", notices_approved: "Notices approved" };
 // The date part only: a server in UTC and a coordinator elsewhere agree on it. (panels.tsx is a client module, so its helpers are not callable here.)
+const scopeIn = (m: number) => (m < 1 ? `${Math.round(m * 60)} s` : m < 60 ? `${Math.round(m)} min` : `${Math.floor(m / 60)} h ${Math.round(m % 60)} min`);
 const day = (iso: string) => new Date(`${iso.slice(0, 10)}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
 /** Page 7. Every incident the graph remembers, newest first, read on the server. */
@@ -35,7 +36,7 @@ export default async function Page() {
                     <TableCell>{i.class ? `Class ${i.class}` : "—"}</TableCell>
                     <TableCell>{i.confirmed_class ? `Class ${i.confirmed_class}` : "not yet"}</TableCell>
                     <TableCell className="text-right tabular-nums">{i.stores ?? "—"}</TableCell>
-                    <TableCell className="text-right tabular-nums">{i.minutes_to_scope === null ? "—" : `${i.minutes_to_scope} min`}</TableCell>
+                    <TableCell className="text-right tabular-nums">{i.minutes_to_scope === null ? "—" : scopeIn(i.minutes_to_scope)}</TableCell>
                     <TableCell><Badge variant={i.status === "open" ? "outline" : "secondary"}>{STATUS[i.status]}</Badge></TableCell>
                   </TableRow>
                 ))}

@@ -14,9 +14,9 @@ import { api } from "@/lib/api";
 type Ingested = { cluster: string; created: boolean; loaded: number; rejected: { row: number; line: string; reason: string }[] };
 
 /** Lives outside the per-cluster view, so its report survives the navigation to the cluster it just loaded. */
-export function PasteCases({ id, example, defaultOpen = false }: { id: string; example: string; defaultOpen?: boolean }) {
+export function PasteCases({ id, example }: { id: string; example: string }) {
   const router = useRouter();
-  const [open, setOpen] = useState(defaultOpen);
+  const [open, setOpen] = useState(false);
   const [cluster, setCluster] = useState(id);
   const [pathogen, setPathogen] = useState("");
   const [text, setText] = useState("");

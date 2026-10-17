@@ -87,9 +87,14 @@ function Facts({ facts, epi }: { facts: Promise<LotFacts>; epi?: Epi }) {
   const { lot } = f;
   return (
     <>
-      <p className="rounded-md bg-muted px-3 py-2 text-sm">
-        {lot.supplier} ({lot.supplier_id}) · {lot.ingredient} · received {shortDate(lot.received_at)} · {fmt(lot.received_kg)} kg received · {fmt(f.unused_kg)} kg unused{f.unused_at.length ? ` at ${f.unused_at.join(", ")}` : ""}
-      </p>
+      <dl className="grid grid-cols-2 gap-x-6 gap-y-2 rounded-md bg-muted px-3 py-2 text-sm">
+        {([
+          ["Supplier", `${lot.supplier} (${lot.supplier_id})`],
+          ["Ingredient", lot.ingredient],
+          ["Received", `${shortDate(lot.received_at)} · ${fmt(lot.received_kg)} kg`],
+          ["Still unused", `${fmt(f.unused_kg)} kg${f.unused_at.length ? ` at ${f.unused_at.join(", ")}` : ""}`],
+        ] as const).map(([k, v]) => <div key={k}><dt className="text-xs text-muted-foreground">{k}</dt><dd className="font-medium tabular-nums">{v}</dd></div>)}
+      </dl>
       {epi && (
         <p className="rounded-md bg-primary/10 px-3 py-2 text-sm">
           ✓ Epidemiology agrees: {lot.code} explains {epi.explained} of {epi.cases} cases in cluster {epi.cluster}

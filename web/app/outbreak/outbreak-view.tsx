@@ -85,19 +85,20 @@ export function OutbreakView({ id, cluster, loadError }: { id: string; cluster: 
               {cluster.cases.map((c) => (
                 <TableRow key={c.id} className={cn(explains.has(c.id) && "bg-destructive/10", caseId === c.id && "outline-2 -outline-offset-2 outline-primary")}>
                   <TableCell>
-                    <Button variant="link" size="xs" className="px-0" onClick={() => setCaseId(c.id)} disabled={!result} aria-pressed={caseId === c.id}>{c.id}</Button>
+                    {result ? <Button variant="link" size="xs" className="px-0 font-mono" onClick={() => setCaseId(c.id)} aria-pressed={caseId === c.id}>{c.id}</Button> : <span className="font-mono text-xs">{c.id}</span>}
                   </TableCell>
                   <TableCell>{c.region}</TableCell>
-                  <TableCell>{shortDate(c.onset)}</TableCell>
+                  <TableCell className="tabular-nums">{shortDate(c.onset)}</TableCell>
                   <TableCell>{c.store_name}, {c.city}<span className="block font-mono text-xs text-muted-foreground">{c.store}</span></TableCell>
-                  <TableCell>{shortDate(c.bought_at)}</TableCell>
+                  <TableCell className="tabular-nums">{shortDate(c.bought_at)}</TableCell>
                   <TableCell>{c.product ?? <Badge variant="outline">unknown</Badge>}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </CardContent>
-        <CardFooter className="justify-end">
+        <CardFooter className="flex-wrap justify-between gap-3">
+          <p className="text-xs text-muted-foreground">One graph query walks every case back to its ingredient lots; the agent then explains the ranking. About 20 seconds.</p>
           <Button onClick={find} disabled={running}>{running ? "Searching…" : "Find the source"}</Button>
         </CardFooter>
       </Card>
@@ -132,10 +133,11 @@ function Candidates({ r, selected, onPick }: { r: OutbreakResult; selected?: str
       {!single && <Alert><AlertDescription>No single lot explains every case. The top two are shown; the coordinator decides whether to open an incident.</AlertDescription></Alert>}
       <ol className="flex flex-col gap-2">
         {(single ? r.candidates : r.candidates.slice(0, 2)).map((c, i) => (
-          <li key={c.lot} className={cn("rounded-lg border p-3", selected === c.lot && "border-primary", i === 0 && single && "border-l-4 border-l-destructive")}>
+          <li key={c.lot} className={cn("rounded-lg border p-3 transition-colors", selected === c.lot && "border-primary", i === 0 && single && "bg-destructive/5")}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <button type="button" onClick={() => onPick(c.lot)} aria-pressed={selected === c.lot} className="text-left text-sm font-medium hover:underline">
                 <span className="font-mono text-destructive">{c.lot}</span> {c.ingredient} · {c.supplier_name} ({c.supplier})
+                {i === 0 && single && <Badge variant="destructive" className="ml-2 align-middle">likely source</Badge>}
               </button>
               {selected === c.lot && <Handoff r={r} c={c} primary={i === 0 && single} />}
             </div>
