@@ -30,6 +30,7 @@ export function Nav({ graphLine }: { graphLine: React.ReactNode }) {
       <nav aria-label="Sections" className="flex flex-wrap items-center gap-1 text-sm">{LINKS.map((l) => link(l.href, l.label))}</nav>
       <div className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
         {graphLine}
+        {link("/real", "Real data", "text-xs")}
         {link("/agent", "Ask the agent", "text-xs")}
       </div>
     </header>

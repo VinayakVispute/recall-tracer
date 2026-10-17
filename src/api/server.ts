@@ -13,7 +13,7 @@ import { getRecallAgent, runOutbreak } from '../agent/ai-agent.js';
 import { runAgent, type RecallResult, type TraceEvent } from '../agent/run.js';
 import { incidentReport, incidentStatus, listIncidents, supplierIncidents } from '../tools/incident.js';
 import { ingestCases, CASE_ID } from '../data/cases.js';
-import { realOutbreaks } from '../data/real.js';
+import { realOutbreaks, realGraph, runDemoQueries } from '../data/real.js';
 import { registerTools } from '../mcp/tools.js';
 
 const LOT_RE = /^L-\d{1,6}$/;
@@ -186,6 +186,9 @@ app.get('/incidents', async (c) => c.json(await listIncidents()));
 
 /** Real CDC outbreaks joined to their firm's openFDA recalls, from the separate "fda" graph (`bun run real`). */
 app.get('/real/outbreaks', async (c) => c.json(await realOutbreaks()));
+/** The outbreak's neighbourhood as a record network, and the demo queries run live with FalkorDB's time. */
+app.get('/real/graph', async (c) => c.json(await realGraph()));
+app.get('/real/queries', async (c) => c.json(await runDemoQueries()));
 
 app.get('/incidents/supplier/:id', async (c) => {
   const id = c.req.param('id');

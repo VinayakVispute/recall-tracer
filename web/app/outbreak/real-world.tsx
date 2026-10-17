@@ -1,4 +1,5 @@
 import type { RealOutbreak } from "@server/data/real";
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { api } from "@/lib/api";
@@ -9,7 +10,7 @@ const day = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString("en-
  * The same question asked of real public data: a CDC outbreak joined to its firm's openFDA recalls, from the
  * separate "fda" graph. Read on the server; renders nothing until `bun run real` has loaded it or if the API is down.
  */
-export async function RealWorld() {
+export async function RealWorld({ showLink = true }: { showLink?: boolean } = {}) {
   let outbreaks: RealOutbreak[] = [];
   try { outbreaks = await api<RealOutbreak[]>("/real/outbreaks"); } catch { return null; }
   if (!outbreaks.length) return null;
@@ -53,6 +54,7 @@ export async function RealWorld() {
               )}
               <p className="text-xs text-muted-foreground">
                 Sources: <a href={o.source} className="underline" target="_blank" rel="noreferrer">CDC investigation</a> · openFDA food enforcement reports.
+                {showLink && <> · <Link href="/real" className="underline">See the whole graph and the queries</Link></>}
               </p>
             </div>
           );
