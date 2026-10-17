@@ -1,0 +1,147 @@
+{
+  "cluster": "OB-2026-10",
+  "total_cases": 6,
+  "candidates": [
+    {
+      "lot": "L-204",
+      "ingredient": "diced carrot",
+      "supplier": "S-03",
+      "supplier_name": "Valley Root Co.",
+      "cases_explained": 6,
+      "explained": [
+        "C1",
+        "C2",
+        "C3",
+        "C4",
+        "C5",
+        "C6"
+      ],
+      "stores_reached": 31,
+      "specificity": 0.193548387096774
+    },
+    {
+      "lot": "L-162",
+      "ingredient": "basil",
+      "supplier": "S-01",
+      "supplier_name": "Harlow Farms",
+      "cases_explained": 4,
+      "explained": [
+        "C1",
+        "C4",
+        "C5",
+        "C6"
+      ],
+      "stores_reached": 23,
+      "specificity": 0.173913043478261
+    },
+    {
+      "lot": "L-143",
+      "ingredient": "vegetable stock",
+      "supplier": "S-05",
+      "supplier_name": "Cedar Hill Dairy",
+      "cases_explained": 2,
+      "explained": [
+        "C2",
+        "C3"
+      ],
+      "stores_reached": 10,
+      "specificity": 0.2
+    },
+    {
+      "lot": "L-101",
+      "ingredient": "red lentils",
+      "supplier": "S-08",
+      "supplier_name": "Oakline Foods",
+      "cases_explained": 2,
+      "explained": [
+        "C2",
+        "C3"
+      ],
+      "stores_reached": 23,
+      "specificity": 0.0869565217391304
+    },
+    {
+      "lot": "L-275",
+      "ingredient": "ricotta",
+      "supplier": "S-05",
+      "supplier_name": "Cedar Hill Dairy",
+      "cases_explained": 2,
+      "explained": [
+        "C5",
+        "C6"
+      ],
+      "stores_reached": 33,
+      "specificity": 0.0606060606060606
+    },
+    {
+      "lot": "L-117",
+      "ingredient": "ricotta",
+      "supplier": "S-02",
+      "supplier_name": "Brookfield Produce",
+      "cases_explained": 2,
+      "explained": [
+        "C1",
+        "C4"
+      ],
+      "stores_reached": 56,
+      "specificity": 0.0357142857142857
+    }
+  ],
+  "paths": {
+    "C1": [
+      [
+        "L-204",
+        "B-03",
+        "TLC-03B",
+        "ST-029",
+        "C1"
+      ]
+    ],
+    "C2": [
+      [
+        "L-204",
+        "B-05",
+        "TLC-05A",
+        "ST-031",
+        "C2"
+      ]
+    ],
+    "C3": [
+      [
+        "L-204",
+        "B-05",
+        "TLC-05B",
+        "ST-055",
+        "C3"
+      ]
+    ],
+    "C4": [
+      [
+        "L-204",
+        "B-03",
+        "TLC-03B",
+        "ST-008",
+        "C4"
+      ]
+    ],
+    "C5": [
+      [
+        "L-204",
+        "B-07",
+        "TLC-07A",
+        "ST-053",
+        "C5"
+      ]
+    ],
+    "C6": [
+      [
+        "L-204",
+        "B-07",
+        "TLC-07A",
+        "ST-069",
+        "C6"
+      ]
+    ]
+  },
+  "summary": "L-204 (diced carrot, Valley Root Co.) explains 6 of 6 cases and reached 31 stores. Runner-up L-162 explains 4."
+}

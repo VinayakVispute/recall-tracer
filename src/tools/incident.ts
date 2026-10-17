@@ -1,6 +1,6 @@
 import { query } from '../graph/db.js';
-import { LOT_INFO, LINEAGE, BATCHES, PRODUCT_LOTS, SKU_SHIPMENTS, STORES, SKUS_OF, INCIDENT_GET } from '../graph/queries.js';
-import { minimalRecall, traceBackward, readHold } from './index.js';
+import { LOT_INFO, LINEAGE, BATCHES, PRODUCT_LOTS, SKU_SHIPMENTS, STORES, SKUS_OF, INCIDENT_GET, INCIDENTS, SUPPLIER_GET } from '../graph/queries.js';
+import { minimalRecall, traceBackward, readHold, readNotices } from './index.js';
 
 export type StoreStatus = 'recall' | 'gap' | 'safe';
 export type Shipment = { lot: string; sku: string; product: string; units: number; shipped_at: string; affected: boolean; origins: string[] };
@@ -90,3 +90,30 @@ export async function incidentReport(lot: string, add_gap_stores = true) {
   };
 }
 export type IncidentReport = Awaited<ReturnType<typeof incidentReport>>;
+
+type IncidentRow = { id: string; lot: string; hazard: string; reported_at: string; class: string | null; confirmed_class: string | null; scoped_at: string | null; stores: number | null };
+export type IncidentSummary = IncidentRow & {
+  /** scoped_at minus reported_at, in minutes. null until the agent's first minimal_recall. */
+  minutes_to_scope: number | null;
+  status: 'open' | 'scoped' | 'notices_approved';
+};
+
+/** Pure: status and time-to-scope are derived on read, never stored. */
+export function summarizeIncident(row: IncidentRow, approvedLots: ReadonlySet<string>): IncidentSummary {
+  const minutes_to_scope = row.scoped_at ? Math.round((Date.parse(row.scoped_at) - Date.parse(row.reported_at)) / 6_000) / 10 : null;
+  const status = approvedLots.has(row.lot) ? 'notices_approved' : row.scoped_at ? 'scoped' : 'open';
+  return { ...row, minutes_to_scope, status };
+}
+
+/** Every incident, newest first, or one supplier's. */
+export async function listIncidents(supplier?: string) {
+  const rows = await query<IncidentRow>(INCIDENTS, { supplier: supplier ?? null });
+  const approved = new Set(readNotices().filter((n) => n.status === 'approved').map((n) => n.lot));
+  return rows.map((r) => summarizeIncident(r, approved));
+}
+
+/** null for an unknown supplier (404). A known supplier with no incidents gets an empty list. */
+export async function supplierIncidents(id: string) {
+  const [s] = await query<{ id: string; name: string }>(SUPPLIER_GET, { id });
+  return s ? { supplier: s.id, name: s.name, incidents: await listIncidents(id) } : null;
+}

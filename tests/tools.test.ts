@@ -2,9 +2,11 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { rmSync } from 'node:fs';
 import { build, load } from '../src/data/generate.js';
 import { close } from '../src/graph/db.js';
-import { schemas, traceForward, coverageGaps, unaffectedStores, minimalRecall, draftRecallNotice, readNotices, NOTICES_FILE, traceBackward, placeHold, readHold, proposeClassification } from '../src/tools/index.js';
-import { incidentStatus } from '../src/tools/incident.js';
-import { query } from '../src/graph/db.js';
+import { scopeRecall, schemas, traceForward, coverageGaps, unaffectedStores, minimalRecall, draftRecallNotice, readNotices, NOTICES_FILE, traceBackward, placeHold, readHold, proposeClassification, findCommonSource, casePath } from '../src/tools/index.js';
+import { incidentStatus, listIncidents, summarizeIncident } from '../src/tools/incident.js';
+import { parseCases, formatCases, ingestCases } from '../src/data/cases.js';
+import { writeFileSync } from 'node:fs';
+import { query, measure } from '../src/graph/db.js';
 import { incidentReport } from '../src/tools/incident.js';
 import expected from '../data/expected.json';
 
@@ -198,4 +200,131 @@ describe('API', () => {
     expect(r.tool_calls.every((c: any) => c.summary && c.cypher.length)).toBe(true);
     expect(readNotices().filter((n) => n.lot === LOT)).toHaveLength(33);
   }, 90_000);
+});
+
+describe('outbreak OB-2026-10', () => {
+  it('ranks lots exactly as the generator planted them', async () => {
+    const r = await findCommonSource({ cluster: 'OB-2026-10' });
+    expect(r.total_cases).toBe(6);
+    expect(r.candidates.map(({ lot, cases_explained, explained, stores_reached }) => ({ lot, cases_explained, explained, stores_reached })))
+      .toEqual(expected.outbreak.ranking);
+    expect(r.candidates[0]).toMatchObject({ lot: 'L-204', cases_explained: 6, stores_reached: 31, supplier: 'S-03' });
+    expect(r.candidates.map((c) => c.lot)).not.toContain('L-205'); // same ingredient, same supplier, reaches no case
+  });
+
+  it('every case has a path from L-204 to the store it bought at', async () => {
+    const { paths } = await findCommonSource({ cluster: 'OB-2026-10' });
+    expect(Object.keys(paths).sort()).toEqual(expected.outbreak.cases);
+    for (const [id, ps] of Object.entries(paths)) {
+      expect(ps.length).toBeGreaterThan(0);
+      for (const p of ps) expect([p[0], p.at(-1)]).toEqual(['L-204', id]);
+    }
+  });
+
+  it('case_path: decoy reaches nothing, unknown ids are an error', async () => {
+    expect((await casePath({ lot: 'L-205', cases: ['C1', 'C2'] })).unexplained).toEqual(['C1', 'C2']);
+    await expect(casePath({ lot: 'L-204', cases: ['C1', 'C99'] })).rejects.toThrow('unknown case ids: C99');
+    await expect(findCommonSource({ cluster: 'OB-NOPE' })).rejects.toThrow('no cases');
+  });
+
+  it('measure reports FalkorDB time and query count', async () => {
+    const m = await measure(() => findCommonSource({ cluster: 'OB-2026-10' }));
+    expect(m.queries).toBe(4);
+    expect(m.db_ms).toBeGreaterThan(0);
+  });
+});
+
+describe('case ingest (A6)', () => {
+  const { stores, cases } = build(42).nodes;
+  const st = stores[0];
+
+  it('formatCases and parseCases round-trip the planted cases', () => {
+    expect(parseCases(formatCases(cases), stores)).toMatchObject({ cases, rejected: [] });
+  });
+
+  it('matches a store by name and city, and rejects each bad row with its row number', () => {
+    const text = [
+      'id,region,onset,reported_at,store,city,bought_at',
+      `X1,MI,2026-10-05,2026-10-06,"${st.name}",${st.city.toUpperCase()},2026-10-03`,
+      'X2,MI,2026-10-05,2026-10-06,Nowhere #999,Austin,2026-10-03',
+      'X1,MI,2026-10-05,2026-10-06,ST-001,,2026-10-03',
+      'X3,MI,2026-10-02,2026-10-06,ST-001,,2026-10-03',
+      'X4,MI,10/05/2026,2026-10-06,ST-001,,2026-10-03',
+    ].join('\n');
+    const r = parseCases(text, stores);
+    expect(r.cases).toEqual([{ id: 'X1', region: 'MI', onset: '2026-10-05', reported_at: '2026-10-06', store: st.id, bought_at: '2026-10-03' }]);
+    expect(r.rejected.map(({ row, reason }) => [row, reason])).toEqual([
+      [3, 'no store matches "Nowhere #999" in Austin'],
+      [4, 'case X1 appears twice in this paste'],
+      [5, 'onset is before the purchase date'],
+      [6, 'onset must be a date like 2026-10-09'],
+    ]);
+  });
+
+  it('ingest is additive and idempotent, keeps case ids global, and needs a pathogen for a new cluster', async () => {
+    const row = `T1\tMI\t2026-10-05\t2026-10-06\t\t${st.id}\t2026-10-03`;
+    await expect(ingestCases('OB-TEST', row)).rejects.toThrow('say which pathogen');
+    expect(await ingestCases('OB-TEST', row, 'Salmonella')).toEqual({ cluster: 'OB-TEST', created: true, loaded: 1, rejected: [] });
+    expect(await ingestCases('OB-TEST', row)).toEqual({ cluster: 'OB-TEST', created: false, loaded: 1, rejected: [] });
+    const r = await ingestCases('OB-TEST', `T2\tMI\t2026-10-05\t2026-10-06\t\t${st.id}\t2026-10-03\nC1\tMI\t2026-10-05\t2026-10-06\t\t${st.id}\t2026-10-03`);
+    expect(r.rejected).toEqual([{ row: 2, line: `C1\tMI\t2026-10-05\t2026-10-06\t\t${st.id}\t2026-10-03`, reason: 'case C1 already belongs to cluster OB-2026-10' }]);
+    const rows = await query<{ id: string; n: number }>('MATCH (:Cluster {id: "OB-TEST"})-[:HAS_CASE]->(c:Case)-[b:BOUGHT_AT]->() RETURN c.id AS id, count(b) AS n ORDER BY id');
+    expect(rows).toEqual([{ id: 'T1', n: 1 }, { id: 'T2', n: 1 }]);
+    expect((await findCommonSource({ cluster: 'OB-2026-10' })).total_cases).toBe(6);
+  });
+
+  it('POST /ingest/cases and the outbreak routes validate before any Claude call', async () => {
+    const { app } = await import('../src/api/server.js');
+    const post = (path: string, body: object) => app.request(path, { method: 'POST', body: JSON.stringify(body) });
+    expect((await post('/ingest/cases', { cluster: 'bad id!', text: 'x' })).status).toBe(400);
+    expect((await post('/ingest/cases', { cluster: 'OB-TEST', text: ' ' })).status).toBe(400);
+    expect(await (await post('/ingest/cases', { cluster: 'OB-NEW', text: 'x' })).json()).toEqual({ error: 'Cluster OB-NEW is new: say which pathogen it is.' });
+    expect((await post('/outbreak', { cluster: 'OB-NOPE' })).status).toBe(404);
+    expect((await app.request('/outbreak/stream?cluster=a%20b')).status).toBe(400);
+  });
+});
+
+describe('incident history (B5)', () => {
+  it('summarizeIncident derives time to scope and status', () => {
+    const row = { id: 'INC-1', lot: 'L-1', hazard: 'h', reported_at: '2026-10-17T10:00:00.000Z', class: 'I', confirmed_class: null, scoped_at: '2026-10-17T10:00:45.000Z', stores: 33 };
+    expect(summarizeIncident(row, new Set())).toMatchObject({ minutes_to_scope: 0.8, status: 'scoped' });
+    expect(summarizeIncident({ ...row, scoped_at: null }, new Set())).toMatchObject({ minutes_to_scope: null, status: 'open' });
+    expect(summarizeIncident(row, new Set(['L-1'])).status).toBe('notices_approved');
+  });
+
+  it('the MCP minimal_recall stamps scoped_at once; the dashboard read never does', async () => {
+    const { openIncident, app } = await import('../src/api/server.js');
+    await openIncident(LOT, 'Listeria');
+    await incidentReport(LOT);
+    expect((await listIncidents()).find((i) => i.lot === LOT)).toMatchObject({ status: 'open', scoped_at: null });
+    await scopeRecall({ lot: LOT });
+    const first = (await listIncidents()).find((i) => i.lot === LOT)!;
+    await scopeRecall({ lot: LOT });
+    expect((await listIncidents()).find((i) => i.lot === LOT)).toMatchObject({ status: 'scoped', stores: 33, scoped_at: first.scoped_at });
+    expect(first.minutes_to_scope).toBeGreaterThanOrEqual(0);
+    const sup = await (await app.request('/incidents/supplier/S-03')).json();
+    expect([sup.name, sup.incidents.map((i: any) => i.lot)]).toEqual(['Valley Root Co.', [LOT]]);
+    expect((await app.request('/incidents/supplier/S-999')).status).toBe(404);
+    expect((await app.request('/incidents/supplier/x')).status).toBe(400);
+  });
+});
+
+describe('replay (B2)', () => {
+  it('replays a recorded run in order with no key and no database; bad input is 400/404', async () => {
+    const { app } = await import('../src/api/server.js');
+    const events = [
+      { t_ms: 0, event: { type: 'start', lot: 'L-999999', model: 'm' } },
+      { t_ms: 40, event: { type: 'note', text: 'hi', turn: 0 } },
+      { t_ms: 80, event: { type: 'done', result: { lot: 'L-999999' } } },
+    ];
+    writeFileSync('out/run-L-999999.json', JSON.stringify({ lot: 'L-999999', recorded_at: 'x', events }));
+    try {
+      const body = await (await app.request('/recall/replay?lot=L-999999&speed=20')).text();
+      expect([...body.matchAll(/^event: (\w+)$/gm)].map((m) => m[1])).toEqual(['start', 'note', 'done']);
+      expect((await app.request('/recall/replay?lot=L-999999&speed=0')).status).toBe(400);
+      expect((await app.request('/recall/replay?lot=L-999998')).status).toBe(404);
+      writeFileSync('out/run-L-999999.json', JSON.stringify({ lot: 'L-999999', recorded_at: 'x', events: events.slice(0, 2) }));
+      expect((await app.request('/recall/replay?lot=L-999999')).status).toBe(404); // incomplete run: no done
+    } finally { rmSync('out/run-L-999999.json'); }
+  });
 });

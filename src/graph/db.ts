@@ -1,6 +1,7 @@
 import { config } from 'dotenv';
 config({ path: ['.env.local', '.env'], quiet: true }); // stdout belongs to the MCP stdio transport
 import { FalkorDB, type Graph } from 'falkordb';
+import { AsyncLocalStorage } from 'node:async_hooks';
 
 let db: Promise<FalkorDB> | undefined;
 
@@ -20,7 +21,21 @@ export async function graph(name = 'recall'): Promise<Graph> {
 export async function query<T>(cypher: string, params: Record<string, unknown> = {}): Promise<T[]> {
   const g = await graph();
   const res = await g.query<T>(cypher, { params: params as never });
+  const t = timing.getStore();
+  if (t) {
+    t.queries++;
+    t.db_ms += Number(res.metadata?.find((m) => m.startsWith('Query internal execution time'))?.match(/[\d.]+/)?.[0] ?? 0);
+  }
   return res.data ?? [];
+}
+
+const timing = new AsyncLocalStorage<{ db_ms: number; queries: number }>();
+
+/** Runs fn and reports FalkorDB's own execution time summed over every query it made. */
+export async function measure<T>(fn: () => Promise<T>) {
+  const t = { db_ms: 0, queries: 0 };
+  const result = await timing.run(t, fn);
+  return { result, db_ms: Math.round(t.db_ms * 100) / 100, queries: t.queries };
 }
 
 export async function close() {
