@@ -8,11 +8,11 @@
 <style>
 :root {
   --bg: #ffffff; --fg: #0a0a0a; --muted: #6b7280; --card: #fafafa; --border: #e5e7eb;
-  --accent: #2563eb; --code: #f4f4f5; --ok: #15803d; --warn: #b45309;
+  --accent: #2563eb; --code: #f4f4f5; --ok: #15803d; --warn: #b45309; --hl-bg: #fff7ed; --hl-border: #ea580c;
 }
 @media (prefers-color-scheme: dark) {
   :root { --bg: #09090b; --fg: #fafafa; --muted: #a1a1aa; --card: #111113; --border: #27272a;
-    --accent: #60a5fa; --code: #18181b; --ok: #4ade80; --warn: #fbbf24; }
+    --accent: #60a5fa; --code: #18181b; --ok: #4ade80; --warn: #fbbf24; --hl-bg: #1c1208; --hl-border: #fb923c; }
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
@@ -42,6 +42,10 @@ pre code { background: none; padding: 0; }
 ul { padding-left: 20px; margin: 8px 0; }
 a { color: var(--accent); }
 .flow { font-family: ui-monospace, Menlo, monospace; font-size: 13px; white-space: pre; overflow-x: auto; background: var(--code); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+.highlight { margin: 28px 0; padding: 20px; border-radius: 12px; background: var(--hl-bg); border: 1px solid var(--hl-border); border-left: 5px solid var(--hl-border); }
+.highlight h3 { margin-top: 8px; font-size: 18px; }
+.highlight .table-wrap, .highlight th { background: var(--bg); }
+.badge.hl { color: var(--hl-border); border-color: currentColor; font-weight: 600; }
 footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
 </style>
 </head>
@@ -152,7 +156,9 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
     <tr><td>Synthetic, seeded data</td><td>Real lot-to-store data is private. A fixed seed gives a known answer key, so tests and the demo can prove the agent got it right.</td></tr>
   </table></div>
 
-  <h3 id="samsung">Same idea, different industry: a defective phone battery</h3>
+  <section class="highlight" id="samsung">
+  <span class="badge hl">Example</span>
+  <h3>Same idea, different industry: a defective phone battery</h3>
   <p>In 2016 the Samsung Galaxy Note 7 had batteries from outside suppliers that could overheat and catch fire. Samsung first recalled about 2.5 million phones and put in batteries from another supplier. Those failed too, and the whole model was pulled. (Figures from public reporting, quoted from memory.) A recall like that has exactly the same shape as a food recall.</p>
   <div class="table-wrap"><table>
     <tr><th>Our graph</th><th>Food</th><th>Phone battery</th></tr>
@@ -179,6 +185,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
   <p><b>Working backwards is outbreak mode.</b> Fire reports come in from different cities. Each is a <code>Case</code> linked to the shop it was bought at (<code>BOUGHT_AT</code>). We walk back from every case to the one battery lot they all share. That is <code>find_common_source</code>.</p>
   <p><b>The second failure is why we name decoys.</b> Changing supplier didn't fix the Note 7, because the new batteries had their own flaw. Our outbreak summary also names lots from the same supplier and ingredient that do <i>not</i> explain the cases, so nobody blames or clears the wrong lot by guesswork.</p>
   <p><b>Why this shows the schema is right.</b> Food and electronics recalls share one shape: a part from a supplier goes into products, and products ship to shops and reach people. Both record the same three events (receive, make, ship), and our nodes and links are exactly those events. The same graph and queries work for a carrot or a phone battery.</p>
+  </section>
 
   <h2 id="ingest">4. Case ingest schema</h2>
   <p>One case is one sick person: where and when they bought the food, and when they got ill. Paste CSV, or copy rows straight from a spreadsheet (tab separated). A header row is optional.</p>
