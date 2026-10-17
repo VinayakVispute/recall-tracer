@@ -2,11 +2,12 @@ import { anthropic } from '@ai-sdk/anthropic';
 import { createMCPClient } from '@ai-sdk/mcp';
 import { Experimental_StdioMCPTransport } from '@ai-sdk/mcp/mcp-stdio';
 import { ToolLoopAgent, tool, isStepCount, type InferAgentUIMessage, type LanguageModel, type TextStreamPart, type ToolSet } from 'ai';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import { query } from '../graph/db.js'; // also loads .env.local / .env
-import { CLUSTER_CASES, SAME_SOURCE_LOTS } from '../graph/queries.js';
-import { toToolCall, type McpOutput, type TraceEvent } from './run.js';
+import { CLUSTER_CASES, INCIDENT_GET, LOT_INFO, SAME_SOURCE_LOTS } from '../graph/queries.js';
+import { toResult, toToolCall, type McpOutput, type Recall, type RecallResult, type TraceEvent } from './run.js';
 import type { OutbreakEvent, OutbreakResult } from '../contracts.js';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
@@ -108,6 +109,26 @@ export function makeOutbreakAgent(model: LanguageModel, tools: ToolSet) {
   });
 }
 
+/** The incident page's recall run: every MCP tool, no FDA search, no approval gate, the system prompt in prompt.md. */
+export function makeIncidentAgent(model: LanguageModel, tools: ToolSet) {
+  return new ToolLoopAgent({
+    model,
+    instructions: readFileSync(new URL('./prompt.md', import.meta.url), 'utf8'),
+    tools,
+    stopWhen: isStepCount(14),
+    providerOptions: { anthropic: {
+      thinking: { type: 'adaptive', display: 'updates' }, // short progress notes between tool calls, for the trace
+      effort: 'low', // fixed tool sequence; low effort keeps the run well under 60 s
+      fallbacks: 'default',
+    } },
+  });
+}
+
+let incidentAgent: Promise<ReturnType<typeof makeIncidentAgent>> | undefined;
+function getIncidentAgent() {
+  return (incidentAgent ??= mcpTools().then((t) => makeIncidentAgent(anthropic(MODEL), t)).catch((e) => { incidentAgent = undefined; throw e; }));
+}
+
 let outbreakAgent: Promise<ReturnType<typeof makeOutbreakAgent>> | undefined;
 export function getOutbreakAgent() {
   return (outbreakAgent ??= mcpTools().then((t) => makeOutbreakAgent(anthropic(MODEL), t)).catch((e) => { outbreakAgent = undefined; throw e; }));
@@ -116,36 +137,39 @@ export function getOutbreakAgent() {
 type StepEvent = Extract<TraceEvent, { type: 'note' | 'tool_start' | 'tool_end' }>;
 
 /**
- * The one AI SDK stream to C3 mapper. turn is the step index from 0, like run.ts. A step's text is flushed
+ * The one AI SDK stream to C3 mapper. turn is the step index from 0. A step's reasoning and text are flushed
  * as a note before its first tool_start. An MCP failure arrives as a tool-result with isError and becomes call.error.
+ * With finalTextAsNote false, the last step's text is left out of the notes because the caller shows it as the summary.
  */
-export async function streamTrace(parts: AsyncIterable<TextStreamPart<ToolSet>>, onEvent: (e: StepEvent) => void) {
+export async function streamTrace(parts: AsyncIterable<TextStreamPart<ToolSet>>, onEvent: (e: StepEvent) => void, finalTextAsNote = true) {
   const calls: ReturnType<typeof toToolCall>[] = [];
-  const started = new Map<string, number>();
-  let turn = -1, buf = '';
-  const flush = () => { if (buf.trim()) onEvent({ type: 'note', text: buf.trim(), turn }); buf = ''; };
+  const started = new Map<string, { at: number; slot: number }>();
+  let turn = -1, think = '', say = '';
+  const flush = () => { const text = (think + say).trim(); if (text) onEvent({ type: 'note', text, turn }); think = say = ''; };
   const end = (id: string, name: string, input: unknown, out: McpOutput) => {
-    const r = toToolCall(id, name, input, turn, Date.now() - (started.get(id) ?? Date.now()), out);
-    calls.push(r);
+    const s = started.get(id) ?? { at: Date.now(), slot: calls.length };
+    const r = toToolCall(id, name, input, turn, Date.now() - s.at, out);
+    calls[s.slot] = r; // a step's calls run concurrently; keep the order the model made them in
     onEvent({ type: 'tool_end', call: r.call });
   };
   for await (const p of parts) {
     switch (p.type) {
-      case 'start-step': turn++; buf = ''; break;
-      case 'text-delta': case 'reasoning-delta': buf += p.text; break;
+      case 'start-step': turn++; think = say = ''; break;
+      case 'reasoning-delta': think += p.text; break;
+      case 'text-delta': say += p.text; break;
       case 'tool-call':
         flush();
-        started.set(p.toolCallId, Date.now());
+        started.set(p.toolCallId, { at: Date.now(), slot: started.size });
         onEvent({ type: 'tool_start', id: p.toolCallId, name: p.toolName, input: p.input, turn });
         break;
       case 'tool-result': end(p.toolCallId, p.toolName, p.input, p.output as McpOutput); break;
       case 'tool-error': end(p.toolCallId, p.toolName, p.input, { content: [{ type: 'text', text: String(p.error) }], isError: true }); break;
-      case 'finish-step': flush(); break;
+      case 'finish-step': if (!finalTextAsNote && p.finishReason !== 'tool-calls') say = ''; flush(); break;
       case 'error': throw p.error;
-      case 'abort': throw new Error('Outbreak run aborted');
+      case 'abort': throw new Error('Agent run aborted');
     }
   }
-  return calls;
+  return calls.filter(Boolean);
 }
 
 /**
@@ -166,4 +190,32 @@ export async function runOutbreak(cluster: string, onEvent: (e: OutbreakEvent) =
   const outbreak = { ...r, summary: r.summary + (decoys.length ? ` ${decoys.join(', ')} (same supplier, same ingredient) explains none.` : '') };
   onEvent({ type: 'done', outbreak });
   return outbreak;
+}
+
+/** C3. The result is minimal_recall's own output (the graph decides); Claude contributes the summary and the decisions. */
+export async function runAgent(lot: string, onEvent: (e: TraceEvent) => void = () => {}, agent?: ReturnType<typeof makeIncidentAgent>): Promise<RecallResult> {
+  const a = agent ?? (await getIncidentAgent());
+  const t0 = Date.now();
+  const [[info], [incident]] = await Promise.all([
+    query<{ ingredient: string; supplier: string }>(LOT_INFO, { lot }),
+    query<{ hazard: string; reported_at: string }>(INCIDENT_GET, { lot }),
+  ]);
+  const prompt = `Supplier notice for lot ${lot} (${info?.ingredient ?? 'ingredient'} from ${info?.supplier ?? 'the supplier'}). ` +
+    `Hazard: ${incident?.hazard ?? 'contamination, type not stated'}. Reported ${incident?.reported_at ?? new Date().toISOString()}.`;
+  const notes: { turn: number; text: string }[] = [];
+  onEvent({ type: 'start', lot, model: MODEL });
+  const res = await a.stream({ prompt });
+  const calls = await streamTrace(res.stream, (e) => { if (e.type === 'note') notes.push({ turn: e.turn, text: e.text }); onEvent(e); }, false);
+  const [finish, steps, usage, response] = await Promise.all([res.finishReason, res.steps, res.totalUsage, res.response]);
+  if (finish === 'content-filter') throw new Error('Model declined the request');
+  if (finish === 'tool-calls') throw new Error(`Agent did not finish in ${steps.length} turns`);
+  const summary = (await res.text).trim();
+  const recall: Recall | undefined = calls.findLast((c) => c.call.name === 'minimal_recall' && c.parsed)?.parsed;
+  if (!recall) throw new Error(`Agent finished without calling minimal_recall: ${summary}`);
+  const result = toResult(lot, recall, summary, calls.map((c) => c.call), {
+    model: response.modelId ?? MODEL, ms: Date.now() - t0, turns: steps.length,
+    input_tokens: usage.inputTokens ?? 0, output_tokens: usage.outputTokens ?? 0, notes,
+  });
+  onEvent({ type: 'done', result });
+  return result;
 }

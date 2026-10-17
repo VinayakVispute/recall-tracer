@@ -1,15 +1,5 @@
-import Anthropic from '@anthropic-ai/sdk';
-import { Client } from '@modelcontextprotocol/client';
-import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import type { minimalRecall } from '../tools/index.js';
-import { TRACE_FORWARD, COVERAGE_GAPS, SKU_RECIPIENTS, TRACE_BACKWARD, STORES, INCIDENT_CLASSIFY, RAW_ON_HAND, FINISHED_ON_HAND, HOLD_FINISHED, INCIDENT_GET, LOT_INFO, FIND_COMMON_SOURCE, CASE_PATH } from '../graph/queries.js';
-import { query } from '../graph/db.js';
-
-const MODEL = 'claude-opus-5-5';
-const SYSTEM = readFileSync(new URL('./prompt.md', import.meta.url), 'utf8');
-const ROOT = fileURLToPath(new URL('../..', import.meta.url));
+import { TRACE_FORWARD, COVERAGE_GAPS, SKU_RECIPIENTS, TRACE_BACKWARD, STORES, INCIDENT_CLASSIFY, RAW_ON_HAND, FINISHED_ON_HAND, HOLD_FINISHED, FIND_COMMON_SOURCE, CASE_PATH } from '../graph/queries.js';
 
 /** The Cypher behind each MCP tool, shown in the agent trace. */
 const CYPHER: Record<string, string[]> = {
@@ -27,27 +17,6 @@ const CYPHER: Record<string, string[]> = {
 /** Steps where the agent decides rather than reads the graph; the UI draws them as decision cards. */
 const JUDGEMENT = new Set(['propose_classification', 'minimal_recall']);
 
-let mcp: Promise<Client> | undefined;
-
-/** One MCP server process per API process; the agent only sees tools through it. */
-export function mcpClient() {
-  return (mcp ??= (async () => {
-    const client = new Client({ name: 'recall-tracer-agent', version: '0.1.0' });
-    await client.connect(new StdioClientTransport({
-      command: process.execPath,
-      args: ['--import', 'tsx', 'src/mcp/server.ts'],
-      cwd: ROOT,
-      env: process.env as Record<string, string>,
-    }));
-    return client;
-  })());
-}
-
-export async function closeAgent() {
-  if (mcp) await (await mcp).close();
-  mcp = undefined;
-}
-
 export type ToolCall = {
   id: string; name: string; input: unknown; ms: number; error?: boolean; summary: string; cypher: string[]; turn: number;
   /** FalkorDB's own execution time over the tool's queries, and how many it ran. */
@@ -62,9 +31,9 @@ export type TraceEvent<Subject = { lot: string }, Done = { result: RecallResult 
   | { type: 'tool_end'; call: ToolCall }
   | ({ type: 'done' } & Done)
   | { type: 'error'; message: string };
-/** What an MCP tools/call returns, from either MCP client. */
+/** What an MCP tools/call returns. */
 export type McpOutput = { content: unknown; isError?: boolean };
-type Recall = Awaited<ReturnType<typeof minimalRecall>>;
+export type Recall = Awaited<ReturnType<typeof minimalRecall>>;
 
 /** One line per tool result, for the trace timeline. */
 function summarize(name: string, r: any): string {
@@ -83,7 +52,7 @@ function summarize(name: string, r: any): string {
   }
 }
 
-/** The one place an MCP result becomes a ToolCall, shared by both agent loops. `parsed` is set iff the call succeeded. */
+/** The one place an MCP result becomes a ToolCall. `parsed` is set iff the call succeeded. */
 export function toToolCall(id: string, name: string, input: unknown, turn: number, ms: number, out: McpOutput) {
   const text = (out.content as { text?: string }[]).map((c) => c.text ?? '').join('');
   let summary = text.slice(0, 200), db_ms = 0, queries = 0, parsed: any;
@@ -97,75 +66,7 @@ export function toToolCall(id: string, name: string, input: unknown, turn: numbe
   return { call, parsed, text };
 }
 
-export async function runAgent(lot: string, onEvent: (e: TraceEvent) => void = () => {}) {
-  const client = new Anthropic();
-  const mcpc = await mcpClient();
-  const { tools: mcpTools } = await mcpc.listTools();
-  const tools: Anthropic.Beta.BetaTool[] = mcpTools.map((t) => ({
-    name: t.name, description: t.description, input_schema: t.inputSchema as Anthropic.Beta.BetaTool.InputSchema,
-  }));
-
-  const t0 = Date.now();
-  const [[info], [incident]] = await Promise.all([
-    query<{ ingredient: string; supplier: string }>(LOT_INFO, { lot }),
-    query<{ hazard: string; reported_at: string }>(INCIDENT_GET, { lot }),
-  ]);
-  const alert = `Supplier notice for lot ${lot} (${info?.ingredient ?? 'ingredient'} from ${info?.supplier ?? 'the supplier'}). ` +
-    `Hazard: ${incident?.hazard ?? 'contamination, type not stated'}. Reported ${incident?.reported_at ?? new Date().toISOString()}.`;
-  const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: 'user', content: alert }];
-  const calls: ToolCall[] = [];
-  const notes: { turn: number; text: string }[] = [];
-  const usage = { input_tokens: 0, output_tokens: 0 };
-  let recall: Recall | undefined;
-  onEvent({ type: 'start', lot, model: MODEL });
-
-  for (let turn = 0; turn < 14; turn++) {
-    const res = await client.beta.messages.create({
-      model: MODEL,
-      max_tokens: 16000,
-      system: SYSTEM,
-      tools,
-      messages,
-      thinking: { type: 'adaptive', display: 'updates' }, // short progress notes between tool calls, for the trace
-      output_config: { effort: 'low' }, // fixed tool sequence; low effort keeps the run well under 60 s
-      betas: ['server-side-fallback-2026-07-01', 'thinking-display-updates-2026-08-18'],
-      fallbacks: 'default',
-    } as unknown as Anthropic.Beta.MessageCreateParamsNonStreaming);
-    messages.push({ role: 'assistant', content: res.content });
-    usage.input_tokens += res.usage.input_tokens;
-    usage.output_tokens += res.usage.output_tokens;
-
-    if (res.stop_reason === 'refusal') throw new Error('Model declined the request');
-    for (const b of res.content as any[]) {
-      const text = b.type === 'thinking' ? b.thinking : b.type === 'text' && res.stop_reason === 'tool_use' ? b.text : '';
-      if (text?.trim()) { notes.push({ turn, text: text.trim() }); onEvent({ type: 'note', text: text.trim(), turn }); }
-    }
-    if (res.stop_reason !== 'tool_use') {
-      const summary = res.content.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('\n').trim();
-      if (!recall) throw new Error(`Agent finished without calling minimal_recall: ${summary}`);
-      const result = toResult(lot, recall, summary, calls, { model: res.model ?? MODEL, ms: Date.now() - t0, turns: turn + 1, ...usage, notes });
-      onEvent({ type: 'done', result });
-      return result;
-    }
-
-    const results: Anthropic.Beta.BetaToolResultBlockParam[] = [];
-    for (const b of res.content) {
-      if (b.type !== 'tool_use') continue;
-      onEvent({ type: 'tool_start', id: b.id, name: b.name, input: b.input, turn });
-      const s = Date.now();
-      const out = await mcpc.callTool({ name: b.name, arguments: b.input as Record<string, unknown> });
-      const { call, parsed, text } = toToolCall(b.id, b.name, b.input, turn, Date.now() - s, out);
-      if (b.name === 'minimal_recall' && parsed) recall = parsed;
-      calls.push(call);
-      onEvent({ type: 'tool_end', call });
-      results.push({ type: 'tool_result', tool_use_id: b.id, content: text, is_error: !!out.isError });
-    }
-    messages.push({ role: 'user', content: results });
-  }
-  throw new Error('Agent did not finish in 14 turns');
-}
-
-type Meta = { model: string; ms: number; turns: number; input_tokens: number; output_tokens: number; notes: { turn: number; text: string }[] };
+export type Meta = { model: string; ms: number; turns: number; input_tokens: number; output_tokens: number; notes: { turn: number; text: string }[] };
 
 /** Final JSON comes from the graph's tool output; Claude contributes the summary and the decisions. */
 export function toResult(lot: string, r: Recall, summary: string, tool_calls: ToolCall[], meta?: Meta) {

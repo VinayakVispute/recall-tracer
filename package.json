@@ -17,7 +17,6 @@
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.82",
     "@ai-sdk/mcp": "^2.0.78",
-    "@anthropic-ai/sdk": "^0.134.0",
     "@hono/node-server": "^2.1.5",
     "@modelcontextprotocol/client": "^2",
     "@modelcontextprotocol/server": "^2",

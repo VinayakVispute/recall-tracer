@@ -15,7 +15,7 @@ let loaded: { nodes: number; edges: number };
 
 beforeAll(async () => { loaded = await load(build(42)); });
 afterAll(async () => {
-  await (await import('../src/agent/run.js')).closeAgent();
+  await (await import('../src/agent/ai-agent.js')).closeAiAgent();
   await close();
 });
 
@@ -136,9 +136,8 @@ describe('tools on L-204', () => {
     expect(schemas.draft_recall_notice.notices.parse(JSON.stringify(notices))).toEqual(notices);
     expect(schemas.draft_recall_notice.notices.parse(JSON.stringify(notices) + '}')).toEqual(notices); // what the model sent once
     expect(schemas.trace_backward.product_lots.parse('["TLC-06A"]')).toEqual(['TLC-06A']);
-    const { mcpClient } = await import('../src/agent/run.js');
-    const c = await mcpClient();
-    const r = await c.callTool({ name: 'draft_recall_notice', arguments: { lot: LOT, notices: '[{"store":"ST-013","reason":"test"}]}' } });
+    const { mcpTools } = await import('../src/agent/ai-agent.js');
+    const r = await (await mcpTools()).draft_recall_notice.execute!({ lot: LOT, notices: '[{"store":"ST-013","reason":"test"}]}' }, { toolCallId: 't', messages: [], context: {} }) as any;
     expect(r.isError).toBeFalsy();
     expect(JSON.parse((r.content as any)[0].text).drafted).toBe(1);
   });

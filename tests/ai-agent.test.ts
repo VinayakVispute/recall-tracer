@@ -1,8 +1,8 @@
 import { describe, it, expect, afterAll } from 'vitest';
 import { MockLanguageModelV4 } from 'ai/test';
 import { simulateReadableStream } from 'ai';
-import { makeRecallAgent, makeOutbreakAgent, runOutbreak, mcpTools, closeAiAgent, fdaUrl } from '../src/agent/ai-agent.js';
-import type { OutbreakEvent } from '../src/contracts.js';
+import { makeRecallAgent, makeOutbreakAgent, makeIncidentAgent, runAgent, runOutbreak, mcpTools, closeAiAgent, fdaUrl } from '../src/agent/ai-agent.js';
+import type { OutbreakEvent, TraceEvent } from '../src/contracts.js';
 import { close } from '../src/graph/db.js';
 
 afterAll(async () => { await closeAiAgent(); await close(); });
@@ -73,5 +73,37 @@ describe('outbreak agent', () => {
     const end = events.find((e) => e.type === 'tool_end');
     expect(end?.type === 'tool_end' && [end.call.error, end.call.summary]).toEqual([true, 'Error: unknown case ids: NOPE']);
     expect(events.map((e) => e.type)).not.toContain('done');
+  }, 30_000);
+});
+
+describe('incident agent', () => {
+  const finish = (unified: string) => ({ type: 'finish', finishReason: { unified, raw: undefined }, usage });
+  const say = (text: string) => [{ type: 'text-start', id: 't' }, { type: 'text-delta', id: 't', delta: text }, { type: 'text-end', id: 't' }];
+  const call = (id: string, toolName: string, input: object) => ({ type: 'tool-call', toolCallId: id, toolName, input: JSON.stringify(input) });
+  const run = async (steps: object[][]) => {
+    let n = 0;
+    const model = new MockLanguageModelV4({ doStream: async () => ({ stream: simulateReadableStream({ chunks: steps[n++] as never[] }) }) });
+    const events: TraceEvent[] = [];
+    return { out: runAgent('L-204', (e) => events.push(e), makeIncidentAgent(model, await mcpTools())), events };
+  };
+
+  it('returns the graph result, and the final text is the summary, not a note', async () => {
+    const { out, events } = await run([
+      [...say('Scoping the recall.'), call('a', 'minimal_recall', { lot: 'L-204', add_gap_stores: true }), finish('tool-calls')],
+      [...say('33 of 71 stores pull.'), finish('stop')],
+    ]);
+    const r = await out;
+    expect(events.map((e) => e.type)).toEqual(['start', 'note', 'tool_start', 'tool_end', 'done']);
+    expect(events[1]).toEqual({ type: 'note', text: 'Scoping the recall.', turn: 0 });
+    expect(r.counts).toEqual({ blanket: 71, targeted: 33, safe: 38 });
+    expect(r.summary).toBe('33 of 71 stores pull.');
+    expect(r.meta).toMatchObject({ turns: 2, notes: [{ turn: 0, text: 'Scoping the recall.' }] });
+    expect(events.at(-1)).toEqual({ type: 'done', result: r });
+  }, 30_000);
+
+  it('fails without a successful minimal_recall', async () => {
+    const { out, events } = await run([[...say('Nothing to do.'), finish('stop')]]);
+    await expect(out).rejects.toThrow('Agent finished without calling minimal_recall: Nothing to do.');
+    expect(events.map((e) => e.type)).toEqual(['start']);
   }, 30_000);
 });
