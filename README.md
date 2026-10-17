@@ -142,18 +142,18 @@ Open http://localhost:8787 (set `APP_PORT` to use another port). The same `Docke
 
 ## Run it for development
 
-Needs Docker, Node 22+ and pnpm.
+Needs Docker, Node 22+ and Bun.
 
 ```bash
 docker run -d --name falkordb -p 6380:6379 -p 3001:3000 falkordb/falkordb:latest
-pnpm install
+bun install
 cp .env.example .env          # add ANTHROPIC_API_KEY; FALKORDB_PORT=6380
-pnpm generate --seed 42 --reset
-pnpm test                     # 14 tests; the end-to-end one runs only with an API key
-pnpm dev                      # API on :8787, page on http://localhost:5173
+bun run generate --seed 42 --reset
+bun run test                    # 14 tests; the end-to-end one runs only with an API key
+bun run dev                     # API on :8787, page on http://localhost:5173
 ```
 
-Enter `L-204` and press **Trace**. FalkorDB Browser on http://localhost:3001 shows the raw graph. For one-port production use, run `pnpm build && pnpm start` and open http://localhost:8787.
+Enter `L-204` and press **Trace**. FalkorDB Browser on http://localhost:3001 shows the raw graph. For one-port production use, run `bun run build && bun run start` and open http://localhost:8787.
 
 To use the tools from Claude Code in this folder, the included `.mcp.json` registers the `recall-tracer` MCP server.
 

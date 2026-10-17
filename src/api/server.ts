@@ -158,7 +158,7 @@ app.get('/export/:file', async (c) => {
   return c.body(await exportCsv(lot));
 });
 
-// Production: serve the built page from the same port (`pnpm build` first).
+// Production: serve the built page from the same port (`bun run build` first).
 app.use('/*', serveStatic({ root: './web/dist' }));
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

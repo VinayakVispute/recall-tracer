@@ -7,7 +7,7 @@ Source of truth: `../Recall Tracer Build Spec.md`. This file records only how we
 - FalkorDB `falkordb/falkordb:latest` (graph module v6.0.2) in Docker as container `falkordb`, host port **6380** (6379 is taken by another project's Redis), Browser on **3001** (3000 is used by another local app), volume `falkordb_data`, `--restart unless-stopped`.
 - Multi-type variable-length patterns (`[:A|B*1..8]`) work → spec queries used as written.
 - Node client `falkordb@6`: `FalkorDB.connect({socket:{host,port}})`, `db.selectGraph('recall')`, `graph.query(cypher, {params})`.
-- Node 24, pnpm 11, TypeScript, Vitest.
+- Node 24, Bun 1.3, TypeScript, Vitest.
 
 ## Build order
 
