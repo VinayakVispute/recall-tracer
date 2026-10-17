@@ -55,6 +55,7 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
     <a href="#sources">Data sources</a>
     <a href="#graph">Graph schema</a>
     <a href="#why">Why this schema</a>
+    <a href="#samsung">Phone battery example</a>
     <a href="#ingest">Case ingest schema</a>
     <a href="#try">Try it</a>
     <a href="#questions">Questions</a>
@@ -150,6 +151,34 @@ footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
     <tr><td>Ingest by CSV or paste</td><td>Health department case lists live in spreadsheets. Pasting rows is the shortest path. Parsing involves no AI, so it is fast, free and repeatable. Bad rows are reported with reasons rather than dropped.</td></tr>
     <tr><td>Synthetic, seeded data</td><td>Real lot-to-store data is private. A fixed seed gives a known answer key, so tests and the demo can prove the agent got it right.</td></tr>
   </table></div>
+
+  <h3 id="samsung">Same idea, different industry: a defective phone battery</h3>
+  <p>In 2016 the Samsung Galaxy Note 7 had batteries from outside suppliers that could overheat and catch fire. Samsung first recalled about 2.5 million phones and put in batteries from another supplier. Those failed too, and the whole model was pulled. (Figures from public reporting, quoted from memory.) A recall like that has exactly the same shape as a food recall.</p>
+  <div class="table-wrap"><table>
+    <tr><th>Our graph</th><th>Food</th><th>Phone battery</th></tr>
+    <tr><td><code>Supplier</code></td><td>Farm selling carrots</td><td>Battery maker</td></tr>
+    <tr><td><code>Lot</code></td><td>One delivery of carrots</td><td>One production lot of battery cells</td></tr>
+    <tr><td><code>Batch</code></td><td>Soup cooked with those carrots</td><td>Factory run that put those cells into phones</td></tr>
+    <tr><td><code>ProductLot</code></td><td>Coded cans of soup</td><td>Finished phones with serial numbers</td></tr>
+    <tr><td><code>Site</code>, <code>DC</code></td><td>Plant and warehouse</td><td>Factory and regional warehouse</td></tr>
+    <tr><td><code>Store</code></td><td>Supermarket</td><td>Phone shop or carrier store</td></tr>
+    <tr><td><code>Case</code></td><td>A person who got sick</td><td>A customer whose phone caught fire</td></tr>
+    <tr><td><code>Cluster</code></td><td>One outbreak</td><td>All fire reports for one defect</td></tr>
+    <tr><td><code>Incident</code></td><td>Our recall record</td><td>The maker's recall record</td></tr>
+  </table></div>
+  <p><b>How one bad part spreads, and the part of the schema that catches each step:</b></p>
+  <ol>
+    <li><b>Bad part at the start.</b> One lot of battery cells is faulty. That is a <code>Lot</code> linked by <code>SUPPLIED</code> to its <code>Supplier</code>.</li>
+    <li><b>It fans out.</b> One cell lot goes into many factory runs, and each run makes thousands of phones (<code>USED_IN</code>, then <code>PRODUCED</code>). "Which shops got phones with cells from lot X?" is one path query in a graph.</li>
+    <li><b>Ingredient vs finished product.</b> Shops don't pull battery lots, they pull phones by serial number. That is why <code>Lot</code> and <code>ProductLot</code> are separate.</li>
+    <li><b>Quantities.</b> "Pull 4,000 phones from these 30 shops" beats "pull everything". The counts live on the links (<code>units</code>, <code>qty_kg</code>).</li>
+    <li><b>Rework.</b> Repaired or refurbished phones go back into stock. That is <code>REWORKED_INTO</code>, the path simple tracing misses.</li>
+    <li><b>Still in the warehouse.</b> Phones not yet in shops are stopped at the warehouse. That is <code>HELD_AT</code> a <code>Site</code> or <code>DC</code>.</li>
+    <li><b>Missing records.</b> Shipments with no serials recorded are kept as <code>SHIPPED_UNTRACKED</code>, so they show up as coverage gaps instead of vanishing.</li>
+  </ol>
+  <p><b>Working backwards is outbreak mode.</b> Fire reports come in from different cities. Each is a <code>Case</code> linked to the shop it was bought at (<code>BOUGHT_AT</code>). We walk back from every case to the one battery lot they all share. That is <code>find_common_source</code>.</p>
+  <p><b>The second failure is why we name decoys.</b> Changing supplier didn't fix the Note 7, because the new batteries had their own flaw. Our outbreak summary also names lots from the same supplier and ingredient that do <i>not</i> explain the cases, so nobody blames or clears the wrong lot by guesswork.</p>
+  <p><b>Why this shows the schema is right.</b> Food and electronics recalls share one shape: a part from a supplier goes into products, and products ship to shops and reach people. Both record the same three events (receive, make, ship), and our nodes and links are exactly those events. The same graph and queries work for a carrot or a phone battery.</p>
 
   <h2 id="ingest">4. Case ingest schema</h2>
   <p>One case is one sick person: where and when they bought the food, and when they got ill. Paste CSV, or copy rows straight from a spreadsheet (tab separated). A header row is optional.</p>
