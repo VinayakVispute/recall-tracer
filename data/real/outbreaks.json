@@ -1,0 +1,41 @@
+{
+  "_source": "Hand-copied from CDC outbreak pages (scraped 2026-10-17). Every number below is on the cited page.",
+  "outbreaks": [
+    {
+      "id": "CDC-LISTERIA-SOFT-CHEESE-2026-06",
+      "pathogen": "Listeria monocytogenes",
+      "food": "requesón / soft ricotta cheese",
+      "status": "over",
+      "cases": 15,
+      "hospitalized": 14,
+      "deaths": 1,
+      "onset_from": "2023-03-06",
+      "onset_to": "2026-07-08",
+      "cases_by_state": { "IL": 1, "MD": 4, "NY": 6, "VA": 4 },
+      "linked_firm": "Clover Hill Dairy, LLC",
+      "sources": [
+        "https://www.cdc.gov/listeria/outbreaks/soft-cheese-06-26/investigation.html",
+        "https://www.cdc.gov/listeria/outbreaks/soft-cheese-06-26/locations.html"
+      ]
+    }
+  ],
+  "_supplied_note": "Firm-to-firm edges. openFDA has no supplier field, so these come from outbreak write-ups. basis 'stated' = the source says it; 'inferred' = same product, place and week, not stated outright.",
+  "supplied": [
+    {
+      "from": "Clover Hill Dairy, LLC",
+      "to": "Nelson & Isa Lacteos LLC",
+      "product": "requesón",
+      "basis": "inferred",
+      "why": "CDC names both as recalling requesón in the 2026-06-09 update. Nelson & Isa is in Bay Shore NY, near the Brentwood NY retailer where sick people shopped, and its recall H-1189-2026 is NY only, in the same week.",
+      "source": "https://www.cdc.gov/listeria/outbreaks/soft-cheese-06-26/investigation.html"
+    },
+    {
+      "from": "Clover Hill Dairy, LLC",
+      "to": "La Ceiba Foods Latin Market Inc.",
+      "product": "requesón",
+      "basis": "inferred",
+      "why": "CDC's 2026-06-29 update lists La Ceiba's requesón recall under an outbreak it attributes to cheese supplied by Clover Hill Dairy. Not in openFDA as of 2026-10-07.",
+      "source": "https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts/la-ceiba-foods-latin-market-inc-recalls-cottage-cheese-products-because-possible-health-risk"
+    }
+  ]
+}

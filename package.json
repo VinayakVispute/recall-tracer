@@ -11,7 +11,8 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "build": "cd web && bun run build",
-    "start": "tsx src/api/server.ts"
+    "start": "tsx src/api/server.ts",
+    "real": "tsx src/data/real.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.82",
