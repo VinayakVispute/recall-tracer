@@ -111,6 +111,12 @@ RETURN pl.id AS lot, pl.sku AS sku, s.units AS units, s.shipped_at AS shipped_at
 
 export const LOT_EXISTS = `MATCH (l:Lot {code: $lot}) RETURN count(l) AS n`;
 
+/** Human names for the record network: stores, batches, product lots (via their product) and ingredient lots (via their supplier). */
+export const GRAPH_LABELS = `
+MATCH (n) WHERE (n:Store OR n:Batch OR n:ProductLot) AND n.id IN $ids OR n:Lot AND n.code IN $ids
+OPTIONAL MATCH (n)-[:OF]->(p:Product)
+OPTIONAL MATCH (s:Supplier)-[:SUPPLIED]->(n)
+RETURN coalesce(n.id, n.code) AS id, n.name AS name, n.city AS city, n.region AS region, n.site AS site, p.name AS product, n.ingredient AS ingredient, s.name AS supplier`;
 export const STORES = `MATCH (st:Store) WHERE st.id IN $ids RETURN st.id AS id, st.name AS name, st.city AS city, st.region AS region`;
 
 // --- Loading -------------------------------------------------------------

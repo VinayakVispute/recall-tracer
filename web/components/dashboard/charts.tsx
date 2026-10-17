@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from 'react';
-import cytoscape from 'cytoscape';
+import { useMemo, useState } from 'react';
 import type { IncidentReport } from '@server/tools/incident';
 import { cn } from '@/lib/utils';
 
@@ -224,153 +223,10 @@ export function Exposure({ r }: { r: Report }) {
   );
 }
 
-// --- Network: every record as a node, revealed step by step as the agent works --------
+// --- Theme colours resolved for cytoscape (the /real graph) --------
 
 type Palette = Record<'destructive' | 'chart1' | 'chart2' | 'chart3' | 'fg' | 'muted' | 'border' | 'bg' | 'card', string>;
 export const readPalette = (): Palette => ({
   destructive: themeColor('--destructive'), chart1: themeColor('--chart-1'), chart2: themeColor('--chart-2'), chart3: themeColor('--chart-3'),
   fg: themeColor('--foreground'), muted: themeColor('--muted-foreground'), border: themeColor('--border'), bg: themeColor('--background'), card: themeColor('--card'),
 });
-const kindColor = (p: Palette): Record<string, string> => ({
-  lot: p.destructive, batch: p.destructive, 'product-lot': p.destructive, 'store-affected': p.destructive,
-  product: p.chart1, 'store-gap': p.chart1, 'store-safe': p.muted, 'product-lot-clean': p.border,
-  site: p.chart2, dc: p.chart2, 'lot-clean': p.border,
-});
-const edgeStyle = (p: Palette): Record<string, { color: string; style?: string }> => ({
-  affected: { color: p.destructive }, untracked: { color: p.chart1, style: 'dashed' }, clean: { color: p.border },
-  held: { color: p.chart2, style: 'dotted' }, origin: { color: p.chart3 },
-});
-type Elements = { nodes: { data: { id: string; kind: string; stage: string; depth: number; label?: string } }[]; edges: { data: { id: string; source: string; target: string; kind: string; stage: string; depth: number } }[] };
-const HOP_MS = 650;
-
-/**
- * `stages` is the ordered list of agent steps completed so far ('start' first). Elements appear when their
- * stage completes; the forward trace is staggered hop by hop so the spread is visible. Shrinking `stages` replays.
- */
-export function NetworkGraph({ lot, stages, animating, focus, onPick }: { lot: string; stages: string[]; animating: boolean; focus?: string; onPick: (store: string) => void }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const cyRef = useRef<cytoscape.Core>(null);
-  const revealed = useRef(new Set<string>());
-  const timers = useRef<number[]>([]);
-  const [els, setEls] = useState<Elements>();
-  useEffect(() => { fetch(`/api/graph/${lot}`).then((r) => r.json()).then(setEls); }, [lot]);
-
-  useEffect(() => {
-    if (!els || !ref.current) return;
-    const pal = readPalette(), COLOR = kindColor(pal), EDGE = edgeStyle(pal);
-    const font = getComputedStyle(document.body).fontFamily;
-    const cy = cytoscape({
-      container: ref.current,
-      elements: [...els.nodes, ...els.edges],
-      layout: { name: 'preset', positions: layered(els) as never },
-      style: [
-        { selector: 'node', style: { 'background-color': (n: cytoscape.NodeSingular) => COLOR[n.data('kind')] ?? pal.muted, width: 11, height: 11, label: (n: cytoscape.NodeSingular) => n.data('label') ?? n.data('id'), 'font-size': 8, 'font-family': font, color: pal.fg, 'text-valign': 'bottom', 'text-margin-y': 2, 'transition-property': 'opacity, width, height', 'transition-duration': 350 } },
-        { selector: 'node[kind = "lot"]', style: { width: 22, height: 22, 'font-size': 11, 'font-weight': 600 } },
-        { selector: 'node[kind = "site"], node[kind = "dc"]', style: { shape: 'round-rectangle', width: 16, height: 16 } },
-        { selector: 'node[kind = "lot-clean"]', style: { width: 7, height: 7, 'font-size': 6 } },
-        { selector: 'edge', style: { width: 1, 'line-color': (e: cytoscape.EdgeSingular) => EDGE[e.data('kind')]?.color ?? pal.border, 'target-arrow-color': (e: cytoscape.EdgeSingular) => EDGE[e.data('kind')]?.color ?? pal.border, 'line-style': ((e: cytoscape.EdgeSingular) => EDGE[e.data('kind')]?.style ?? 'solid') as never, 'curve-style': 'bezier', 'target-arrow-shape': 'triangle', 'arrow-scale': 0.5, 'transition-property': 'opacity', 'transition-duration': 350 } },
-        { selector: 'edge[kind = "affected"], edge[kind = "untracked"], edge[kind = "held"]', style: { width: 1.4 } },
-        { selector: 'edge[kind = "origin"]', style: { width: 1.2, opacity: 0.9 } },
-        { selector: '.flowing', style: { 'line-style': 'dashed', 'line-dash-pattern': [6, 4] } },
-        { selector: '.verified', style: { 'border-width': 2, 'border-color': pal.chart1 } },
-        { selector: '.noticed', style: { 'border-width': 2, 'border-color': pal.fg } },
-        { selector: '.just', style: { width: 18, height: 18 } },
-        { selector: '.hidden', style: { opacity: 0, events: 'no' } },
-        { selector: '.faded', style: { opacity: 0.25 } },
-        { selector: '.dim', style: { opacity: 0.1 } },
-      ],
-      userZoomingEnabled: false, // keep the mouse wheel for page scroll
-    });
-    cy.elements().addClass('hidden');
-    revealed.current = new Set();
-    if (process.env.NODE_ENV !== 'production') (window as unknown as { cy: typeof cy }).cy = cy; // lets the demo recorder click nodes
-    cy.on('tap', (e) => {
-      cy.elements().removeClass('dim');
-      if (e.target === cy) return;
-      cy.elements().not(e.target.predecessors().add(e.target)).not('.hidden').addClass('dim');
-      if (String(e.target.data('kind')).startsWith('store')) onPick(e.target.id());
-    });
-    cyRef.current = cy;
-    return () => { cy.destroy(); timers.current.forEach(clearTimeout); };
-  }, [els]);
-
-  // Reveal newly completed stages; a shrunk list (replay) hides everything again.
-  useEffect(() => {
-    const cy = cyRef.current;
-    if (!cy) return;
-    const want = new Set(stages);
-    if ([...revealed.current].some((s) => !want.has(s))) {
-      timers.current.forEach(clearTimeout); timers.current = [];
-      cy.elements().addClass('hidden').removeClass('verified noticed faded flowing just');
-      revealed.current = new Set();
-    }
-    const instant = revealed.current.size === 0 && stages.length > 2; // a saved run: show it all at once
-    for (const stage of stages) {
-      if (revealed.current.has(stage)) continue;
-      revealed.current.add(stage);
-      const show = (sel: string, delay: number, cls?: string) => {
-        const t = window.setTimeout(() => {
-          const e = cy.elements(sel);
-          e.removeClass('hidden');
-          if (cls) e.addClass(cls);
-          e.nodes().addClass('just'); window.setTimeout(() => e.nodes().removeClass('just'), 500);
-        }, instant ? 0 : delay);
-        timers.current.push(t);
-      };
-      if (stage === 'draft_recall_notice') { show('node[kind = "store-affected"], node[kind = "store-gap"]', 0, 'noticed'); continue; }
-      if (stage === 'trace_backward') {
-        show('[stage = "trace_backward"]', 0);
-        show('node[kind = "store-safe"]', 600, 'verified');
-        timers.current.push(window.setTimeout(() => cy.elements('edge[kind = "origin"], node[kind = "lot-clean"]').addClass('faded'), instant ? 0 : 3200));
-        continue;
-      }
-      const depths = [...new Set(cy.elements(`[stage = "${stage}"]`).map((e) => e.data('depth') as number))].sort((a, b) => a - b);
-      depths.forEach((d, i) => show(`[stage = "${stage}"][depth = ${d}]`, i * HOP_MS, stage === 'trace_forward' ? 'flowing' : undefined));
-    }
-  }, [stages, els]);
-
-  // While the agent works, the affected edges carry a moving dash so the flow reads as motion.
-  useEffect(() => {
-    const cy = cyRef.current;
-    if (!cy) return;
-    if (!animating) { cy.edges().removeClass('flowing'); return; }
-    let off = 0;
-    const t = window.setInterval(() => { off -= 1; cy.edges('.flowing').style('line-dash-offset', off); }, 60);
-    return () => clearInterval(t);
-  }, [animating, els]);
-
-  useEffect(() => {
-    const cy = cyRef.current;
-    if (!cy || !focus) return;
-    const n = cy.$id(focus);
-    if (n.nonempty()) { cy.elements().removeClass('dim'); cy.elements().not(n.predecessors().add(n)).not('.hidden').addClass('dim'); }
-  }, [focus, els]);
-  return <div className="h-130" ref={ref} />;
-}
-
-const ROW = 30, COLW = 210;
-/** Columns: ingredient lots → batches (rework one step right) → product lots → plants and DCs → stores in four sub-columns. */
-function layered({ nodes, edges }: Elements) {
-  const reworked = new Set(edges.filter((e) => e.data.source.startsWith('B-') && e.data.target.startsWith('B-')).map((e) => e.data.target));
-  const order = ['store-affected', 'store-gap', 'store-safe'];
-  const stores = nodes.filter((n) => n.data.kind.startsWith('store')).sort((a, b) => order.indexOf(a.data.kind) - order.indexOf(b.data.kind));
-  const col = (kind: string, id: string) =>
-    kind === 'lot' || kind === 'lot-clean' ? 0 : kind === 'batch' ? (reworked.has(id) ? 1.6 : 1) : kind.startsWith('product') ? 2.4 : kind === 'site' || kind === 'dc' ? 3.2 : 4.2;
-  const rank = (kind: string) => (kind === 'lot' ? 0 : kind === 'product-lot' ? 0 : kind === 'product' ? 1 : 2);
-  const pos: Record<string, { x: number; y: number }> = {};
-  const rows: Record<number, number> = {};
-  const fixed = nodes.filter((n) => !n.data.kind.startsWith('store')).sort((a, b) => rank(a.data.kind) - rank(b.data.kind) || a.data.id.localeCompare(b.data.id));
-  for (const n of fixed) {
-    const c = col(n.data.kind, n.data.id);
-    rows[c] = (rows[c] ?? 0) + 1;
-    pos[n.data.id] = { x: c * COLW, y: rows[c] * ROW * (c === 0 ? 0.8 : 1) };
-  }
-  const perCol = Math.ceil(stores.length / 4);
-  stores.forEach((n, i) => { pos[n.data.id] = { x: 4.2 * COLW + Math.floor(i / perCol) * 110, y: (i % perCol + 1) * ROW }; });
-  const height = Math.max(perCol, ...Object.values(rows)) * ROW;
-  for (const n of fixed) {
-    const c = col(n.data.kind, n.data.id);
-    pos[n.data.id].y += (height - rows[c] * ROW * (c === 0 ? 0.8 : 1)) / 2;
-  }
-  return pos;
-}

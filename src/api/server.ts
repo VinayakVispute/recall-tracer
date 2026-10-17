@@ -6,7 +6,7 @@ import type { Context } from 'hono';
 import { fileURLToPath } from 'node:url';
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { query } from '../graph/db.js';
-import { AFFECTED_SHIPMENTS, STORES, LOT_EXISTS, INCIDENT_DELETE, INCIDENT_CREATE, INCIDENT_CONFIRM, CLUSTER_CASES, CLUSTER_DETAIL, COUNT_NODES, COUNT_EDGES } from '../graph/queries.js';
+import { AFFECTED_SHIPMENTS, STORES, LOT_EXISTS, INCIDENT_DELETE, INCIDENT_CREATE, INCIDENT_CONFIRM, CLUSTER_CASES, CLUSTER_DETAIL, COUNT_NODES, COUNT_EDGES, GRAPH_LABELS } from '../graph/queries.js';
 import { traceForward, coverageGaps, unaffectedStores, traceBackward, readHold, readNotices, writeNotices, incidentId, RECALL_CLASSES, RECALL_DEPTHS } from '../tools/index.js';
 import { createAgentUIStreamResponse } from 'ai';
 import { getRecallAgent, runOutbreak } from '../agent/ai-agent.js';
@@ -251,7 +251,7 @@ app.get('/graph/:lot', async (c) => {
   const lot = c.req.param('lot');
   if (!LOT_RE.test(lot)) return c.json({ error: 'bad lot' }, 400);
   const [trace, gaps, safe, hold] = await Promise.all([traceForward({ lot }), coverageGaps({ lot }), unaffectedStores({ lot }), readHold(lot)]);
-  type N = { id: string; kind: string; stage: string; depth: number; label?: string };
+  type N = { id: string; kind: string; stage: string; depth: number; label?: string; sub?: string };
   const nodes = new Map<string, N>();
   const edges = new Map<string, { id: string; source: string; target: string; kind: string; stage: string; depth: number }>();
   const node = (id: string, kind: string, stage: string, depth = 0, label?: string) => {
@@ -286,6 +286,14 @@ app.get('/graph/:lot', async (c) => {
   for (const r of back.results) for (const l of r.ingredient_lots) {
     node(l, l === lot ? 'lot' : 'lot-clean', 'trace_backward', 0);
     edge(l, r.product_lot, 'origin', 'trace_backward', 1);
+  }
+  type L = { id: string; name?: string; city?: string; region?: string; site?: string; product?: string; ingredient?: string; supplier?: string };
+  for (const r of await query<L>(GRAPH_LABELS, { ids: [...nodes.keys()] })) {
+    const n = nodes.get(r.id)!;
+    if (r.city) [n.label, n.sub] = [r.name, `${r.city}, ${r.region}`];
+    else if (r.product) [n.label, n.sub] = [r.product, r.id];
+    else if (r.site) n.sub = r.site.split(',')[0];
+    else if (r.ingredient) [n.label, n.sub] = [`${r.id} ${r.ingredient}`, r.supplier];
   }
   return c.json({
     nodes: [...nodes.values()].map((data) => ({ data })),

@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation";
 import type { RecallResult, TraceEvent } from "@server/agent/run";
 import type { IncidentReport, Incident } from "@server/tools/incident";
 import type { Notice } from "@server/tools/index";
-import { FlowChart, StateBars, Exposure, NetworkGraph } from "@/components/dashboard/charts";
+import { FlowChart, StateBars, Exposure } from "@/components/dashboard/charts";
+import { NetworkGraph } from "@/components/dashboard/record-network";
 import { Play } from "lucide-react";
 import {
   AgentTrace, StoreRegister, Evidence, Notices, Assessment, ScopeTable, ScopeStory, PublicNotice,
@@ -264,7 +265,7 @@ export function IncidentView({ lot, hazard, autostart, playback, initial }: { lo
                   <NetworkGraph lot={lot} stages={graphStages} animating={active} focus={selected} onPick={setSelected} />
                   <Legend
                     items={[["lot", "Ingredient lot"], ["recall", `Contains ${lot}`], ["hold", "Held at plant or DC"], ["gap", "No lot code"], ["safe", "Cleared"], ["verified", "Backward check"]]}
-                    note={running ? "Each record lights up as the agent reaches it." : replaying ? "The graph shows what the agent had reached at the playhead." : "Click a store to keep only the records that reach it."} />
+                    note={running ? "Each record lights up as the agent reaches it." : replaying ? "The graph shows what the agent had reached at the playhead." : "Click any record to light up where it came from and where it went. Recall path hides the cleared stores; All records shows them."} />
                 </>}
                 {rec ? <ReplayBar rec={rec} r={replay} onExit={exitReplay} />
                   : view === "network" && !running && (incident || result) && (
