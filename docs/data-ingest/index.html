@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Recall Tracer Data</title>
+<meta name="description" content="What Dev A and Dev B built, the graph schema, and the case ingest schema.">
+<style>
+:root {
+  --bg: #ffffff; --fg: #0a0a0a; --muted: #6b7280; --card: #fafafa; --border: #e5e7eb;
+  --accent: #2563eb; --code: #f4f4f5; --ok: #15803d; --warn: #b45309;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #09090b; --fg: #fafafa; --muted: #a1a1aa; --card: #111113; --border: #27272a;
+    --accent: #60a5fa; --code: #18181b; --ok: #4ade80; --warn: #fbbf24; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 960px; margin: 0 auto; padding: 32px 16px 64px; }
+h1 { font-size: 28px; margin: 0 0 4px; letter-spacing: -.02em; }
+h2 { font-size: 20px; margin: 40px 0 12px; padding-top: 8px; border-top: 1px solid var(--border); }
+h3 { font-size: 16px; margin: 20px 0 8px; }
+p { margin: 8px 0; }
+.lead { color: var(--muted); margin: 0 0 16px; }
+.badge { display: inline-block; font-size: 12px; padding: 1px 8px; border: 1px solid var(--border); border-radius: 999px; color: var(--muted); margin-right: 4px; }
+.badge.ok { color: var(--ok); border-color: currentColor; }
+.badge.warn { color: var(--warn); border-color: currentColor; }
+nav { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
+nav a { color: var(--accent); text-decoration: none; font-size: 14px; }
+.grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+.card h3 { margin-top: 0; }
+.table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { background: var(--card); font-weight: 600; }
+tr:last-child td { border-bottom: 0; }
+code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+code { background: var(--code); padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--code); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; overflow-x: auto; margin: 8px 0; }
+pre code { background: none; padding: 0; }
+ul { padding-left: 20px; margin: 8px 0; }
+a { color: var(--accent); }
+.flow { font-family: ui-monospace, Menlo, monospace; font-size: 13px; white-space: pre; overflow-x: auto; background: var(--code); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+footer { margin-top: 48px; color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Recall Tracer: what we built and how data gets in</h1>
+  <p class="lead">Dev A (graph and data) and Dev B (agent, MCP, API). Status as of 17 Oct 2026.</p>
+  <span class="badge ok">Dev A built</span><span class="badge ok">Dev B built</span><span class="badge warn">Deploy pending (after tasks)</span>
+  <nav>
+    <a href="#built">What we built</a>
+    <a href="#sources">Data sources</a>
+    <a href="#graph">Graph schema</a>
+    <a href="#ingest">Case ingest schema</a>
+    <a href="#try">Try it</a>
+  </nav>
+
+  <h2 id="built">1. What we built</h2>
+  <div class="grid">
+    <div class="card">
+      <h3>Dev A: graph and data</h3>
+      <ul>
+        <li>FalkorDB graph <code>recall</code>, one-to-one with FDA FSMA 204 traceability events.</li>
+        <li>Seeded generator: supplier → lot → batch → product lot → store, plus plants, DCs, rework and untracked shipments.</li>
+        <li>Seed 42 gives 170 nodes and 439 edges, the same every time.</li>
+        <li>Answer key in <code>data/expected.json</code>. For L-204 that is 31 affected stores, 2 coverage gaps and 2,256 units to pull.</li>
+        <li><b>A6 case ingest.</b> Paste CSV or a spreadsheet table into an outbreak cluster. Bad rows come back with reasons.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Dev B: agent, MCP, API</h3>
+      <ul>
+        <li>MCP server with 10 graph tools: trace forward and back, coverage gaps, minimal recall, hold, classification, notice draft, common source and case path.</li>
+        <li>Recall agent with a live trace over SSE. Every tool call carries FalkorDB time and the Cypher it ran.</li>
+        <li><b>B2 replay.</b> A recorded run streams back without a key or a database.</li>
+        <li><b>B4 outbreak mode.</b> Cases to common source lot, ranked by how many cases each lot explains.</li>
+        <li><b>B5 incidents.</b> History with minutes to scope and notice status.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>API routes</h3>
+  <div class="table-wrap"><table>
+    <tr><th>Route</th><th>What it does</th><th>Needs</th></tr>
+    <tr><td><code>POST /ingest/cases</code></td><td>Load cases into an outbreak cluster (schema below).</td><td>FalkorDB</td></tr>
+    <tr><td><code>POST /outbreak</code>, <code>GET /outbreak/stream?cluster=</code></td><td>Find the common source lot for a cluster.</td><td>FalkorDB and Claude key</td></tr>
+    <tr><td><code>POST /recall</code>, <code>GET /recall/stream?lot=</code></td><td>Run the recall agent on a lot, live trace over SSE.</td><td>FalkorDB and Claude key</td></tr>
+    <tr><td><code>GET /recall/replay?lot=&amp;speed=</code></td><td>Replay a recorded run (demo L-204 is included).</td><td>Nothing</td></tr>
+    <tr><td><code>GET /incidents</code>, <code>GET /incidents/supplier/:id</code></td><td>Incident history, per supplier.</td><td>FalkorDB</td></tr>
+    <tr><td><code>GET /incident/:lot</code>, <code>/status</code>, <code>POST /confirm</code></td><td>One incident report and the human approval gate.</td><td>FalkorDB</td></tr>
+    <tr><td><code>GET /graph/:lot</code></td><td>Nodes and edges for the graph view.</td><td>FalkorDB</td></tr>
+    <tr><td><code>GET /notices</code>, <code>POST /notices/approve</code></td><td>Drafted recall notices. Approval changes status only, nothing is sent.</td><td>None</td></tr>
+    <tr><td><code>POST /chat</code></td><td>Chat agent for the dashboard.</td><td>Claude key</td></tr>
+    <tr><td><code>/mcp</code></td><td>The same tools over MCP for any MCP client.</td><td>FalkorDB</td></tr>
+  </table></div>
+
+  <h2 id="sources">2. Data sources</h2>
+  <p><b>The demo data is synthetic.</b> Real lot-level supply chain records (which lot went into which batch and shipped to which store) are private to each company and not published anywhere. So we generate a realistic network with a fixed seed, which also makes every demo run give the same, checkable answer.</p>
+  <p>Its shape and fields come from these public sources:</p>
+  <div class="table-wrap"><table>
+    <tr><th>Source</th><th>What we take from it</th></tr>
+    <tr><td><b>FDA FSMA 204 Food Traceability Rule</b></td><td>Key Data Elements and Critical Tracking Events (receive, transform, ship). These define our supplier → lot → batch → product lot → store chain.</td></tr>
+    <tr><td><b>openFDA Food Enforcement API</b><br><code>api.fda.gov/food/enforcement.json</code></td><td>Real recall records: recalling firm, reason, classification (Class I, II, III), distribution pattern. This is the shape of our classification and notice drafts.</td></tr>
+    <tr><td><b>USDA FSIS recalls</b></td><td>The same for meat and poultry recalls.</td></tr>
+    <tr><td><b>CDC foodborne outbreak investigations</b></td><td>Case counts, illness onset dates and states. This is the shape of our case rows.</td></tr>
+  </table></div>
+  <p>To plug in real data later, map a company's traceability export onto the graph schema below. Cases from a health department line list go through the case ingest as they are.</p>
+
+  <h2 id="graph">3. Graph schema (FalkorDB)</h2>
+  <div class="flow">(Supplier)-[:SUPPLIED]->(Lot)-[:USED_IN {qty_kg}]->(Batch)-[:PRODUCED {units}]->(ProductLot)-[:SHIPPED_TO {units, shipped_at}]->(Store)
+(Batch)-[:REWORKED_INTO {qty_kg}]->(Batch)            (ProductLot)-[:OF]->(Product)
+(Lot)-[:STORED_AT {qty_kg}]->(Site)                   (ProductLot)-[:HELD_AT {units}]->(Site | DC)
+(Product)-[:SHIPPED_UNTRACKED {units, shipped_at}]->(Store)      untracked shipments become coverage gaps
+(Cluster)-[:HAS_CASE]->(Case)-[:BOUGHT_AT {date}]->(Store)        outbreak cases, loaded by case ingest
+(Incident)-[:CONCERNS]->(Lot)</div>
+  <div class="table-wrap"><table>
+    <tr><th>Node</th><th>Key</th><th>Properties</th></tr>
+    <tr><td>Supplier</td><td><code>id</code> (S-03)</td><td>name</td></tr>
+    <tr><td>Lot</td><td><code>code</code> (L-204)</td><td>ingredient, received_at, received_kg, supplier_id</td></tr>
+    <tr><td>Batch</td><td><code>id</code> (B-03)</td><td>produced_at, site, site_id</td></tr>
+    <tr><td>ProductLot</td><td><code>id</code> (TLC-03A)</td><td>sku, produced_at, best_by</td></tr>
+    <tr><td>Product</td><td><code>sku</code> (P-02)</td><td>name, upc</td></tr>
+    <tr><td>Store</td><td><code>id</code> (ST-029)</td><td>name, city, region</td></tr>
+    <tr><td>Site, DC</td><td><code>id</code> (PL-1, DC-01)</td><td>name, city, region</td></tr>
+    <tr><td>Cluster</td><td><code>id</code> (OB-2026-10)</td><td>pathogen, opened_at</td></tr>
+    <tr><td>Case</td><td><code>id</code> (C1)</td><td>region, onset, reported_at, sku (optional)</td></tr>
+    <tr><td>Incident</td><td><code>lot</code></td><td>id, hazard, reported_at, class, depth, rationale, confirmed_class, confirmed_depth, scoped_at, stores</td></tr>
+  </table></div>
+
+  <h2 id="ingest">4. Case ingest schema</h2>
+  <p>One case is one sick person: where and when they bought the food, and when they got ill. Paste CSV, or copy rows straight from a spreadsheet (tab separated). A header row is optional.</p>
+
+  <h3>Columns</h3>
+  <div class="table-wrap"><table>
+    <tr><th>Column</th><th>Required</th><th>Format</th><th>Example</th><th>Rule</th></tr>
+    <tr><td><code>id</code></td><td>yes</td><td>1 to 40 letters, digits or dashes</td><td>C1</td><td>Unique across all clusters. Twice in one paste is rejected.</td></tr>
+    <tr><td><code>region</code></td><td>yes</td><td>text</td><td>OH</td><td>Not empty.</td></tr>
+    <tr><td><code>onset</code></td><td>yes</td><td>YYYY-MM-DD</td><td>2026-10-12</td><td>Not before <code>bought_at</code>.</td></tr>
+    <tr><td><code>reported_at</code></td><td>yes</td><td>YYYY-MM-DD</td><td>2026-10-13</td><td>Not before <code>onset</code>.</td></tr>
+    <tr><td><code>sku</code></td><td>no</td><td>product sku</td><td>P-02</td><td>Empty means the product is unknown.</td></tr>
+    <tr><td><code>store</code></td><td>yes</td><td>store id, or store name with <code>city</code></td><td>ST-029</td><td>Must match a store in the graph. Case does not matter.</td></tr>
+    <tr><td><code>bought_at</code></td><td>yes</td><td>YYYY-MM-DD</td><td>2026-10-11</td><td>The purchase date.</td></tr>
+    <tr><td><code>city</code></td><td>no</td><td>text</td><td>Cleveland</td><td>Header mode only. Lets <code>store</code> be a name like FreshMart #029.</td></tr>
+  </table></div>
+  <p>Without a header, columns are read in the order above (without <code>city</code>). With a header whose first cell is <code>id</code>, columns are matched by name in any order.</p>
+
+  <h3>Sample paste (the demo cluster, real rows from the graph)</h3>
+<pre><code>id	region	onset	reported_at	sku	store	bought_at
+C1	OH	2026-10-12	2026-10-13	P-02	ST-029	2026-10-11
+C2	PA	2026-10-13	2026-10-14	P-01	ST-031	2026-10-12
+C3	MI	2026-10-14	2026-10-15		ST-055	2026-10-12
+C4	OH	2026-10-12	2026-10-13	P-02	ST-008	2026-10-11
+C5	IN	2026-10-12	2026-10-13	P-02	ST-053	2026-10-11
+C6	MI	2026-10-14	2026-10-15	P-02	ST-069	2026-10-12</code></pre>
+  <p>Same cases by store name, as CSV:</p>
+<pre><code>id,region,onset,reported_at,sku,store,city,bought_at
+C1,OH,2026-10-12,2026-10-13,P-02,"FreshMart #029",Cleveland,2026-10-11
+C6,MI,2026-10-14,2026-10-15,P-02,"GreenBasket #069",Detroit,2026-10-12</code></pre>
+
+  <h3>Request</h3>
+<pre><code>POST /ingest/cases
+Content-Type: application/json
+
+{
+  "cluster": "OB-2026-10",              // 1-40 letters, digits or dashes
+  "pathogen": "Listeria monocytogenes", // required only when the cluster is new
+  "text": "id\tregion\tonset\t..."      // the pasted CSV or tab text
+}</code></pre>
+
+  <h3>Response (200)</h3>
+<pre><code>{
+  "cluster": "OB-2026-10",
+  "created": false,        // true when this call opened the cluster
+  "loaded": 5,             // cases written
+  "rejected": [            // bad rows, nothing is dropped silently
+    { "row": 7, "line": "C9,OH,2026-10-01,...", "reason": "onset is before the purchase date" }
+  ]
+}</code></pre>
+  <p>Rejected rows are data, not an error, so the UI can show "row 7 rejected" next to the paste. Errors (400) are only a bad cluster id, an empty paste, or a new cluster with no pathogen.</p>
+
+  <h3>Rejection reasons</h3>
+  <ul>
+    <li>case id must be 1-40 letters, digits or dashes</li>
+    <li>case C1 appears twice in this paste</li>
+    <li>region is empty</li>
+    <li>onset / reported_at / bought_at must be a date like 2026-10-09</li>
+    <li>onset is before the purchase date</li>
+    <li>reported_at is before onset</li>
+    <li>no store matches "X" in City</li>
+    <li>case C1 already belongs to cluster OB-2026-09</li>
+  </ul>
+
+  <h3>Behaviour</h3>
+  <ul>
+    <li><b>Idempotent.</b> Pasting the same rows twice changes nothing.</li>
+    <li><b>Additive.</b> Cases already in the cluster but missing from a new paste stay.</li>
+    <li><b>Corrections replace.</b> Re-pasting a case with a new store or date updates it and moves its purchase link.</li>
+    <li><b>No Claude call.</b> Ingest is plain parsing and Cypher, so it works without an API key.</li>
+  </ul>
+
+  <h2 id="try">5. Try it</h2>
+<pre><code># load cases
+curl -X POST localhost:8787/ingest/cases -H 'content-type: application/json' \
+  -d '{"cluster":"OB-2026-10","text":"C1,OH,2026-10-12,2026-10-13,P-02,ST-029,2026-10-11"}'
+
+# find the common source (top answer: L-204 explains 6 of 6 cases)
+curl -N 'localhost:8787/outbreak/stream?cluster=OB-2026-10'
+
+# replay the recorded L-204 recall, no key needed
+curl -N 'localhost:8787/recall/replay?lot=L-204&amp;speed=10'</code></pre>
+  <p>Hosts are local for now. The live app URL comes after deploy.</p>
+
+  <footer>Recall Tracer, Dev A and Dev B lanes. Source: <code>src/data/cases.ts</code>, <code>src/graph/queries.ts</code>, <code>src/api/server.ts</code>.</footer>
+</main>
+</body>
+</html>
