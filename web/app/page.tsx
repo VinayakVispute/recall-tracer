@@ -300,7 +300,7 @@ function Kpi({ label, foot, tone, children }: { label: string; foot: string; ton
     <Card size="sm" className={cn("border-t-2", tone ?? "border-t-border")}>
       <CardContent className="flex flex-col gap-1">
         <p className="text-sm text-muted-foreground">{label}</p>
-        <p className="flex items-baseline gap-1.5 text-3xl font-semibold tabular-nums">{children}</p>
+        <div className="flex items-baseline gap-1.5 text-3xl font-semibold tabular-nums">{children}</div>
         <p className="text-xs text-muted-foreground">{foot}</p>
       </CardContent>
     </Card>
