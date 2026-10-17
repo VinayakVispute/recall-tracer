@@ -32,7 +32,7 @@ export function Nav({ graphLine }: { graphLine: React.ReactNode }) {
         {graphLine}
         {/* The recorded L-204 run, played back with its real timings: the demo path that needs no Claude key.
             A full page load, not <Link>: from an open incident, a client navigation would keep the old view mounted. */}
-        <a href="/incident/L-204?start=1&replay=1" className="rounded-md px-2.5 py-1 hover:text-foreground">⟳ Replay demo</a>
+        <a href="/incident/L-204?replay=1" className="rounded-md px-2.5 py-1 hover:text-foreground">⟳ Replay demo</a>
         {link("/agent", "Ask the agent", "text-xs")}
       </div>
     </header>

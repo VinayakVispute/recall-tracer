@@ -113,12 +113,16 @@ app.get('/recall/stream', async (c) => {
   });
 });
 
-/** Replays a recorded run with its original timing (divided by speed). No Claude key and no database needed. */
+/**
+ * Replays a recorded run with its original timing (divided by speed). No Claude key and no database needed.
+ * `format=json` returns the whole recording at once instead, for the dashboard's replay timeline (Dev D).
+ */
 app.get('/recall/replay', async (c) => {
   const lot = c.req.query('lot'), speed = Number(c.req.query('speed') ?? 1);
   if (!lot || !LOT_RE.test(lot)) return c.json({ error: 'Enter a lot code like L-204.' }, 400);
-  if (!(speed > 0 && speed <= 20)) return c.json({ error: 'speed must be above 0 and at most 20' }, 400);
   const rec = readRecording(lot);
+  if (c.req.query('format') === 'json') return rec ? c.json(rec) : c.json({ error: `No recorded run for ${lot}` }, 404);
+  if (!(speed > 0 && speed <= 20)) return c.json({ error: 'speed must be above 0 and at most 20' }, 400);
   if (!rec) return c.json({ error: `No recorded run for ${lot}` }, 404);
   return traceSSE(c, async (send, stream) => {
     for (const [i, { t_ms, event }] of rec.events.entries()) {

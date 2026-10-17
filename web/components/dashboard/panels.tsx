@@ -1,8 +1,8 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import type { Incident, IncidentReport } from "@server/tools/incident"
-import type { ToolCall } from "@server/agent/run"
+import { JUDGEMENT, fmtMs, graphTime, toolTotals, type Step } from "@/lib/trace"
 import type { Notice } from "@server/tools/index"
 import { cn } from "@/lib/utils"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -178,11 +178,30 @@ export function PublicNotice({ r }: { r: Report }) {
   const chains = [...new Set(hit.map((s) => chainOf(s.name)))].sort()
   const states = [...new Set(hit.map((s) => s.region))].sort()
   const lots = r.product_lots.filter((p) => p.affected)
+  const [copied, setCopied] = useState<"" | "ok" | "fail">("")
+  const text = [
+    `Recall: ${r.skus.map((s) => s.product).join(", ")}`,
+    `Reason: ${r.incident?.hazard ?? "contamination"}`,
+    ...r.skus.map((s) => {
+      const ls = lots.filter((p) => p.sku === s.sku)
+      const bb = ls.map((p) => p.best_by).sort()
+      return `${s.product}, UPC ${s.upc}, lot codes ${ls.map((p) => p.id).join(", ")}, best by ${bb.length ? `${shortDate(bb[0])}${bb.length > 1 && bb.at(-1) !== bb[0] ? ` to ${shortDate(bb.at(-1)!)}` : ""}` : "n/a"}`
+    }),
+    `Sold at ${chains.join(", ")} stores in ${states.join(", ")}.`,
+    "Consumers should not eat the product and may return it for a refund.",
+  ].join("\n")
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(text); setCopied("ok") } catch { setCopied("fail") }
+    setTimeout(() => setCopied(""), 2500)
+  }
   return (
     <Card>
       <CardHeader>
         <CardTitle>Public notice facts</CardTitle>
-        <CardAction><Badge variant="outline">Consumer-level recall</Badge></CardAction>
+        <CardAction className="flex items-center gap-2">
+          <Badge variant="outline">Consumer-level recall</Badge>
+          <Button size="sm" variant="outline" onClick={copy}>{copied === "ok" ? "Copied" : copied === "fail" ? "Copy failed, select the text" : "Copy notice text"}</Button>
+        </CardAction>
         <CardDescription>What the press release must list so shoppers can check their fridge. Read from the graph; nothing is published from here.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
@@ -211,11 +230,9 @@ export function PublicNotice({ r }: { r: Report }) {
 
 // --- Investigation log ------------------------------------------------------
 
-export type Step =
-  | { kind: "note"; text: string }
-  | { kind: "tool"; id: string; name: string; input: unknown; running: boolean; call?: ToolCall }
+export type { Step }
 
-const TITLE: Record<string, string> = {
+export const TITLE: Record<string, string> = {
   propose_classification: "Hazard assessment",
   place_hold: "Hold at plants and DCs",
   trace_forward: "Forward trace",
@@ -245,42 +262,62 @@ function brief(input: unknown) {
   return Object.entries(input).map(([k, v]) => `${k}: ${Array.isArray(v) ? `${v.length} items` : JSON.stringify(v)}`).join(", ")
 }
 
-export function AgentTrace({ steps, running, meta, summary, error }: {
+export function AgentTrace({ steps, running, meta, summary, error, current, replaying, onRetry }: {
   steps: Step[]; running: boolean; error?: string; summary?: string;
   meta?: { model: string; ms: number; turns: number; input_tokens: number; output_tokens: number };
+  /** Id of the tool call at the replay playhead; highlighted and scrolled into view. */
+  current?: string; replaying?: boolean; onRetry?: () => void;
 }) {
   const [open, setOpen] = useState<number>()
+  const box = useRef<HTMLDivElement>(null)
+  const totals = toolTotals(steps)
+  // Keep the current step in view inside the log, without scrolling the page.
+  useEffect(() => {
+    const el = current && box.current?.querySelector<HTMLElement>(`[data-step="${CSS.escape(current)}"]`)
+    if (!el || !box.current) return
+    const b = box.current, top = el.offsetTop - b.offsetTop
+    if (top < b.scrollTop || top + el.offsetHeight > b.scrollTop + b.clientHeight) b.scrollTo({ top: Math.max(0, top - 24), behavior: "smooth" })
+  }, [current])
   let n = 0
   return (
-    <Card aria-live="polite">
+    <Card aria-live={replaying ? "off" : "polite"}>
       <CardHeader>
         <CardTitle>Investigation log</CardTitle>
-        {running && <CardAction><Badge>Running</Badge></CardAction>}
+        <CardAction className="flex flex-col items-end gap-1">
+          {running ? <Badge>Running</Badge> : replaying ? <Badge variant="outline">Replay</Badge> : null}
+          {totals.calls > 0 && <span className="text-xs text-muted-foreground tabular-nums" title={totals.db ? "FalkorDB's own execution time, summed over every query the tools ran" : "Each tool is an MCP call that runs its Cypher on FalkorDB"}>{totals.db ? `${totals.queries} queries, ${fmtMs(totals.ms)} in FalkorDB` : `${totals.calls} graph tools, ${fmtMs(totals.ms)}`}</span>}
+        </CardAction>
         <CardDescription>Every step the agent took, in order, with the graph query behind it. This is the audit trail.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
-        {!steps.length && !running && (
+        {!steps.length && !running && !replaying && (
           <Empty><EmptyDescription>Open an incident to start. Each step appears here as it happens.</EmptyDescription></Empty>
         )}
-        <div className="max-h-[32rem] overflow-y-auto">
+        <div ref={box} className="max-h-[32rem] overflow-y-auto pr-1">
           <ol className="flex flex-col gap-3">
             {steps.map((s, i) => s.kind === "note" ? (
               <li key={i} className="text-sm text-muted-foreground italic">{s.text}</li>
             ) : (
-              <li key={s.id ?? i} className="flex gap-3">
+              <li key={s.id ?? i} data-step={s.id} className={cn(
+                "flex gap-3 rounded-lg p-2 -mx-2 transition-colors",
+                JUDGEMENT.has(s.name) && s.call && "border border-chart-4/50 bg-chart-4/5",
+                current === s.id && "ring-2 ring-ring",
+              )}>
                 <Badge variant={s.call?.error ? "destructive" : s.running ? "default" : "secondary"} className="tabular-nums">{++n}</Badge>
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
                   <div className="flex items-baseline justify-between gap-2">
                     <b className="text-sm">{TITLE[s.name] ?? s.name}</b>
-                    <span className="text-xs text-muted-foreground tabular-nums">{s.call ? `${s.call.ms} ms` : "…"}</span>
+                    {JUDGEMENT.has(s.name) && s.call
+                      ? <Badge variant="outline" className="border-chart-4 text-chart-4">Agent judgement</Badge>
+                      : <span className="font-mono text-xs whitespace-nowrap text-muted-foreground tabular-nums" title={s.call && graphTime(s.call).db ? "FalkorDB's own execution time for this step's queries" : "MCP tool call, including its FalkorDB queries"}>{s.call ? `${graphTime(s.call).db ? "FalkorDB" : "graph"} ${fmtMs(graphTime(s.call).ms)}` : "…"}</span>}
                   </div>
                   <p className="text-sm text-muted-foreground">{s.running ? DOING[s.name] ?? "Querying the graph" : s.call?.summary}</p>
                   {s.call?.error && <Badge variant="destructive">Failed</Badge>}
                   {s.name === "minimal_recall" && s.call && (
-                    <Alert><AlertDescription>Policy applied: stores with no delivery record are {(s.input as { add_gap_stores?: boolean } | undefined)?.add_gap_stores === false ? "flagged for the coordinator" : "pulled too"}, because the records can&apos;t clear them.</AlertDescription></Alert>
+                    <p className="text-sm"><b>Policy applied:</b> stores with no delivery record are {(s.input as { add_gap_stores?: boolean } | undefined)?.add_gap_stores === false ? "flagged for the coordinator" : "pulled too"}, because the records can&apos;t clear them. A recall that misses contaminated product is worse than one that pulls a few extra units.</p>
                   )}
                   {s.name === "propose_classification" && s.call && (
-                    <Alert><AlertDescription>A proposal. The coordinator confirms or changes it in the assessment card above.</AlertDescription></Alert>
+                    <p className="text-sm"><b>A proposal.</b> The coordinator confirms or changes it in the assessment card above. Notices can&apos;t be approved before that.</p>
                   )}
                   {s.call && (
                     <Collapsible open={open === i} onOpenChange={(o) => setOpen(o ? i : undefined)}>
@@ -289,6 +326,7 @@ export function AgentTrace({ steps, running, meta, summary, error }: {
                       </CollapsibleTrigger>
                       <CollapsibleContent className="flex flex-col gap-2 pt-1">
                         <p className="font-mono text-xs break-words"><b>Input</b> {brief(s.input)}</p>
+                        <p className="text-xs text-muted-foreground">{graphTime(s.call).db ? `${s.call.queries} ${s.call.queries === 1 ? "query" : "queries"}, ${fmtMs(s.call.db_ms)} in FalkorDB, ${s.call.ms} ms for the whole MCP call.` : `${s.call.ms} ms for the MCP call.`}</p>
                         {(s.call.cypher ?? []).map((q, j) => <pre key={j} className="overflow-x-auto rounded-md bg-muted p-2 font-mono text-xs">{q.trim()}</pre>)}
                       </CollapsibleContent>
                     </Collapsible>
@@ -298,7 +336,14 @@ export function AgentTrace({ steps, running, meta, summary, error }: {
             ))}
           </ol>
         </div>
-        {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription className="flex flex-col gap-2">
+              <span>{error}</span>
+              {onRetry && !running && <Button size="sm" variant="outline" className="self-start" onClick={onRetry}>Retry the run</Button>}
+            </AlertDescription>
+          </Alert>
+        )}
         {summary && (
           <>
             <Separator />
@@ -316,12 +361,16 @@ export function AgentTrace({ steps, running, meta, summary, error }: {
 
 // --- Store register ---------------------------------------------------------
 
-type Filter = "all" | Store["status"]
+export type Filter = "all" | Store["status"]
 
-export function StoreRegister({ r, notices, onPick, selected, stateFilter, clearState }: {
+/** The filter can be driven from outside (the headline tiles), or left to the table's own buttons. */
+export function StoreRegister({ r, notices, onPick, selected, stateFilter, clearState, filter: outer, onFilter }: {
   r: Report; notices: Notice[]; onPick: (id: string) => void; selected?: string; stateFilter?: string; clearState: () => void;
+  filter?: Filter; onFilter?: (f: Filter) => void;
 }) {
-  const [filter, setFilter] = useState<Filter>("all")
+  const [own, setOwn] = useState<Filter>("all")
+  const filter = outer ?? own
+  const setFilter = onFilter ?? setOwn
   const [q, setQ] = useState("")
   const noticeOf = useMemo(() => new Map(notices.map((n) => [n.store, n.status])), [notices])
   const count = (f: Filter) => r.stores.filter((s) => f === "all" || s.status === f).length
@@ -329,7 +378,7 @@ export function StoreRegister({ r, notices, onPick, selected, stateFilter, clear
     (filter === "all" || s.status === filter) && (!stateFilter || s.region === stateFilter) &&
     (!q || `${s.id} ${s.name} ${s.city} ${s.shipments.map((x) => x.lot).join(" ")}`.toLowerCase().includes(q.toLowerCase())))
   return (
-    <Card>
+    <Card id="store-decisions" className="scroll-mt-20">
       <CardHeader>
         <CardTitle>Store decisions <Badge variant="secondary" className="tabular-nums">{rows.length}</Badge></CardTitle>
         <CardDescription>Every store that stocked the affected products, and what the records say. Click a row for the evidence.</CardDescription>
@@ -509,7 +558,7 @@ export function Notices({ lot, notices, canApprove, onApprove, onPick }: { lot: 
         </ul>
         <div className="flex flex-wrap gap-2">
           <Button disabled={!pending.length || !canApprove} onClick={() => onApprove(pending.map((n) => n.store))}>{pending.length ? `Approve all ${pending.length}` : "All approved"}</Button>
-          <Button variant="outline" nativeButton={false} render={<a href={`/export/${lot}.csv`} download />}>FDA shipping CSV</Button>
+          <Button variant="outline" nativeButton={false} render={<a href={`/api/export/${lot}.csv`} download />}>FDA shipping CSV</Button>
         </div>
         <Muted className="text-xs">{canApprove ? "Approving marks a notice ready for the distribution team. Nothing is sent from here." : "Confirm the class and depth in the assessment card before approving notices."}</Muted>
       </CardContent>

@@ -13,7 +13,7 @@ export default async function Page({ params, searchParams }: PageProps<"/inciden
   const autostart = start === "1";
   // A fresh run starts empty; otherwise everything is read on the server, in parallel, so a reload never reruns the agent.
   const initial: Initial = autostart ? { run: null, report: null, status: null, notices: [] } : await load(lot);
-  return <IncidentClient lot={lot} hazard={typeof hazard === "string" ? hazard : undefined} autostart={autostart} playback={autostart && replay === "1"} initial={initial} />;
+  return <IncidentClient lot={lot} hazard={typeof hazard === "string" ? hazard : undefined} autostart={autostart} playback={!autostart && replay === "1"} initial={initial} />;
 }
 
 async function load(lot: string): Promise<Initial> {
