@@ -87,9 +87,12 @@ cp .env.example .env.local      # then set ANTHROPIC_API_KEY
 # 4. Seed the graph (seed 42, same data every time)
 bun run generate --seed 42 --reset
 
+# 4b. Load the real FDA and CDC data into the separate "fda" graph
+bun run real
+
 # 5. API on :8787 and web on :3000
 bun run dev</code></pre>
-  <p>Check it works: open <code>localhost:3000</code>, or run <code>curl -N 'localhost:8787/recall/replay?lot=L-204&amp;speed=10'</code>. You should see 22 events ending in <code>done</code>. Tests: <code>bun run test</code> (32 pass, 1 skipped) and <code>bun run typecheck</code>.</p>
+  <p>Check it works: open <code>localhost:3000</code>, or run <code>curl -N 'localhost:8787/recall/replay?lot=L-204&amp;speed=10'</code>. You should see 22 events ending in <code>done</code>. Tests: <code>bun run test</code> (36 pass, 1 skipped) and <code>bun run typecheck</code>.</p>
 
   <h2 id="env">3. Environment variables</h2>
   <div class="table-wrap"><table>
@@ -116,7 +119,7 @@ bun run dev</code></pre>
 })</code></pre>
       Check the option names against the <code>falkordb</code> client docs before relying on this. This file is in your lane ("auth fields only").</li>
     <li><b>Make the Dockerfile API-only.</b> It still runs <code>RUN bun run build</code>, which builds <code>web/</code>, and its comment says it serves the page too. It doesn't any more: the web app is Next.js on Vercel. Root <code>bun install</code> does not install <code>web/</code> dependencies (no workspaces), so that step will likely fail. Remove it and fix the comment.</li>
-    <li><b>Host the API container</b> anywhere that runs Docker and allows long responses (Fly.io, Railway, Render, a VM). Set <code>ANTHROPIC_API_KEY</code> and the <code>FALKORDB_*</code> vars. On start it seeds the graph (<code>generate --seed 42 --reset</code>) and serves on <code>$PORT</code>.</li>
+    <li><b>Host the API container</b> anywhere that runs Docker and allows long responses (Fly.io, Railway, Render, a VM). Set <code>ANTHROPIC_API_KEY</code> and the <code>FALKORDB_*</code> vars. On start it seeds the graph (<code>generate --seed 42 --reset</code>) and serves on <code>$PORT</code>. <b>Add <code>bun run real</code> to the start command</b> after <code>generate</code>, so <code>GET /real/outbreaks</code> has data. It reads committed JSON and needs no network.</li>
     <li><b>Create the Vercel project with root <code>web/</code></b> and set <code>RECALL_API</code> to the API's public URL.</li>
     <li><b>Done when</b> (from the plan): the public URL opens the dashboard, replay works with no key, and a live run works with the team key.</li>
   </ol>
@@ -133,6 +136,7 @@ bun run dev</code></pre>
     <tr><td>Approval</td><td><code>GET /incident/:lot</code>, <code>/status</code>, <code>POST /incident/:lot/confirm</code> <code>{class, depth}</code></td><td>Incident report, approval state, human confirmation.</td></tr>
     <tr><td>Notices</td><td><code>GET /notices</code>, <code>POST /notices/approve</code> <code>{stores}</code></td><td>Drafted notices. Approve only changes status, nothing is sent.</td></tr>
     <tr><td>Page 7 History</td><td><code>GET /incidents</code>, <code>GET /incidents/supplier/:id</code></td><td><code>IncidentSummary[]</code>: <code>id, lot, hazard, reported_at, class, confirmed_class, scoped_at, stores, minutes_to_scope, status</code>. <code>status</code> is <code>open</code>, <code>scoped</code> or <code>notices_approved</code>. Supplier id like <code>S-03</code>, 404 if unknown.</td></tr>
+    <tr><td>Real data</td><td><code>GET /real/outbreaks</code></td><td><code>RealOutbreak[]</code> from <code>src/data/real.ts</code>: the real CDC Listeria outbreak, its firm (Clover Hill Dairy), the firm's 18 openFDA recalls, <code>shipped</code> (MD, NY, VA), <code>cases_by_state</code>, <code>gap</code> (<code>["IL"]</code>: a person got sick in Illinois and no recall named it) and <code>downstream</code> firms with <code>basis</code> <code>inferred</code>. Empty array until <code>bun run real</code> has run. Good for a "real world" card on Page 1.</td></tr>
     <tr><td>Chat</td><td><code>POST /chat</code> <code>{messages}</code></td><td>AI SDK UI message stream (<code>useChat</code>).</td></tr>
   </table></div>
   <p>Types live in <code>src/contracts.ts</code>: <code>CaseInput</code>, <code>Candidate</code>, <code>OutbreakResult</code>, <code>TraceEvent</code>, <code>ToolCall</code>, <code>OutbreakEvent</code>, <code>IncidentSummary</code>.</p>

@@ -13,6 +13,7 @@ import { getRecallAgent, runOutbreak } from '../agent/ai-agent.js';
 import { runAgent, type RecallResult, type TraceEvent } from '../agent/run.js';
 import { incidentReport, incidentStatus, listIncidents, supplierIncidents } from '../tools/incident.js';
 import { ingestCases, CASE_ID } from '../data/cases.js';
+import { realOutbreaks } from '../data/real.js';
 import { registerTools } from '../mcp/tools.js';
 
 const LOT_RE = /^L-\d{1,6}$/;
@@ -182,6 +183,9 @@ app.get('/outbreak/stream', async (c) => {
 
 /** B5. Every incident with its time to scope, newest first. */
 app.get('/incidents', async (c) => c.json(await listIncidents()));
+
+/** Real CDC outbreaks joined to their firm's openFDA recalls, from the separate "fda" graph (`bun run real`). */
+app.get('/real/outbreaks', async (c) => c.json(await realOutbreaks()));
 
 app.get('/incidents/supplier/:id', async (c) => {
   const id = c.req.param('id');

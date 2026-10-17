@@ -128,6 +128,47 @@ export async function loadReal() {
     nodes: await count('MATCH (n) RETURN count(n) AS n'), edges: await count('MATCH ()-[e]->() RETURN count(e) AS n') };
 }
 
+export type RealOutbreak = {
+  id: string; pathogen: string; food: string; status: string; cases: number; hospitalized: number; deaths: number;
+  onset_from: string; onset_to: string; source: string;
+  firm: { name: string; city: string; state: string };
+  cases_by_state: Record<string, number>;
+  recalls: { id: string; product: string; classification: string; initiated: string; states: string[] }[];
+  /** States any of the firm's recalls named. */
+  shipped: string[];
+  /** States with sick people that no recall of the firm named: where the recall notice missed. */
+  gap: string[];
+  downstream: { firm: string; basis: string; why: string; source: string; recalls: string[] }[];
+};
+
+/** Every CDC outbreak in the fda graph, joined to its firm's real openFDA recalls. */
+export async function realOutbreaks(): Promise<RealOutbreak[]> {
+  const g = await graph(GRAPH);
+  const rows = (await g.query<RealOutbreak & { firm_name: string; firm_city: string; firm_state: string; cases_in: { s: string; n: number }[] }>(`
+    MATCH (o:Outbreak)-[:LINKED_TO]->(f:Firm)
+    OPTIONAL MATCH (o)-[c:CASES_IN]->(cs:State)
+    WITH o, f, collect({s: cs.code, n: c.count}) AS cases_in
+    OPTIONAL MATCH (f)-[:RECALLED]->(r:Recall)
+    OPTIONAL MATCH (r)-[:DISTRIBUTED_TO]->(s:State)
+    WITH o, f, cases_in, r, collect(s.code) AS states
+    WITH o, f, cases_in, collect(CASE WHEN r IS NULL THEN NULL ELSE {id: r.id, product: r.product, classification: r.classification, initiated: r.initiated, states: states} END) AS recalls
+    OPTIONAL MATCH (f)-[e:SUPPLIED]->(b:Firm)
+    OPTIONAL MATCH (b)-[:RECALLED]->(br:Recall)
+    WITH o, f, cases_in, recalls, e, b, collect(br.id) AS b_recalls
+    RETURN o.id AS id, o.pathogen AS pathogen, o.food AS food, o.status AS status, o.cases AS cases, o.hospitalized AS hospitalized,
+      o.deaths AS deaths, o.onset_from AS onset_from, o.onset_to AS onset_to, o.source AS source,
+      f.name AS firm_name, f.city AS firm_city, f.state AS firm_state, cases_in, recalls,
+      collect(CASE WHEN b IS NULL THEN NULL ELSE {firm: b.name, basis: e.basis, why: e.why, source: e.source, recalls: b_recalls} END) AS downstream
+    ORDER BY id`)).data ?? [];
+  return rows.map(({ firm_name, firm_city, firm_state, cases_in, ...o }) => {
+    const cases_by_state = Object.fromEntries(cases_in.filter((c) => c.s).map((c) => [c.s, c.n]));
+    const shipped = [...new Set(o.recalls.flatMap((r) => r.states))].sort();
+    return { ...o, firm: { name: firm_name, city: firm_city, state: firm_state }, cases_by_state, shipped,
+      gap: Object.keys(cases_by_state).filter((s) => !shipped.includes(s)).sort(),
+      recalls: o.recalls.sort((a, b) => a.id.localeCompare(b.id)) };
+  });
+}
+
 /** The questions the demo asks of the real graph. */
 export const DEMO_QUERIES: [string, string][] = [
   ['Outbreak to firm to recalls: where it shipped vs where people got sick', `
