@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { apiOrNull, ApiError } from "@/lib/api";
 import { OutbreakView, type ClusterDetail } from "./outbreak-view";
 import { PasteCases } from "./paste-cases";
+import { RealWorld } from "./real-world";
 
 // The seeded cluster. Kept here: a constant imported from a "use client" module is a client reference on the server, not a string.
 const EXAMPLE_CLUSTER = "OB-2026-10";
@@ -59,6 +60,7 @@ function Start() {
         </CardContent>
       </Card>
       <PasteCases id="" example={EXAMPLE_CLUSTER} />
+      <RealWorld />
     </div>
   );
 }
