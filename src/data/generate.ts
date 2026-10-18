@@ -268,7 +268,8 @@ export async function load(data: ReturnType<typeof build>, reset = true) {
   return { nodes: nodeCount, edges: edgeCount };
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+// Case-insensitive: on Windows the drive letter can differ (e: vs E:) between argv and import.meta.url.
+if (process.argv[1]?.toLowerCase() === fileURLToPath(import.meta.url).toLowerCase()) {
   const { values } = parseArgs({ options: { seed: { type: 'string', default: '42' }, reset: { type: 'boolean', default: false } } });
   const data = build(Number(values.seed));
   const counts = await load(data, values.reset);

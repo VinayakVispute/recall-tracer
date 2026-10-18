@@ -447,7 +447,8 @@ export const DEMO_QUERIES: [string, string][] = [
     MATCH (r:Recall {downstream: true}) RETURN count(r) AS downstream_recalls, count(DISTINCT r.event_id) AS events`],
 ];
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+// Case-insensitive: on Windows the drive letter can differ (e: vs E:) between argv and import.meta.url.
+if (process.argv[1]?.toLowerCase() === fileURLToPath(import.meta.url).toLowerCase()) {
   const { values } = parseArgs({ options: { fetch: { type: 'boolean', default: false }, show: { type: 'boolean', default: false } } });
   if (values.fetch) console.log(`Fetched ${await fetchRecalls()} openFDA recalls into ${RECALLS_FILE}`);
   if (!values.show || values.fetch) {

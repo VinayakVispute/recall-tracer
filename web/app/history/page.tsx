@@ -20,7 +20,7 @@ export default async function Page() {
   // Incidents per supplier, from the same rows: the "prior incidents on this supplier" line on the notice page reads the same graph edge.
   const bySupplier = [...Map.groupBy(incidents, (i) => i.supplier_id)].map(([id, list]) => ({ id, name: list[0].supplier, n: list.length })).sort((a, b) => b.n - a.n);
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 p-4">
+    <div className="mx-auto flex w-full max-w-none flex-col gap-4 p-4">
       <Card>
         <CardHeader>
           <CardTitle>Incident history</CardTitle>

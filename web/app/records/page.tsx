@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { api, ApiError } from "@/lib/api";
+import { RecordsMix } from "@/components/records/records-mix";
 import { SourceMap } from "@/components/records/source-map";
 
 export const metadata = { title: "Records", description: "Where the graph's records come from: real openFDA recalls and CDC outbreak data, and a demo company's lots, batches, product lots and stores." };
@@ -32,12 +33,12 @@ function Source({ title, n, unit, line, warn, foot }: { title: string; n: number
 export default async function Page() {
   let s: RecordSources | null = null, error = "";
   try { s = await api<RecordSources>("/records"); } catch (e) { error = e instanceof ApiError ? e.message : "Cannot reach the Recall Tracer API. Check that it is running."; }
-  if (!s) return <div className="mx-auto w-full max-w-5xl p-4"><p className="text-sm text-destructive" role="alert">{error}</p></div>;
+  if (!s) return <div className="mx-auto w-full max-w-none p-4"><p className="text-sm text-destructive" role="alert">{error}</p></div>;
   const { traceability: t, illness } = s;
   const records = Object.values(t.counts).reduce((a, b) => a + b, 0);
   const cases = illness.clusters.reduce((n, c) => n + c.cases, 0);
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 p-4">
+    <div className="mx-auto flex w-full max-w-none flex-col gap-4 p-4">
       <div className="grid gap-4 md:grid-cols-3">
         <Source title="Company records" n={records} unit="records" line="Lots, batches, product lots, stores and stock"
           warn={t.events.no_lot_code ? `${t.events.no_lot_code} deliveries have no lot code` : undefined}
@@ -47,6 +48,14 @@ export default async function Page() {
         <Source title="Public recall records" n={s.public?.recalls ?? 0} unit="FDA recalls" line={s.public ? `Plus ${s.public.outbreaks} CDC outbreak` : "Not loaded"}
           foot={<><span>{s.public?.fetched ? `Fetched ${day(s.public.fetched)}` : ""}</span><Badge variant="outline">Comparison only</Badge></>} />
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>What the company graph holds</CardTitle>
+          <CardDescription>Every record type the agent traces through, from supplier to store. Click a slice to pick it out.</CardDescription>
+        </CardHeader>
+        <CardContent><RecordsMix counts={t.counts} /></CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

@@ -62,6 +62,7 @@ export function Assessment({ incident, running, onConfirm }: { incident: Inciden
   const [cls, setCls] = useState<string>()
   const [depth, setDepth] = useState<string>()
   const [editing, setEditing] = useState(false)
+  const [why, setWhy] = useState(false)
   // One compact row until the coordinator wants to change something, so the scope and the graph stay above the fold.
   if (!incident.class) return (
     <Card size="sm">
@@ -84,7 +85,8 @@ export function Assessment({ incident, running, onConfirm }: { incident: Inciden
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <Badge variant="outline" className="border-chart-4 text-chart-4">Agent proposal</Badge>
           <b className="text-sm">Class {incident.class}, {incident.depth}-level recall</b>
-          <span className="min-w-0 flex-1 basis-80 text-sm text-muted-foreground">{incident.rationale}</span>
+          <Button size="xs" variant="link" className="px-0 text-muted-foreground" aria-expanded={why} onClick={() => setWhy(!why)}>{why ? "Hide why" : "Why?"}</Button>
+          <span className="flex-1" />
           {!editing && <div className="flex gap-2">
             <Button size="sm" onClick={() => onConfirm(c, d)}>Confirm</Button>
             <Button size="sm" variant="outline" onClick={() => setEditing(true)}>Change</Button>
@@ -112,7 +114,10 @@ export function Assessment({ incident, running, onConfirm }: { incident: Inciden
             </div>
           </form>
         )}
-        <Muted className="text-xs">Store notices can be approved only after this. The FDA assigns the final class; this is the firm&apos;s assessment.</Muted>
+        {why && <div className="flex flex-col gap-1.5 text-sm text-muted-foreground">
+          <p>{incident.rationale}</p>
+          <p className="text-xs">Store notices can be approved only after this. The FDA assigns the final class; this is the firm&apos;s assessment.</p>
+        </div>}
       </CardContent>
     </Card>
   )
@@ -127,8 +132,41 @@ export function ScopeStory({ r, spread }: { r: Report; spread?: { id: string; st
   const states = new Set(hit.map((s) => s.region))
   const sites = [...new Set(r.batches.map((b) => b.site.split(",")[0]))]
   const kg = used.reduce((n, e) => n + (e.qty_kg ?? 0), 0)
+  const recall = hit.filter((s) => s.status === "recall").length
+  // The path at a glance; the paragraph that reads it out is one click away.
+  const chain: [string, string][] = [
+    [`${kg} kg`, r.lot.code],
+    [`${used.length + rework.length}`, rework.length ? "batches, incl. rework" : "batches"],
+    [`${lots.length}`, "product lots"],
+    [`${recall}`, `stores in ${states.size} states`],
+  ]
   return (
-    <p className="text-sm/relaxed text-muted-foreground [&_b]:font-medium [&_b]:text-foreground">
+    <div className="flex flex-col gap-2">
+      <ol className="flex flex-wrap items-center gap-1.5" aria-label="Where the lot went">
+        {chain.map(([n, what], i) => (
+          <li key={what} className="flex items-center gap-1.5">
+            {i > 0 && <span aria-hidden="true" className="text-muted-foreground">→</span>}
+            <span className="inline-flex items-baseline gap-1.5 rounded-full bg-muted/60 px-3 py-1 text-sm ring-1 ring-foreground/10">
+              <b className="font-semibold tabular-nums">{n}</b><span className="text-muted-foreground">{what}</span>
+            </span>
+          </li>
+        ))}
+        {spread && <li className="ml-1 text-xs text-muted-foreground">Biggest spread point: <b className="font-medium text-foreground">{recordName(spread.id)}</b> ({spread.stores} stores downstream)</li>}
+      </ol>
+      <details className="group text-sm">
+        <summary className="w-fit cursor-pointer text-xs text-muted-foreground hover:text-foreground">Read the full trace</summary>
+        <ScopeParagraph r={r} spread={spread} kg={kg} used={used} rework={rework} lots={lots} hit={hit} states={states} sites={sites} />
+      </details>
+    </div>
+  )
+}
+
+function ScopeParagraph({ r, spread, kg, used, rework, lots, hit, states, sites }: {
+  r: Report; spread?: { id: string; stores: number }; kg: number; used: Report["lineage"]; rework: Report["lineage"]
+  lots: Report["product_lots"]; hit: Report["stores"]; states: Set<string>; sites: string[]
+}) {
+  return (
+    <p className="mt-2 text-sm/relaxed text-muted-foreground [&_b]:font-medium [&_b]:text-foreground">
       <b>{kg} kg of {r.lot.code}</b> went into {used.length} batches ({used.map((e) => e.target).join(", ")}) at {sites.join(" and ")}.
       {rework.map((e) => <span key={e.target}> Then <b>{e.qty_kg} kg of leftovers from {e.source} were reworked into {e.target}</b>, which carried it into one more lot.</span>)}
       {" "}Those batches made {lots.length} product lots of {r.skus.map((s) => s.product).join(", ")}.

@@ -40,7 +40,7 @@ export default async function Page({ searchParams }: PageProps<"/incident">) {
   try { incidents = await api<IncidentSummary[]>("/incidents"); } catch (e) { listError = e instanceof ApiError ? e.message : UNREACHABLE; }
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 p-4">
+    <div className="mx-auto flex w-full max-w-none flex-col gap-4 p-4">
       <Card>
         <CardHeader>
           <CardTitle>Find an incident</CardTitle>

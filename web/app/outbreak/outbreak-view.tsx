@@ -5,6 +5,9 @@ import Link from "next/link";
 import type { Candidate, OutbreakEvent, OutbreakResult } from "@server/contracts";
 import type { IncidentReport } from "@server/tools/incident";
 import { AgentTrace, shortDate, type Step } from "@/components/dashboard/panels";
+import { EvilBarChart } from "@/components/evilcharts/charts/recharts-bar-chart";
+import type { ChartConfig } from "@/components/evilcharts/ui/recharts-chart";
+import { ChartTooltip, ChartTooltipContent } from "@/components/evilcharts/ui/recharts-tooltip";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -60,7 +63,7 @@ export function OutbreakView({ id, cluster, loadError }: { id: string; cluster: 
 
   if (!cluster) {
     return (
-      <div className="mx-auto w-full max-w-[1500px] p-4">
+      <div className="mx-auto w-full max-w-none p-4">
         {loadError ? <Alert variant="destructive" role="alert"><AlertDescription>{loadError}</AlertDescription></Alert>
           : <Empty className="border"><EmptyDescription>No cases in cluster {id} yet. Paste the case reports above, or <Link href="/outbreak" className="underline">open another cluster</Link>.</EmptyDescription></Empty>}
       </div>
@@ -72,7 +75,7 @@ export function OutbreakView({ id, cluster, loadError }: { id: string; cluster: 
   const states = new Set(cluster.cases.map((c) => c.region));
 
   return (
-    <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-4 px-4 pb-4">
+    <div className="mx-auto flex w-full max-w-none flex-col gap-4 px-4 pb-4">
       <Card>
         <CardHeader>
           <CardTitle>Linked cluster {cluster.id}</CardTitle>
@@ -125,12 +128,46 @@ export function OutbreakView({ id, cluster, loadError }: { id: string; cluster: 
   );
 }
 
+const color = (token: string) => ({ light: [`var(${token})`], dark: [`var(${token})`] });
+const explainedConfig = {
+  source: { label: "Likely source", colors: color("--destructive") },
+  other: { label: "Other lots", colors: color("--chart-3") },
+} satisfies ChartConfig;
+
+/** Cases each lot explains, out of the cluster: the likely source in red, other candidates and the ruled-out decoys (zero) below it. */
+function ExplainedChart({ r, single }: { r: OutbreakResult; single: boolean }) {
+  const rows = [
+    ...r.candidates.slice(0, 5).map((c, i) => ({ lot: c.lot, source: i === 0 && single ? c.cases_explained : 0, other: i === 0 && single ? 0 : c.cases_explained, note: `${c.ingredient} · reached ${c.stores_reached} stores` })),
+    ...(r.decoys ?? []).map((d) => ({ lot: d.lot, source: 0, other: 0, note: `${d.ingredient} · same supplier, no path to a case store` })),
+  ];
+  return (
+    <div className="rounded-xl bg-muted/20 p-3 ring-1 ring-foreground/7">
+      <p className="text-xs text-muted-foreground">Cases each lot explains, of {r.total_cases}</p>
+      <div style={{ height: rows.length * 36 + 48 }}>
+        <EvilBarChart data={rows} config={explainedConfig} layout="horizontal" stackType="stacked" barRadius={6} className="aspect-auto h-full w-full"
+          chartProps={{ margin: { left: 0, right: 12, top: 6, bottom: 0 } }}>
+          <EvilBarChart.Grid />
+          <EvilBarChart.XAxis allowDecimals={false} domain={[0, r.total_cases]} />
+          <EvilBarChart.YAxis dataKey="lot" width={56} className="font-mono" />
+          <ChartTooltip cursor={{ fill: "var(--muted)", opacity: 0.4 }} content={
+            <ChartTooltipContent variant="frosted-glass" hideIndicator labelFormatter={(lot, p) => `${p[0]?.payload.lot ?? lot} · ${p[0]?.payload.note ?? ""}`}
+              formatter={(value) => (Number(value) > 0 ? <span className="font-mono tabular-nums">explains {String(value)} of {r.total_cases} cases</span> : null)} />
+          } />
+          <EvilBarChart.Bar dataKey="source" variant="hatched" glowing />
+          <EvilBarChart.Bar dataKey="other" variant="hatched" />
+        </EvilBarChart>
+      </div>
+    </div>
+  );
+}
+
 function Candidates({ r, selected, onPick }: { r: OutbreakResult; selected?: string; onPick: (lot: string) => void }) {
   const single = r.candidates[0]?.cases_explained === r.total_cases;
   if (!r.candidates.length) return <Alert><AlertDescription>No ingredient lot reaches any case store before the purchase date.</AlertDescription></Alert>;
   return (
     <div className="flex flex-col gap-2">
       {!single && <Alert><AlertDescription>No single lot explains every case. The top two are shown; the coordinator decides whether to open an incident.</AlertDescription></Alert>}
+      <ExplainedChart r={r} single={single} />
       <ol className="flex flex-col gap-2">
         {(single ? r.candidates : r.candidates.slice(0, 2)).map((c, i) => (
           <li key={c.lot} className={cn("rounded-lg border p-3 transition-colors", selected === c.lot && "border-primary", i === 0 && single && "bg-destructive/5")}>

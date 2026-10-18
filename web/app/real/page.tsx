@@ -36,7 +36,7 @@ export default async function Page() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-4 p-4">
+    <div className="mx-auto flex w-full max-w-none flex-col gap-4 p-4">
       <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_28rem]">
         <Card>
           <CardHeader>
