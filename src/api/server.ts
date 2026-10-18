@@ -416,7 +416,8 @@ app.post('/chat', async (c) => {
   return createAgentUIStreamResponse({ agent: await getRecallAgent(), uiMessages: from < 0 ? recent : recent.slice(from), abortSignal: c.req.raw.signal });
 });
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+// Case-insensitive: on Windows the drive letter can differ (e: vs E:) between argv and import.meta.url.
+if (process.argv[1]?.toLowerCase() === fileURLToPath(import.meta.url).toLowerCase()) {
   const port = Number(process.env.PORT ?? 8787);
   serve({ fetch: app.fetch, port }, () => console.log(`API on http://localhost:${port}`));
 }
