@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Sprout Outbreak Demo Plan</title>
-<meta name="description" content="How Recall Tracer's demo uses the live 2026 alfalfa sprout outbreak: the uploaded case report, the lot-code chain across four companies, the coverage gap, and what to build.">
+<meta name="description" content="How Recall Tracer's demo uses the live 2026 alfalfa sprout outbreak: the uploaded case report, the lot code three companies' recalls share, the coverage gap, and what to build.">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Barlow+Condensed:wght@600;700&display=swap">
 <style>
 /* Layout: an incident brief. Sticky nav, one reading column; facts first, then the moment, the script, the build list. */
@@ -102,11 +102,11 @@ footer { margin-top: 56px; padding-top: 14px; border-top: 1px solid var(--line);
 <nav class="toc" aria-label="Sections">
   <a href="#why">Why this outbreak</a>
   <a href="#facts">The verified facts</a>
-  <a href="#chain">One lot, four companies</a>
+  <a href="#chain">One lot, three companies</a>
   <a href="#gap">The gap the graph finds</a>
   <a href="#upload">The upload moment</a>
   <a href="#script">Demo script</a>
-  <a href="#build">What to build</a>
+  <a href="#build">Built and left</a>
   <a href="#honest">What we can and can't claim</a>
   <a href="#backup">Backups</a>
   <a href="#sources">Sources</a>
@@ -116,115 +116,111 @@ footer { margin-top: 56px; padding-top: 14px; border-top: 1px solid var(--line);
 <div class="eyebrow">Recall Tracer · Graph Hacks Track 01 · demo plan · Oct 18, 2026</div>
 <h1>Sprout Outbreak Demo Plan</h1>
 <div class="stripe" aria-hidden="true"></div>
-<p class="lede">Open the demo on an outbreak that is still under investigation. Upload the case report CDC published, and the graph stitches four companies together through one seed lot code and shows which sick people the first recall never reached.</p>
+<p class="lede">Open the demo on an outbreak that is still under investigation. Upload the case report CDC published. The graph finds the one lot code that three companies' recalls share, and shows which states with sick people the first recall of that lot never named.</p>
 
 <h2 id="why">Why this outbreak</h2>
 <ul>
-  <li><b>It is live.</b> CDC and FDA last updated it on October 1, 2026. Judges can open the government pages while we present.</li>
-  <li><b>It is our product's story in real life.</b> One contaminated ingredient lot (alfalfa seed lot SAL2-24JB) moved through a seed supplier, a sprout grower and two seed repackers to people in 16 states.</li>
-  <li><b>The data is already in our graph.</b> The openFDA snapshot loaded into FalkorDB holds the seed supplier's, the grower's and one repacker's recalls. Two of them carry the same lot code.</li>
-  <li><b>It has a real gap.</b> The seed supplier's own recall reaches 6 of the 16 states with cases. The rest were reached only through retail seed packets recalled weeks later.</li>
-  <li><b>It replaces Clover Hill as the opener.</b> Clover Hill showed one missing state. This shows a multi-company chain, a lot code, and nine states, which is the problem Recall Tracer solves.</li>
+  <li><b>It is live.</b> CDC and FDA last updated it on October 1, 2026. Judges can open the government pages themselves.</li>
+  <li><b>It is our product's story in real life.</b> One seed lot, SAL2-24JB, went from a seed supplier to sprout growers, wholesale distributors and two retail seed repackers. People got sick in 16 states.</li>
+  <li><b>The data is in our graph.</b> The openFDA snapshot holds the seed supplier's and one repacker's recalls, both naming SAL2-24JB. The second repacker's recall is an FDA notice not yet in openFDA; we load it from the notice, with its link.</li>
+  <li><b>It has a real gap.</b> The seed supplier's recall named 6 of the 16 states with cases. The other 10 were reached only by retail seed packets, recalled 19 and 31 days later.</li>
+  <li><b>It replaces Clover Hill as the opener.</b> Clover Hill showed one missing state. This shows a lot code joining three companies and ten states the first recall missed.</li>
 </ul>
 <div class="numbers">
   <div><b>76</b><span>people sick, in 16 states</span></div>
   <div><b>6</b><span>hospitalized, no deaths</span></div>
-  <div><b>4</b><span>companies linked by seed lot SAL2-24JB</span></div>
-  <div><b>83 days</b><span>from first illness to first recall</span></div>
-  <div><b>9 of 16</b><span>case states the seed supplier's recall didn't name</span></div>
+  <div><b>3</b><span>companies whose recalls name seed lot SAL2-24JB</span></div>
+  <div><b>84 days</b><span>from first illness to the first recall of the lot</span></div>
+  <div><b>10 of 16</b><span>case states the seed supplier's recall didn't name</span></div>
   <div><b>31 days</b><span>from the supplier's recall to the last repacker's</span></div>
 </div>
 
 <h2 id="facts">The verified facts</h2>
-<p>Every row is a public record. The recall numbers are in the openFDA snapshot loaded into our <code>fda</code> graph; the rest is from the FDA outbreak advisory and CDC's investigation pages.</p>
+<p>Every row is a public record, checked on October 18, 2026 against openFDA, FDA's outbreak advisory and the companies' FDA recall notices.</p>
 <div class="tbl"><table>
 <tr><th>Company</th><th>Role</th><th>Recall</th><th>Lot code</th><th>Where it went</th><th>How we know</th></tr>
 <tr><td>International Sprout Holdings, Inc. <span class="sub">TN</span></td><td>Seed supplier</td><td>H-1341-2026 <span class="sub">Class I · initiated Aug 23, 2026 · 43,799 lb</span></td><td><b>SAL2-24JB</b></td><td>Wholesale to 16 states and Puerto Rico; Canada, Mexico, Tahiti, Venezuela</td><td><span class="tag lot">openFDA lot code</span></td></tr>
-<tr><td>Everything Sprouts, LLC <span class="sub">Minneapolis, MN</span></td><td>Sprout grower</td><td>H-1337 to H-1340-2026 <span class="sub">Class I · Aug 22, 2026 · 4 products</span></td><td>Own lots 222–230</td><td>MN, WI</td><td><span class="tag fda">FDA advisory</span> grown from the same seed lot</td></tr>
-<tr><td>Todd's Seeds LLC <span class="sub">TN</span></td><td>Seed repacker, retail</td><td>H-1404 to H-1409-2026 <span class="sub">Class I · Sep 11, 2026 · 37,481 retail units</span></td><td><b>SAL2-24JB</b></td><td>Nationwide, through Amazon or direct to consumer</td><td><span class="tag lot">openFDA lot code</span></td></tr>
-<tr><td>Berlin Seeds <span class="sub">Millersburg, OH</span></td><td>Seed repacker, retail</td><td>FDA press release, Sep 23, 2026 <span class="sub">950 lb · not yet in our openFDA snapshot</span></td><td><b>SAL2-24JB</b> (5 and 50 lb packs)</td><td>44 states, store and website</td><td><span class="tag fda">FDA advisory</span></td></tr>
+<tr><td>Todd's Seeds LLC <span class="sub">TN</span></td><td>Seed repacker, retail</td><td>H-1404-2026 <span class="sub">Class I · Sep 11, 2026 · one of six Todd's recalls, 37,481 retail units in all</span></td><td><b>SAL2-24JB</b></td><td>Nationwide, through Amazon or direct to consumer</td><td><span class="tag lot">openFDA lot code</span></td></tr>
+<tr><td>Berlin Seeds <span class="sub">Millersburg, OH</span></td><td>Seed repacker, retail</td><td>FDA recall notice, Sep 23, 2026 <span class="sub">950 lb · not in openFDA yet</span></td><td><b>SAL2-24JB</b> on every package label</td><td>44 states, store and website, sold Feb 13 to Aug 23, 2026</td><td><span class="tag fda">FDA recall notice</span></td></tr>
+<tr><td>Everything Sprouts, LLC <span class="sub">Minneapolis, MN</span></td><td>Sprout grower</td><td>H-1337 to H-1340-2026 <span class="sub">Class I · Aug 22, 2026</span></td><td>Own lots 222 to 233; seed lot not stated</td><td>MN, WI</td><td><span class="tag fda">FDA advisory</span> lists the recall, doesn't name the seed lot</td></tr>
 </table></div>
-<p class="muted">Outbreak: STEC <i>E. coli</i> O26:H11, O103:H25, O168:H8 and <i>Salmonella</i> Agona. Illness onsets May 31 to September 7, 2026. Of 50 people interviewed, 35 (70%) reported eating alfalfa sprouts. FDA's advisory does not name the seed supplier; the openFDA record does, through the lot code.</p>
+<p class="muted">Outbreak: STEC <i>E. coli</i> O26:H11, O103:H25, O168:H8 and <i>Salmonella</i> Agona. Illness onsets May 31 to September 7, 2026. Of 50 people interviewed, 40 (80%) ate sprouts and 35 (70%) alfalfa sprouts. FDA's advisory doesn't name the seed supplier; the openFDA record does, through the lot code. Berlin's notice says its supplier traced the seed to a sprout grower in an FDA investigation, without naming the grower, so the demo doesn't link Everything Sprouts to the lot.</p>
 
-<h2 id="chain">One lot, four companies</h2>
-<p>Public recall records are filed company by company. Nothing in openFDA says these recalls belong together. A graph does it in one step: extract the lot code from each recall's code text, make the lot a node, and every recall that names it hangs off that node.</p>
+<h2 id="chain">One lot, three companies</h2>
+<p>Public recall records are filed company by company. Nothing in openFDA says these recalls belong together. The graph does it in one step: read the lot code from each recall's code text, make the lot a node, and every recall that names it hangs off that node. Of 281 lot codes in 2,647 recalls, SAL2-24JB is the only one named by more than one company.</p>
 <div class="diagram">
-<svg viewBox="0 0 900 300" role="img" aria-label="Seed lot SAL2-24JB links the seed supplier, the sprout grower and two seed repackers">
-  <text x="20" y="22" class="head">SEED SUPPLIER</text><text x="330" y="22" class="head">LOT</text><text x="620" y="22" class="head">WHO GOT IT</text>
-  <path class="e-lot" d="M250,150 L330,150"/>
-  <path class="e-lot" d="M520,150 C580,150 580,60 620,60"/>
-  <path class="e-fda" d="M520,150 C580,150 580,150 620,150"/>
-  <path class="e-fda" d="M520,150 C580,150 580,240 620,240"/>
-  <rect class="box firm" x="20" y="110" width="230" height="80" rx="8"/>
-  <text x="34" y="138" font-weight="600">International Sprout Holdings</text>
-  <text x="34" y="158" class="sub">H-1341 · Aug 23 · 43,799 lb</text>
-  <text x="34" y="176" class="sub">16 states + PR, wholesale</text>
-  <rect class="box lot" x="330" y="115" width="190" height="70" rx="8"/>
-  <text x="346" y="143" font-weight="600" font-family="IBM Plex Mono, monospace">SAL2-24JB</text>
-  <text x="346" y="164" class="sub">alfalfa seed lot</text>
-  <rect class="box firm" x="620" y="25" width="260" height="70" rx="8"/>
-  <text x="634" y="52" font-weight="600">Todd's Seeds · repacker</text>
-  <text x="634" y="72" class="sub">H-1404–1409 · Sep 11 · nationwide, Amazon</text>
-  <rect class="box firm" x="620" y="115" width="260" height="70" rx="8"/>
-  <text x="634" y="142" font-weight="600">Everything Sprouts · grower</text>
-  <text x="634" y="162" class="sub">H-1337–1340 · Aug 22 · MN, WI</text>
-  <rect class="box firm" x="620" y="205" width="260" height="70" rx="8"/>
-  <text x="634" y="232" font-weight="600">Berlin Seeds · repacker</text>
-  <text x="634" y="252" class="sub">FDA notice · Sep 23 · 44 states</text>
+<svg viewBox="0 0 900 260" role="img" aria-label="Seed lot SAL2-24JB links the seed supplier and two retail seed repackers">
+  <text x="20" y="22" class="head">SEED SUPPLIER</text><text x="330" y="22" class="head">LOT</text><text x="620" y="22" class="head">RETAIL REPACKERS</text>
+  <path class="e-lot" d="M250,140 L330,140"/>
+  <path class="e-lot" d="M520,140 C580,140 580,80 620,80"/>
+  <path class="e-fda" d="M520,140 C580,140 580,200 620,200"/>
+  <rect class="box firm" x="20" y="100" width="230" height="80" rx="8"/>
+  <text x="34" y="128" font-weight="600">International Sprout Holdings</text>
+  <text x="34" y="148" class="sub">H-1341 · Aug 23 · 43,799 lb</text>
+  <text x="34" y="166" class="sub">16 states + PR, wholesale</text>
+  <rect class="box lot" x="330" y="105" width="190" height="70" rx="8"/>
+  <text x="346" y="133" font-weight="600" font-family="IBM Plex Mono, monospace">SAL2-24JB</text>
+  <text x="346" y="154" class="sub">alfalfa seed lot</text>
+  <rect class="box firm" x="620" y="45" width="260" height="70" rx="8"/>
+  <text x="634" y="72" font-weight="600">Todd's Seeds</text>
+  <text x="634" y="92" class="sub">H-1404 · Sep 11 · nationwide, Amazon</text>
+  <rect class="box firm" x="620" y="165" width="260" height="70" rx="8"/>
+  <text x="634" y="192" font-weight="600">Berlin Seeds</text>
+  <text x="634" y="212" class="sub">FDA notice · Sep 23 · 44 states</text>
 </svg>
-<p class="muted" style="margin:6px 4px 0">Solid green: the recall record itself names lot SAL2-24JB. Dashed blue: the FDA advisory states the link.</p>
+<p class="muted" style="margin:6px 4px 0">Solid green: the openFDA recall record names lot SAL2-24JB. Dashed blue: the FDA recall notice names it; openFDA doesn't carry it yet.</p>
 </div>
 <pre>// FalkorDB: every recall that names the same lot code, across companies
 MATCH (f:Firm)-[:RECALLED]->(r:Recall)-[:NAMES_LOT]->(l:LotCode {code: 'SAL2-24JB'})
 RETURN f.name, r.id, r.initiated, r.distribution ORDER BY r.initiated</pre>
 
 <h2 id="gap">The gap the graph finds</h2>
-<p>Lay the 16 states with cases over where each company's product went:</p>
+<p>The 16 states with cases, by the recall of the lot that first named them:</p>
 <div class="states">
-  <span>Reached by the seed supplier's recall</span><span class="chips"><span class="chip a">FL</span><span class="chip a">MN</span><span class="chip a">NY</span><span class="chip a">OR</span><span class="chip a">PA</span><span class="chip a">SC</span></span>
-  <span>Added by the sprout grower's recall</span><span class="chips"><span class="chip b">WI</span></span>
-  <span>Only through retail seed packets</span><span class="chips"><span class="chip c">IN</span><span class="chip c">IA</span><span class="chip c">KS</span><span class="chip c">MI</span><span class="chip c">NH</span><span class="chip c">NC</span><span class="chip c">ND</span><span class="chip c">SD</span><span class="chip c">WA</span></span>
+  <span>Aug 23 · the seed supplier's recall</span><span class="chips"><span class="chip a">FL</span><span class="chip a">MN</span><span class="chip a">NY</span><span class="chip a">OR</span><span class="chip a">PA</span><span class="chip a">SC</span></span>
+  <span>Sep 11 · Todd's, nationwide</span><span class="chips"><span class="chip c">IA</span><span class="chip c">IN</span><span class="chip c">KS</span><span class="chip c">MI</span><span class="chip c">NC</span><span class="chip c">ND</span><span class="chip c">NH</span><span class="chip c">SD</span><span class="chip c">WA</span><span class="chip c">WI</span></span>
+  <span>Sep 23 · Berlin, 44 states</span><span class="chips muted">all 16 again, none new</span>
 </div>
-<div class="callout gap"><p><b>The finding.</b> Nine of the sixteen states with sick people are not on the seed supplier's shipping list. The lot reached them only through two retail seed repackers, whose recalls came 19 and 31 days after the supplier's. Any other sprout growers who used the lot are not named in public records at all; FDA's advisory says at least one more grower received it.</p></div>
+<div class="callout gap"><p><b>The finding.</b> Ten of the sixteen states with sick people are not on the seed supplier's shipping list. The lot reached them only through retail seed repackers, whose recalls came 19 and 31 days after the supplier's. The sprout growers who got the lot aren't named in public records at all.</p></div>
 <p>This is the honest version of the product's pitch: <b>public records stop at the company</b>. Inside a company, FSMA 204 lot records let the seed supplier list every customer of SAL2-24JB, and each grower list every store, in one query. That is what Recall Tracer does on our demo company.</p>
 
 <h2 id="upload">The upload moment</h2>
-<p>CDC does not publish individual case reports; it publishes the states, the case total and the onset window. The demo uploads exactly that, as a CSV a health department or a journalist could build from CDC's page:</p>
+<p>CDC doesn't publish individual case reports; it publishes the states, the case total and the onset window. The demo uploads exactly that, as a CSV anyone could build from CDC's page. The file is in the repo at <code>web/public/samples/cdc-alfalfa-sprouts-2026.csv</code> and downloadable from the card.</p>
 <pre>outbreak,pathogen,state,onset_from,onset_to,source
-OB-SPROUTS-2026-08,"STEC E. coli + Salmonella Agona",FL,2026-05-31,2026-09-07,cdc.gov/ecoli/outbreaks/alfalfa-sprouts-08-26
-OB-SPROUTS-2026-08,"STEC E. coli + Salmonella Agona",IN,2026-05-31,2026-09-07,cdc.gov/ecoli/outbreaks/alfalfa-sprouts-08-26
+OB-SPROUTS-2026-08,"STEC E. coli + Salmonella Agona",FL,2026-05-31,2026-09-07,https://www.cdc.gov/ecoli/outbreaks/alfalfa-sprouts-08-26/index.html
 … one row per state: FL IN IA KS MI MN NH NY NC ND OR PA SC SD WA WI</pre>
-<p>What happens on screen after the upload, in about two seconds and with no agent call:</p>
+<p>On the outbreak page, the <b>Public case report</b> card, about a second after the upload and with no agent call:</p>
 <ol>
-  <li><b>Candidate recalls.</b> Recalls of the right hazard (STEC or Salmonella) initiated in or after the onset window, ranked by how many case states their distribution reaches. The four sprout and seed recalls rise to the top.</li>
-  <li><b>The lot chain.</b> The graph finds that two of them name the same lot, SAL2-24JB, and draws the four-company chain above.</li>
-  <li><b>The coverage map.</b> Case states coloured by which recall reaches them: seed supplier, grower, retail only. The nine retail-only states stand out.</li>
-  <li><b>The timeline.</b> First illness May 31 · grower recall Aug 22 · seed lot recall Aug 23 · Todd's Sep 11 · Berlin Sep 23.</li>
+  <li><b>The haystack.</b> 83 recalls from 28 firms name these pathogens since the first illness. Six firms' recalls reach all 16 case states, so where a recall went can't single out a source.</li>
+  <li><b>The lot.</b> 10 lot codes in their records; one, SAL2-24JB, is named by three different firms. The chain draws: case report, lot, and the three recalls.</li>
+  <li><b>The coverage.</b> The first recall of the lot named 6 of 16 case states; the other 10 only by later recalls, up to 19 days later.</li>
+  <li><b>The timeline.</b> First illness May 31 · seed supplier Aug 23 · Todd's Sep 11 · Berlin Sep 23. 84 days to the first recall of the lot, 31 more until the last.</li>
+  <li><b>The queries.</b> Two FalkorDB queries, about 20 to 50 ms, shown under the result.</li>
 </ol>
-<p>The chat agent can then answer follow-ups on the same records, for example "Which companies recalled seed lot SAL2-24JB, and which case states did the supplier's recall miss?", citing recall numbers.</p>
 
 <h2 id="script">Demo script</h2>
 <p>This outbreak opens the team's single demo script: <a href="../demo/index.html#show">Run of show, 3:00</a>. The opening there is the cold open, the upload and the gap shown on this page, about 40 seconds before the demo company.</p>
 
-<h2 id="build">What to build</h2>
+<h2 id="build">Built and left</h2>
+<p>Built on branch <code>dev-d/sprout-upload</code> and tested against the real data.</p>
 <div class="tbl"><table>
-<tr><th></th><th>Item</th><th>Work</th><th>Owner</th><th class="num">Effort</th></tr>
-<tr><td><span class="tag p0">P0</span></td><td>Lot codes as graph nodes</td><td>In the real-data loader, read lot codes from each recall's code text (patterns like "Lot No:", "Lot #") and link <code>(Recall)-[:NAMES_LOT]-&gt;(LotCode)</code>. SAL2-24JB then joins H-1341 and H-1404 with no hand-made link.</td><td>Dev A</td><td class="num">1.5 h</td></tr>
-<tr><td><span class="tag p0">P0</span></td><td>The sprout outbreak and FDA's stated links</td><td>Add the outbreak (76 cases, 6 hospitalized, 16 states, onsets May 31 to Sep 7) to <code>outbreaks.json</code>, and the two links FDA's advisory states (Everything Sprouts grown from the lot; Berlin Seeds repacked it), each with its source URL.</td><td>Dev A</td><td class="num">45 min</td></tr>
-<tr><td><span class="tag p0">P0</span></td><td>Public case-report check</td><td>A read-only route: take the uploaded states and onset window, rank recalls of the matching hazard by case states reached, return lot-code chains among the top recalls, and the coverage of each case state. Test it against the sprout outbreak's expected result (6 / 1 / 9).</td><td>Dev A, Dev B</td><td class="num">2 h</td></tr>
-<tr><td><span class="tag p0">P0</span></td><td>Upload on the outbreak page</td><td>"Upload a public case report": the CSV above, then the ranked recalls, the lot chain diagram (the source-map component), the coverage chips and the timeline.</td><td>Dev C, Dev D</td><td class="num">3 h</td></tr>
-<tr><td><span class="tag p1">P1</span></td><td>Refresh openFDA</td><td>Rerun the loader with <code>--fetch</code> just before recording; if Berlin Seeds' recall has reached openFDA, it joins by lot code instead of by FDA's statement.</td><td>Dev A</td><td class="num">10 min</td></tr>
-<tr><td><span class="tag p1">P1</span></td><td>Chat agent question</td><td>Give the chat agent a read-only tool over the public graph so "which companies recalled lot SAL2-24JB?" is answered from our records, not only from a live openFDA search.</td><td>Dev B</td><td class="num">1 h</td></tr>
-<tr><td><span class="tag p1">P1</span></td><td>Update the deck</td><td>New opening slides from this page; replace the Clover Hill cold open.</td><td>Dev D</td><td class="num">45 min</td></tr>
+<tr><th></th><th>Item</th><th>What it does</th><th>Owner</th></tr>
+<tr><td><span class="tag lot">Built</span></td><td>Lot codes as graph nodes</td><td>The real-data loader reads lot codes from each recall's code text and links <code>(Recall)-[:NAMES_LOT]-&gt;(LotCode)</code>. Bare numbers like "Lot 222" are skipped, so firms' own run numbers don't join unrelated recalls.</td><td>Dev D</td></tr>
+<tr><td><span class="tag lot">Built</span></td><td>FDA notices not in openFDA</td><td>Berlin Seeds' notice is in <code>data/real/outbreaks.json</code> under <code>notices</code>, loaded as a recall with its source link.</td><td>Dev D</td></tr>
+<tr><td><span class="tag lot">Built</span></td><td>Case-report check</td><td><code>POST /real/case-report</code>: matching recalls, shared lot codes, and which case states each recall reached, in date order. Tested: lot SAL2-24JB, 6 then 10, none left.</td><td>Dev D</td></tr>
+<tr><td><span class="tag lot">Built</span></td><td>Upload on the outbreak page</td><td>The Public case report card: drop or choose a CSV, then the result above. The Records page's source map shows the new lot-code records.</td><td>Dev D</td></tr>
+<tr><td><span class="tag p1">Left</span></td><td>Refresh openFDA</td><td>Run <code>bun run real --fetch</code> the morning of recording. If Berlin's recall has reached openFDA, remove its entry from <code>notices</code>.</td><td>Dev A</td></tr>
+<tr><td><span class="tag p1">Left</span></td><td>Chat agent question</td><td>A read-only tool over the public graph, so "which companies recalled lot SAL2-24JB?" is answered from our records.</td><td>Dev B</td></tr>
+<tr><td><span class="tag p1">Left</span></td><td>Update the deck</td><td>New opening slides from this page; replace the Clover Hill cold open.</td><td>Dev D</td></tr>
 </table></div>
-<p>The P0 items fit in one working day across the team. If time runs short, the minimum demo is the lot-code nodes plus the coverage check shown on the real-data page, without the upload control.</p>
 
 <h2 id="honest">What we can and can't claim</h2>
-<div class="callout safe"><p><b>Can say.</b> Two openFDA recalls from different companies name lot SAL2-24JB. The FDA advisory links the grower and a second repacker to the same lot. The seed supplier's distribution list covers 6 of the 16 case states. The dates and counts are as published.</p></div>
+<div class="callout safe"><p><b>Can say.</b> Three companies' recalls name lot SAL2-24JB: two in openFDA, one in an FDA recall notice. The seed supplier's distribution list covers 6 of the 16 case states; the repackers' recalls cover the rest. The dates and counts are as published.</p></div>
 <div class="callout"><p><b>Can't say.</b></p>
 <ul>
   <li>That Recall Tracer would have found the source earlier. The recall records we join only exist because the investigation produced them.</li>
   <li>That a case in a given state came from a given company. CDC publishes states, not case-level purchases.</li>
+  <li>That Everything Sprouts used lot SAL2-24JB. FDA lists its recall in the advisory, but no public record names the seed lot it used.</li>
   <li>That FDA named International Sprout Holdings. FDA's advisory does not; the openFDA recall record carries the lot code.</li>
   <li>Hospitalization or death counts other than FDA's: 6 hospitalized, no deaths, as of October 1, 2026.</li>
 </ul></div>
@@ -232,7 +228,7 @@ OB-SPROUTS-2026-08,"STEC E. coli + Salmonella Agona",IN,2026-05-31,2026-09-07,cd
 
 <h2 id="backup">Backups</h2>
 <ul>
-  <li><b>The upload control isn't built in time.</b> Show the same result on the real-data page, with the Cypher, and say "uploaded case report" as a voice line only.</li>
+  <li><b>The upload fails on the day.</b> Run the two queries from "Show the queries" in FalkorDB Browser instead.</li>
   <li><b>CDC or FDA updates the numbers before recording.</b> Re-scrape the two pages and the openFDA data the morning of the recording; the script's numbers come from those, not from this page.</li>
   <li><b>openFDA is unreachable.</b> The snapshot in <code>data/real</code> already holds everything the opener needs.</li>
   <li><b>Clover Hill remains a fallback opener.</b> It is loaded and working today.</li>

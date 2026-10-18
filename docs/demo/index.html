@@ -129,7 +129,7 @@ footer { margin-top: 56px; padding-top: 14px; border-top: 1px solid var(--line);
 <h2 id="wins">Six moments that win</h2>
 <p>Most entries will show an agent calling a graph tool. These six moments are what make ours different. Each one appears in the video and is easy to say in one line.</p>
 <div class="wins">
-  <div class="win"><span class="tag real">Real data</span><h3>1. The gap is real</h3><p>Upload CDC's case report for the live 2026 alfalfa sprout outbreak. The graph links four companies' recalls through one seed lot, SAL2-24JB, and shows 9 of 16 case states the seed supplier's recall never named.</p><p class="when">0:00 · Outbreak page, upload</p></div>
+  <div class="win"><span class="tag real">Real data</span><h3>1. The gap is real</h3><p>Upload CDC's case report for the live 2026 alfalfa sprout outbreak. Of 83 matching recalls, the graph finds the one lot code three companies share, SAL2-24JB, and shows 10 of 16 case states the seed supplier's recall never named.</p><p class="when">0:00 · Outbreak page, upload</p></div>
   <div class="win"><span class="tag wow">Multi-hop</span><h3>2. From symptoms to source</h3><p>Six sick people, no lot named. The agent walks each case backward through deliveries, batches and rework, and one lot explains all six. A decoy lot, the same carrot from the same supplier, explains none.</p><p class="when">0:55 · Outbreak page</p></div>
   <div class="win"><span class="tag wow">Proof of safety</span><h3>3. Clearing stores, not just flagging them</h3><p>The agent proves 38 stores are clear by walking every lot they hold back to its ingredients. Stores with no lot code on a delivery are pulled, with the reason.</p><p class="when">1:45 · Live trace</p></div>
   <div class="win"><span class="tag judge">Agent acts</span><h3>4. The graph is written, and the human decides</h3><p>The agent places a hold and writes the incident to FalkorDB. Its two judgements, the hazard class and the gap policy, are labelled as proposals. The coordinator confirms, and nothing is ever sent.</p><p class="when">1:20 and 2:15</p></div>
@@ -155,8 +155,8 @@ footer { margin-top: 56px; padding-top: 14px; border-top: 1px solid var(--line);
   <p class="where">Outbreak page, "Upload a public case report", on graph <code>fda</code>: 2,646 real food recalls since 2025.</p>
   <dl>
     <dt>Do</dt><dd>Drop the CSV: one row per case state, the pathogens and the onset window, May 31 to September 7.</dd>
-    <dt>Show</dt><dd>Matching recalls rank by case states reached. Two of them name the same seed lot, <b>SAL2-24JB</b>, and the chain draws: International Sprout Holdings, then Everything Sprouts, Todd's Seeds and Berlin Seeds.</dd>
-    <dt>Caption</dt><dd><span class="cap">Real FDA recalls. Two name the same seed lot. The graph connects four companies.</span></dd>
+    <dt>Show</dt><dd>83 recalls from 28 firms match the pathogens and dates; six reach all 16 states, so reach alone can't pick one. Of the 10 lot codes in them, one is named by three firms: <b>SAL2-24JB</b>. The chain draws: International Sprout Holdings, Todd's Seeds and Berlin Seeds.</dd>
+    <dt>Caption</dt><dd><span class="cap">83 real recalls match. One lot code links three companies.</span></dd>
     <dt>Say</dt><dd class="say">"Recalls are filed company by company. Nothing in the public records says these belong together. One graph query does."</dd>
   </dl>
 <pre>MATCH (f:Firm)-[:RECALLED]->(r:Recall)-[:NAMES_LOT]->(l:LotCode {code: 'SAL2-24JB'})
@@ -166,7 +166,7 @@ RETURN f.name, r.id, r.initiated, r.distribution ORDER BY r.initiated</pre>
 <div class="shot"><div class="t">0:30<small>10 s</small></div><div class="b">
   <h3>The gap <span class="tag real">Real data</span></h3>
   <dl>
-    <dt>Show</dt><dd>The coverage chips: 6 case states via the seed supplier, 1 via the grower, 9 only via retail seed packets recalled 19 and 31 days later.</dd>
+    <dt>Show</dt><dd>The coverage chips: 6 case states in the seed supplier's recall, the other 10 only in retail seed repackers' recalls, 19 and 31 days later.</dd>
     <dt>Caption</dt><dd><span class="cap">The supplier's recall reached 6 of 16 states with sick people.</span></dd>
   </dl>
 </div></div>
@@ -275,7 +275,7 @@ RETURN f.name, r.id, r.initiated, r.distribution ORDER BY r.initiated</pre>
 <tr><td>Tool selection through MCP</td><td>The agent lists tools from our MCP server, plus the Claude Code shot</td><td>"The agent only sees the graph through MCP."</td></tr>
 <tr><td>Actions based on what the graph shows</td><td>Hold, incident record, drafted notices, CSV</td><td>"It writes the hold into the graph before anything else."</td></tr>
 <tr><td>Explainable results</td><td>Evidence drawer, judgement cards, replay timeline</td><td>"Every store has a reason, and every step can be replayed."</td></tr>
-<tr><td>Sponsor fit, FalkorDB</td><td>The lot-code chain across four real companies, the Records page's two graphs in one instance, millisecond timings</td><td>"Real recalls and our demo company in one FalkorDB, side by side."</td></tr>
+<tr><td>Sponsor fit, FalkorDB</td><td>The lot code joining three real companies, the Records page's two graphs in one instance, millisecond timings</td><td>"Real recalls and our demo company in one FalkorDB, side by side."</td></tr>
 </table></div>
 
 <h2 id="setup">Recording checklist</h2>

@@ -1,4 +1,5 @@
 import { apiOrNull, ApiError } from "@/lib/api";
+import { CaseReportCard } from "./case-report";
 import { OutbreakView, type ClusterDetail } from "./outbreak-view";
 import { PasteCases } from "./paste-cases";
 import { RealWorld } from "./real-world";
@@ -29,7 +30,7 @@ export default async function Page({ searchParams }: PageProps<"/outbreak">) {
       <div className="mx-auto w-full max-w-[1500px] p-4"><PasteCases id={id} example={EXAMPLE_CLUSTER} /></div>
       {/* A new cluster, or new cases in it, gets a fresh view: no result or selection carries over. */}
       <OutbreakView key={`${id}:${cluster?.cases.length ?? 0}`} id={id} cluster={cluster} loadError={error} />
-      <div className="mx-auto w-full max-w-[1500px] px-4 pb-4"><RealWorld /></div>
+      <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-4 px-4 pb-4"><CaseReportCard /><RealWorld /></div>
     </>
   );
 }
