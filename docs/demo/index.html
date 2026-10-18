@@ -219,7 +219,7 @@ RETURN f.name, r.id, r.initiated, r.distribution ORDER BY r.initiated</pre>
       <span class="cap">Betweenness finds the biggest spread point: batch B-03.</span><br>
       <span class="cap">2 deliveries had no lot code. They can't be cleared, so they're pulled.</span><br>
       <span class="cap">38 stores cleared by walking every lot back to its ingredients.</span><br>
-      <span class="cap">23 queries. 22 ms in FalkorDB.</span></dd>
+      <span class="cap">23 queries. About 20 ms in FalkorDB.</span></dd>
     <dt>Say</dt><dd class="say">"Claude chooses the tools and explains. The graph decides what's affected. Claude never decides a store is safe on its own."</dd>
   </dl>
 </div></div>
@@ -280,7 +280,7 @@ RETURN f.name, r.id, r.initiated, r.distribution ORDER BY r.initiated</pre>
 
 <h2 id="setup">Recording checklist</h2>
 <ul class="check">
-  <li><label><input type="checkbox" id="c1"> Reseed both graphs: <code>bun run generate --seed 42 --reset</code> and <code>bun run real</code>. Then do two live L-204 runs, and record the second: the first run after a reseed is slower in FalkorDB (127 ms against 22 ms in testing). Put the number the investigation log shows into the caption.</label></li>
+  <li><label><input type="checkbox" id="c1"> Reseed both graphs: <code>bun run generate --seed 42 --reset</code> and <code>bun run real</code>. Then do one live L-204 run, so the incident exists and the latest run is recorded. FalkorDB's time varies between runs (19 to 127 ms in testing): put the number the investigation log shows into the caption.</label></li>
   <li><label><input type="checkbox" id="c2"> Use the production build (<code>bun run build</code>, then start), so the Next.js dev badge isn't in the corner.</label></li>
   <li><label><input type="checkbox" id="c3"> Browser at 1440 by 900, zoom 110%, dark theme, bookmarks bar hidden. Turn on cursor highlighting.</label></li>
   <li><label><input type="checkbox" id="c4"> Load every page once before recording, so nothing compiles on camera.</label></li>
