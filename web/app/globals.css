@@ -150,3 +150,22 @@ body *::-webkit-scrollbar {
 .rail {
   background: repeating-linear-gradient(135deg, var(--rail-a) 0 12px, var(--rail-b) 12px 24px);
 }
+
+/* The footer's logistics graphic (components/site-footer.tsx): trucks drive the road, the red trace runs supplier to store
+   and each stop pings as it arrives (the trace takes 8 s of a 10 s loop), smoke drifts, the traced lot pulses. */
+@keyframes footer-drive { from { transform: translateX(-100px); } to { transform: translateX(1640px); } }
+@keyframes footer-trace { 0% { stroke-dashoffset: 1; opacity: 1; } 80% { stroke-dashoffset: 0; opacity: 1; } 100% { stroke-dashoffset: 0; opacity: 0; } }
+@keyframes footer-ping { 0% { transform: scale(1); opacity: 0.7; } 15% { transform: scale(4); opacity: 0; } 100% { opacity: 0; } }
+@keyframes footer-smoke { 0% { opacity: 0; transform: translateY(6px); } 40% { opacity: 1; } 100% { opacity: 0; transform: translateY(-14px); } }
+@keyframes footer-pulse { 50% { opacity: 0.35; } }
+.footer-truck { animation: footer-drive 24s linear infinite; }
+.footer-trace { stroke-dasharray: 1; animation: footer-trace 10s linear infinite; }
+.footer-ping { opacity: 0; transform-box: fill-box; transform-origin: center; animation: footer-ping 10s ease-out infinite; }
+.footer-smoke { animation: footer-smoke 3s ease-out infinite; transform-box: fill-box; }
+.footer-lot { animation: footer-pulse 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .footer-truck, .footer-smoke, .footer-lot, .footer-ping, .footer-trace { animation: none; }
+  .footer-trace { stroke-dashoffset: 0; }
+  .footer-truck { transform: translateX(300px); }
+  .footer-truck + .footer-truck { transform: translateX(1150px); }
+}
