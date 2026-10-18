@@ -105,7 +105,7 @@ footer { margin-top: 56px; padding-top: 14px; border-top: 1px solid var(--line);
   <a href="#chain">One lot, four companies</a>
   <a href="#gap">The gap the graph finds</a>
   <a href="#upload">The upload moment</a>
-  <a href="#script">Demo script, 3:00</a>
+  <a href="#script">Demo script</a>
   <a href="#build">What to build</a>
   <a href="#honest">What we can and can't claim</a>
   <a href="#backup">Backups</a>
@@ -203,47 +203,8 @@ OB-SPROUTS-2026-08,"STEC E. coli + Salmonella Agona",IN,2026-05-31,2026-09-07,cd
 </ol>
 <p>The chat agent can then answer follow-ups on the same records, for example "Which companies recalled seed lot SAL2-24JB, and which case states did the supplier's recall miss?", citing recall numbers.</p>
 
-<h2 id="script">Demo script, 3:00</h2>
-<p>The real outbreak opens the demo and sets up the problem; the demo company then shows what lot-level records make possible. Captions carry the story; voice-over is optional.</p>
-<div class="show">
-  <div class="shot"><div class="t">0:00<small>15 s</small></div><div class="b">
-    <h3>Cold open: an outbreak happening now</h3>
-    <p>CDC's map for the alfalfa sprout outbreak, updated October 1, 2026.</p>
-    <p><span class="cap">76 people sick in 16 states. Still under investigation.</span></p>
-  </div></div>
-  <div class="shot"><div class="t">0:15<small>25 s</small></div><div class="b">
-    <h3>Upload the CDC case report</h3>
-    <p>Drop the CSV on the outbreak page. Candidate recalls rank, then the graph links two of them by lot code and draws the four companies around seed lot SAL2-24JB.</p>
-    <p><span class="cap">2,646 real FDA recalls. Two name the same seed lot. The graph connects four companies.</span></p>
-  </div></div>
-  <div class="shot"><div class="t">0:40<small>20 s</small></div><div class="b">
-    <h3>The gap</h3>
-    <p>The coverage map: 6 states via the seed supplier, 1 via the grower, 9 only via retail seed packets recalled 19 and 31 days later.</p>
-    <p><span class="cap">The supplier's recall reached 6 of 16 states with sick people.</span><br><span class="cap">Public records stop at the company. Inside one, they don't have to.</span></p>
-  </div></div>
-  <div class="shot"><div class="t">1:00<small>15 s</small></div><div class="b">
-    <h3>Into a company's own records</h3>
-    <p>Switch to Northfield Foods. Find the source on its illness cluster: L-204 explains 6 of 6, the same-supplier decoy L-205 is ruled out.</p>
-    <p><span class="cap">With lot-level records, one query finds the lot.</span></p>
-  </div></div>
-  <div class="shot"><div class="t">1:15<small>45 s</small></div><div class="b">
-    <h3>The agent works the recall</h3>
-    <p>Open the incident; the trace streams: hold, trace to stores, biggest spread point B-03 (betweenness), missing lot codes, scope, cleared stores verified.</p>
-    <p><span class="cap">33 of 71 stores pull. 38 proven clear. 23 graph queries, 22 ms in FalkorDB.</span></p>
-  </div></div>
-  <div class="shot"><div class="t">2:00<small>30 s</small></div><div class="b">
-    <h3>Evidence and the human decision</h3>
-    <p>Open a store's evidence chain, then confirm the class and approve the notices.</p>
-  </div></div>
-  <div class="shot"><div class="t">2:30<small>20 s</small></div><div class="b">
-    <h3>Memory and replay</h3>
-    <p>Rewind the trace to the backward check. Then open a second lot from the same supplier: the agent starts from the lessons the first incident saved.</p>
-  </div></div>
-  <div class="shot"><div class="t">2:50<small>10 s</small></div><div class="b">
-    <h3>Close</h3>
-    <p><span class="cap">Sprout seed: 83 days to the first recall, 31 more until the last. Recall Tracer: minutes, with proof for every store.</span></p>
-  </div></div>
-</div>
+<h2 id="script">Demo script</h2>
+<p>This outbreak opens the team's single demo script: <a href="../demo/index.html#show">Run of show, 3:00</a>. The opening there is the cold open, the upload and the gap shown on this page, about 40 seconds before the demo company.</p>
 
 <h2 id="build">What to build</h2>
 <div class="tbl"><table>
@@ -254,7 +215,7 @@ OB-SPROUTS-2026-08,"STEC E. coli + Salmonella Agona",IN,2026-05-31,2026-09-07,cd
 <tr><td><span class="tag p0">P0</span></td><td>Upload on the outbreak page</td><td>"Upload a public case report": the CSV above, then the ranked recalls, the lot chain diagram (the source-map component), the coverage chips and the timeline.</td><td>Dev C, Dev D</td><td class="num">3 h</td></tr>
 <tr><td><span class="tag p1">P1</span></td><td>Refresh openFDA</td><td>Rerun the loader with <code>--fetch</code> just before recording; if Berlin Seeds' recall has reached openFDA, it joins by lot code instead of by FDA's statement.</td><td>Dev A</td><td class="num">10 min</td></tr>
 <tr><td><span class="tag p1">P1</span></td><td>Chat agent question</td><td>Give the chat agent a read-only tool over the public graph so "which companies recalled lot SAL2-24JB?" is answered from our records, not only from a live openFDA search.</td><td>Dev B</td><td class="num">1 h</td></tr>
-<tr><td><span class="tag p1">P1</span></td><td>Update the deck and demo script</td><td>New opening slides from this page; replace the Clover Hill cold open.</td><td>Dev D</td><td class="num">45 min</td></tr>
+<tr><td><span class="tag p1">P1</span></td><td>Update the deck</td><td>New opening slides from this page; replace the Clover Hill cold open.</td><td>Dev D</td><td class="num">45 min</td></tr>
 </table></div>
 <p>The P0 items fit in one working day across the team. If time runs short, the minimum demo is the lot-code nodes plus the coverage check shown on the real-data page, without the upload control.</p>
 
