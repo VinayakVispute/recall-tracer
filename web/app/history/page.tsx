@@ -6,7 +6,9 @@ import { Empty, EmptyDescription } from "@/components/ui/empty";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { api, ApiError } from "@/lib/api";
 
-const STATUS: Record<IncidentSummary["status"], string> = { open: "Open", scoped: "Scoped", notices_approved: "Notices approved" };
+export const metadata = { title: "History" };
+
+const STATUS: Record<IncidentSummary["status"], string> = { open: "Tracing", scoped: "Scope decided", notices_approved: "Notices approved" };
 // The date part only: a server in UTC and a coordinator elsewhere agree on it. (panels.tsx is a client module, so its helpers are not callable here.)
 const scopeIn = (m: number) => (m < 1 ? `${Math.round(m * 60)} s` : m < 60 ? `${Math.round(m)} min` : `${Math.floor(m / 60)} h ${Math.round(m % 60)} min`);
 const day = (iso: string) => new Date(`${iso.slice(0, 10)}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
@@ -22,7 +24,7 @@ export default async function Page() {
       <Card>
         <CardHeader>
           <CardTitle>Incident history</CardTitle>
-          <CardDescription>Every incident is an Incident node in the graph, so the next notice on the same supplier knows about it.</CardDescription>
+          <CardDescription>Every incident is saved, so the next notice from the same supplier starts with what this one learned.</CardDescription>
         </CardHeader>
         <CardContent className="overflow-x-auto">
           {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : incidents.length ? (
@@ -52,7 +54,7 @@ export default async function Page() {
         <Card size="sm">
           <CardHeader>
             <CardTitle>By supplier</CardTitle>
-            <CardDescription>Read through CONCERNS and SUPPLIED. The supplier notice page shows this count when the same supplier comes up again.</CardDescription>
+            <CardDescription>How many incidents each supplier has had. The supplier notice shows this when the same supplier comes up again.</CardDescription>
           </CardHeader>
           <CardContent>
             <ul className="flex flex-wrap gap-2">

@@ -2,6 +2,8 @@ import type { IncidentReport, IncidentSummary } from "@server/tools/incident";
 import { api, apiOrNull, ApiError, LOT_RE } from "@/lib/api";
 import { NoticeForm, type Epi, type LotFacts } from "./notice-form";
 
+export const metadata = { title: "Supplier notice" };
+
 const one = (v: string | string[] | undefined) => (typeof v === "string" ? v : undefined);
 
 /** Page 2. The lot code lives in the URL, so a reload or a handoff from the outbreak page lands on the same facts. */

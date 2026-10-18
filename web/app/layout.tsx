@@ -17,8 +17,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Recall Tracer",
-  description: "Recall incident dashboard and agent chat",
+  title: { template: "%s · Recall Tracer", default: "Recall Tracer" },
+  description: "Traces a contaminated ingredient lot to every store, proves which stores are clear, and drafts the recall for the coordinator to approve.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

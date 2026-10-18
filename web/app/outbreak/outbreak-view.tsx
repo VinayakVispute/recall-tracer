@@ -110,7 +110,7 @@ export function OutbreakView({ id, cluster, loadError }: { id: string; cluster: 
           <Card aria-busy={running}>
             <CardHeader>
               <CardTitle>Candidate lots</CardTitle>
-              <CardDescription>Ranked by cases explained, then specificity. Click a lot to see which cases it explains.</CardDescription>
+              <CardDescription>Ranked by how many sick people each lot explains. Click a lot to see which cases.</CardDescription>
             </CardHeader>
             <CardContent>
               {result ? <Candidates r={result} selected={lot} onPick={setLot} />
@@ -142,11 +142,24 @@ function Candidates({ r, selected, onPick }: { r: OutbreakResult; selected?: str
               {selected === c.lot && <Handoff r={r} c={c} primary={i === 0 && single} />}
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
-              explains <b className="text-foreground">{c.cases_explained} of {r.total_cases}</b>{c.explained.length < r.total_cases && ` (${c.explained.join(", ")})`} · reached {c.stores_reached} stores · specificity {c.specificity.toFixed(2)}
+              explains <b className="text-foreground">{c.cases_explained} of {r.total_cases}</b>{c.explained.length < r.total_cases && ` (${c.explained.join(", ")})`} · reached {c.stores_reached} stores
             </p>
             <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden="true">
               <div className="h-full bg-destructive" style={{ width: `${(c.cases_explained / r.total_cases) * 100}%` }} />
             </div>
+          </li>
+        ))}
+        {/* What a keyword search would also flag: the same ingredient from the same supplier, which reaches none of the case stores. */}
+        {(r.decoys ?? []).map((d) => (
+          <li key={d.lot} className="rounded-lg border border-dashed p-3 opacity-80">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-sm font-medium">
+              <span><span className="font-mono text-muted-foreground line-through decoration-1">{d.lot}</span> {d.ingredient} · {d.supplier_name}</span>
+              <Badge variant="outline">ruled out</Badge>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              explains <b className="text-foreground">0 of {r.total_cases}</b> · the same {d.ingredient} from the same supplier as {r.candidates[0]?.lot}, but no delivery path reaches any case store
+            </p>
+            <div className="mt-2 h-1.5 rounded-full border border-dashed" aria-hidden="true" />
           </li>
         ))}
       </ol>

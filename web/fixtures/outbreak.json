@@ -143,5 +143,13 @@
       ]
     ]
   },
-  "summary": "L-204 (diced carrot, Valley Root Co.) explains 6 of 6 cases and reached 31 stores. Runner-up L-162 explains 4."
+  "summary": "L-204 (diced carrot, Valley Root Co.) explains 6 of 6 cases and reached 31 stores. Runner-up L-162 explains 4.",
+  "decoys": [
+    {
+      "lot": "L-205",
+      "ingredient": "diced carrot",
+      "supplier_name": "Valley Root Co.",
+      "received_at": "2026-09-24"
+    }
+  ]
 }

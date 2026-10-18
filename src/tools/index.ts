@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { query } from '../graph/db.js';
-import { TRACE_FORWARD, COVERAGE_GAPS, SKU_RECIPIENTS, STORES, TRACE_BACKWARD, RAW_ON_HAND, FINISHED_ON_HAND, HOLD_RAW, HOLD_FINISHED, INCIDENT_CLASSIFY, FIND_COMMON_SOURCE, CLUSTER_CASES, CASES_EXIST, CASE_PATH, INCIDENT_SCOPED, CHOKEPOINTS, LOT_INFO, MEMORY_READ, MEMORY_CLEAR, MEMORY_WRITE } from '../graph/queries.js';
+import { TRACE_FORWARD, COVERAGE_GAPS, SKU_RECIPIENTS, STORES, TRACE_BACKWARD, RAW_ON_HAND, FINISHED_ON_HAND, HOLD_RAW, HOLD_FINISHED, INCIDENT_CLASSIFY, FIND_COMMON_SOURCE, SAME_SOURCE_LOTS, CLUSTER_CASES, CASES_EXIST, CASE_PATH, INCIDENT_SCOPED, CHOKEPOINTS, LOT_INFO, MEMORY_READ, MEMORY_CLEAR, MEMORY_WRITE } from '../graph/queries.js';
 import type { Candidate, OutbreakResult } from '../contracts.js';
 
 // --- Schemas (shared by the MCP server) ------------------------------------
@@ -214,13 +214,18 @@ export async function findCommonSource({ cluster }: { cluster: string }): Promis
   if (!cases.length) throw new Error(`no cases in cluster ${cluster}`);
   const candidates = (await query<Candidate>(FIND_COMMON_SOURCE, { cluster })).map((c) => ({ ...c, explained: c.explained.sort() }));
   const [top, next] = candidates;
-  const { paths } = top ? await casePath({ lot: top.lot, cases: top.explained }) : { paths: {} };
+  const [{ paths }, decoys] = top
+    ? await Promise.all([
+      casePath({ lot: top.lot, cases: top.explained }),
+      query<NonNullable<OutbreakResult['decoys']>[number]>(SAME_SOURCE_LOTS, { lot: top.lot, ranked: candidates.map((c) => c.lot) }),
+    ])
+    : [{ paths: {} }, []];
   const all = top?.cases_explained === cases.length;
   const summary = !top ? `No lot explains any of the ${cases.length} cases.`
     : `${top.lot} (${top.ingredient}, ${top.supplier_name}) explains ${top.cases_explained} of ${cases.length} cases and reached ${top.stores_reached} stores.`
       + (next ? ` Runner-up ${next.lot} explains ${next.cases_explained}.` : '')
       + (all ? '' : ' No lot explains every case.');
-  return { cluster, total_cases: cases.length, candidates, paths, summary };
+  return { cluster, total_cases: cases.length, candidates, paths, decoys, summary };
 }
 
 /** Graph algorithm: the batches and product lots most supply paths run through, among those this lot reached. */

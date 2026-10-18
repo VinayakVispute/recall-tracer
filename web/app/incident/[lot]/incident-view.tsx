@@ -8,16 +8,16 @@ import type { IncidentReport, Incident } from "@server/tools/incident";
 import type { Notice } from "@server/tools/index";
 import { UnitsFlow } from "@/components/dashboard/units-flow";
 import { StateBars, Exposure } from "@/components/dashboard/state-exposure";
-import { ScopeTable } from "@/components/dashboard/scope-table";
+import { ScopeTable, type ScopeFilter } from "@/components/dashboard/scope-table";
 import { NetworkGraph } from "@/components/dashboard/record-network";
 import { Play } from "lucide-react";
 import {
-  AgentTrace, StoreRegister, Evidence, Notices, Assessment, ScopeStory, PublicNotice,
-  fmt, shortDate, shortTime, type Filter,
+  AgentTrace, Evidence, Notices, Assessment, ScopeStory, PublicNotice,
+  fmt, shortDate, shortTime,
 } from "@/components/dashboard/panels";
 import { ReplayBar, useReplay } from "@/components/dashboard/replay";
 import { Drawer } from "@/components/dashboard/drawer";
-import { completedOf, fromResult, loadRecorded, stepsOf, type Recording, type TimedEvent } from "@/lib/trace";
+import { chokepointOf, completedOf, fromResult, loadRecorded, stepsOf, type Recording, type TimedEvent } from "@/lib/trace";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -25,6 +25,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardAction }
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
+import { INCIDENT_CHANGED } from "@/components/nav";
+
+/** Tells the shell the incident changed (opened, scoped, confirmed), so its open-incident card re-reads. */
+const announce = () => window.dispatchEvent(new Event(INCIDENT_CHANGED));
 import { cn } from "@/lib/utils";
 
 export type Status = { incident: Incident | null; hold: IncidentReport["hold"] };
@@ -50,7 +54,7 @@ export function IncidentView({ lot, hazard, autostart, playback, initial }: { lo
   const [notices, setNotices] = useState<Notice[]>(initial.notices);
   const [selected, setSelected] = useState<string>();
   const [stateFilter, setStateFilter] = useState<string>();
-  const [storeFilter, setStoreFilter] = useState<Filter>("all");
+  const [storeFilter, setStoreFilter] = useState<ScopeFilter>("all");
   const [gaps, setGaps] = useState<Gaps>(initial.run?.add_gap_stores === false ? "flag" : "add");
   const [view, setView] = useState<View>("scope");
   const [rec, setRec] = useState<Recording>();
@@ -99,15 +103,17 @@ export function IncidentView({ lot, hazard, autostart, playback, initial }: { lo
         if (ev.type !== "done") setEvents((s) => [...s, ev]);
         fn(ev);
       });
-    on("start", () => refreshStatus(lot));
+    on("start", () => { refreshStatus(lot); announce(); });
     on("note", () => {});
     on("tool_start", () => {});
     on("tool_end", (ev) => {
       if (ev.call.error) return;
       if (ev.call.name === "propose_classification" || ev.call.name === "place_hold") refreshStatus(lot);
       // The scope appears once the agent has made its recall decision.
-      if (ev.call.name === "minimal_recall")
+      if (ev.call.name === "minimal_recall") {
         loadReport(lot, (ev.call.input as { add_gap_stores?: boolean })?.add_gap_stores === false ? "flag" : "add");
+        announce();
+      }
     });
     let finished = false;
     on("done", (ev) => {
@@ -138,16 +144,18 @@ export function IncidentView({ lot, hazard, autostart, playback, initial }: { lo
   async function approve(stores: string[]) {
     await api("/notices/approve", { stores });
     await loadNotices(result?.lot ?? lot);
+    announce();
   }
   async function confirm(cls: string, depth: string) {
     const s = await api<Status>(`/incident/${result?.lot ?? lot}/confirm`, { class: cls, depth });
     setStatus(s);
     setReport((r) => (r ? { ...r, incident: s.incident } : r));
+    announce();
   }
-  /** The headline tiles jump to the store table, filtered to what the tile counts. */
-  function showStores(f: Filter) {
-    setStoreFilter(f); setStateFilter(undefined);
-    document.getElementById("store-decisions")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  /** The headline tiles open the store table, filtered to what the tile counts. */
+  function showStores(f: ScopeFilter) {
+    setStoreFilter(f); setStateFilter(undefined); setView("scope");
+    document.getElementById("scope")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
   const closeDrawer = useCallback(() => setSelected(undefined), []);
 
@@ -155,6 +163,7 @@ export function IncidentView({ lot, hazard, autostart, playback, initial }: { lo
   const replaying = !!rec;
   const steps = stepsOf(replaying ? replay.visible : events);
   const completed = completedOf(steps);
+  const spread = chokepointOf(steps);
   const graphStages = ["start", ...completed];
   const doneEv = replaying ? replay.visible.find((e) => e.type === "done") : undefined;
   const shown = replaying ? (doneEv?.type === "done" ? doneEv.result : undefined) : result;
@@ -175,9 +184,9 @@ export function IncidentView({ lot, hazard, autostart, playback, initial }: { lo
   };
   // One stage per agent step, plus Approved.
   const stages: [label: string, ok: boolean, error?: string][] = ([
-    ["Memory", "recall_memory"], ["Hazard", "propose_classification"], ["Hold", "place_hold"], ["Forward trace", "trace_forward"],
-    ["Chokepoint", "rank_chokepoints"], ["Records", "coverage_gaps"], ["Scope", "minimal_recall"], ["Backward", "trace_backward"],
-    ["Notices", "draft_recall_notice"], ["Lessons", "record_lessons"],
+    ["Past incidents", "recall_memory"], ["Hazard class", "propose_classification"], ["Hold", "place_hold"], ["Trace", "trace_forward"],
+    ["Spread point", "rank_chokepoints"], ["Missing lot codes", "coverage_gaps"], ["Scope", "minimal_recall"], ["Cleared", "trace_backward"],
+    ["Notices drafted", "draft_recall_notice"], ["Lessons saved", "record_lessons"],
   ] as const).map(([label, tool]) => [label, done(tool), done(tool) ? undefined : failed(tool)]);
   stages.push([notices.length ? `Approved ${approved}/${notices.length}` : "Approved", notices.length > 0 && approved === notices.length && (!replaying || !!shown)]);
   const active = running || (replaying && replay.playing);
@@ -244,7 +253,7 @@ export function IncidentView({ lot, hazard, autostart, playback, initial }: { lo
       <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_24rem]">
         <main className="flex min-w-0 flex-col gap-4">
           {report || running || replaying ? <>
-            <Card>
+            <Card id="scope" className="scroll-mt-16">
               <CardHeader>
                 <CardTitle>{showReport ? "What left the plant" : replaying ? "Replay of the trace" : "Live trace"}</CardTitle>
                 <CardAction>
@@ -258,13 +267,14 @@ export function IncidentView({ lot, hazard, autostart, playback, initial }: { lo
                 </CardAction>
               </CardHeader>
               <CardContent className="flex flex-col gap-3">
-                {showReport && view !== "network" && <ScopeStory r={showReport} />}
-                {view === "scope" && showReport && <ScopeTable r={showReport} focus={selected} onPick={setSelected} />}
+                {showReport && view !== "network" && <ScopeStory r={showReport} spread={spread} />}
+                {view === "scope" && showReport && <ScopeTable r={showReport} focus={selected} onPick={setSelected} filter={storeFilter} onFilter={setStoreFilter}
+                  region={stateFilter} onClearRegion={() => setStateFilter(undefined)} notices={new Map(notices.map((n) => [n.store, n.status]))} />}
                 {view === "flow" && showReport && <UnitsFlow r={showReport} focus={selected ?? stateFilter} />}
                 {view === "network" && <>
-                  <NetworkGraph lot={lot} stages={graphStages} animating={active} focus={selected} onPick={setSelected} />
+                  <NetworkGraph lot={lot} stages={graphStages} animating={active} focus={selected} spread={spread?.id} onPick={setSelected} />
                   <Legend
-                    items={[["lot", "Ingredient lot"], ["recall", `Contains ${lot}`], ["hold", "Held at plant or DC"], ["gap", "No lot code"], ["safe", "Cleared"], ["verified", "Backward check"]]}
+                    items={[["lot", "Ingredient lot"], ["recall", `Contains ${lot}`], ["hold", "Held at plant or DC"], ["gap", "Pull, no lot code"], ["safe", "Cleared"], ["verified", "Verified clean"], ...(spread ? [["spread", "Biggest spread point"] as [string, string]] : [])]}
                     note={running ? "Each record lights up as the agent reaches it." : replaying ? "The graph shows what the agent had reached at the playhead." : "Click any record to light up where it came from and where it went. Recall path hides the cleared stores; All records shows them."} />
                 </>}
                 {rec ? <ReplayBar rec={rec} r={replay} onExit={exitReplay} />
@@ -274,7 +284,7 @@ export function IncidentView({ lot, hazard, autostart, playback, initial }: { lo
                       <Button size="icon-lg" className="size-10 shrink-0 rounded-full" onClick={() => startReplay()} aria-label="Play the trace"><Play className="ml-0.5 size-4 fill-current" /></Button>
                       <div className="min-w-0">
                         <p className="text-sm font-medium">Play the trace</p>
-                        <p className="text-xs text-muted-foreground">The agent&apos;s steps light up this graph again with their real timing. Pause, step or jump to any step. No Claude call.</p>
+                        <p className="text-xs text-muted-foreground">The agent&apos;s steps light up this graph again with their real timing. Pause, step or jump to any step.</p>
                       </div>
                     </div>
                   )}
@@ -283,8 +293,8 @@ export function IncidentView({ lot, hazard, autostart, playback, initial }: { lo
             {showReport && <>
               <div className="grid gap-4 lg:grid-cols-2">
                 <Card>
-                  <CardHeader><CardTitle>Where it went</CardTitle><CardDescription>Stores by state. Click to filter the table</CardDescription></CardHeader>
-                  <CardContent><StateBars r={showReport} active={stateFilter} onPick={setStateFilter} /></CardContent>
+                  <CardHeader><CardTitle>Where it went</CardTitle><CardDescription>Stores by state. Click a state to filter the store table</CardDescription></CardHeader>
+                  <CardContent><StateBars r={showReport} active={stateFilter} onPick={(st) => { setStateFilter(st); if (st) { setView("scope"); document.getElementById("scope")?.scrollIntoView({ behavior: "smooth", block: "start" }); } }} /></CardContent>
                 </Card>
                 <Card>
                   <CardHeader><CardTitle>Exposure</CardTitle></CardHeader>
@@ -292,17 +302,15 @@ export function IncidentView({ lot, hazard, autostart, playback, initial }: { lo
                 </Card>
               </div>
               {depth === "consumer" && <PublicNotice r={showReport} />}
-              <StoreRegister r={showReport} notices={notices} onPick={setSelected} selected={selected} stateFilter={stateFilter} clearState={() => setStateFilter(undefined)} filter={storeFilter} onFilter={setStoreFilter} />
             </>}
           </> : (
             <Empty className="border">
               <EmptyHeader>
                 <EmptyTitle>{status?.incident ? "Not traced yet" : "No incident open"}</EmptyTitle>
-                <EmptyDescription>Open the incident from the <Link href={`/notice?lot=${lot}`} className="underline">supplier notice</Link>. The agent works the recall from the FalkorDB traceability graph and builds it here for you to confirm.</EmptyDescription>
+                <EmptyDescription>Open the incident from the <Link href={`/notice?lot=${lot}`} className="underline">supplier notice</Link>. The agent traces the lot through the records and builds the recall here for you to confirm.</EmptyDescription>
               </EmptyHeader>
               <EmptyContent>
-                <Button variant="outline" onClick={() => startReplay()}>Watch the recorded {lot} run</Button>
-                <p className="text-xs text-muted-foreground">Plays a real run step by step. No API key needed.</p>
+                <Button variant="outline" onClick={() => startReplay()}>Watch the last recorded run on {lot}</Button>
               </EmptyContent>
             </Empty>
           )}
@@ -330,6 +338,7 @@ const SWATCH: Record<string, string> = {
   gap: "bg-chart-1 border border-dashed border-foreground",
   safe: "bg-muted-foreground rounded-full",
   verified: "bg-transparent border-2 border-chart-3 rounded-full",
+  spread: "bg-transparent border-2 border-chart-4 rounded-sm",
 };
 function Legend({ items, note, children }: { items: [string, string][]; note: string; children?: React.ReactNode }) {
   return (
@@ -386,19 +395,19 @@ function Kpi({ label, foot, tone, onClick, action, children }: { label: string; 
 const Of = ({ children }: { children: React.ReactNode }) => <span className="text-sm font-normal text-muted-foreground">{children}</span>;
 
 function Kpis({ r, hold, lot, gaps, onGaps, onShow, canPreview }: {
-  r?: IncidentReport; hold?: IncidentReport["hold"]; lot: string; gaps: Gaps; onGaps: (m: Gaps) => void; onShow: (f: Filter) => void; canPreview: boolean;
+  r?: IncidentReport; hold?: IncidentReport["hold"]; lot: string; gaps: Gaps; onGaps: (m: Gaps) => void; onShow: (f: ScopeFilter) => void; canPreview: boolean;
 }) {
   const c = r?.counts;
   const saved = c ? 1 - c.units_to_pull / c.blanket_units : 0;
   const wait = <span data-slot="skeleton" className="inline-block h-8 w-16 animate-pulse rounded-md bg-muted" />;
-  const show = (f: Filter) => (c ? () => onShow(f) : undefined);
+  const show = (f: ScopeFilter) => (c ? () => onShow(f) : undefined);
   return (
     <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5" aria-label="Key figures">
-      <Kpi tone="border-t-destructive" label="Stores that must pull product" onClick={show("recall")}
+      <Kpi tone="border-t-destructive" label="Stores to pull" onClick={show("recall")}
         foot={c ? `${c.blanket} stores stocked the ${r!.skus.length} affected products. The records clear ${c.safe} of them; a blanket recall would hit all ${c.blanket}.` : "Tracing deliveries store by store."}>
         {c ? <>{c.targeted}<Of>of {c.blanket}</Of></> : wait}
       </Kpi>
-      <Kpi label="Units to pull from stores"
+      <Kpi label="Units to pull"
         foot={c ? `A blanket recall of these products would pull ${fmt(c.blanket_units)}. Targeting saves ${Math.round(saved * 100)}%.` : "Counted from delivery records."}>
         {c ? fmt(c.units_to_pull) : wait}
       </Kpi>
@@ -406,16 +415,16 @@ function Kpis({ r, hold, lot, gaps, onGaps, onShow, canPreview }: {
         foot={hold ? `Unshipped product at ${hold.totals.locations} plants and DCs, plus ${hold.totals.raw_kg} kg of unused ${lot}. On hold until QA releases it.` : "Placing the hold."}>
         {hold ? <>{fmt(hold.totals.units)}<Of>units</Of></> : wait}
       </Kpi>
-      <Kpi tone="border-t-chart-1" label="Can't be cleared" onClick={show("gap")}
+      <Kpi tone="border-t-chart-1" label="Pull, no lot code" onClick={show("gap")}
         foot={r ? `Got ${[...new Set(r.stores.flatMap((s) => s.untracked.map((u) => u.product)))].join(", ") || "affected product"} with no lot code on the delivery record. ${gaps === "add" ? "Pulled to be safe." : "Flag-only preview: not counted in the recall above."}` : "Checking delivery records."}
         action={c && c.gaps > 0 && canPreview ? (
           <Button size="xs" variant="link" className="self-start px-0" onClick={() => onGaps(gaps === "add" ? "flag" : "add")}>
-            {gaps === "add" ? "Preview flag-only instead" : "Back to the agent's decision"}
+            {gaps === "add" ? "Preview: flag, don't pull" : "Back to the agent's decision"}
           </Button>
         ) : undefined}>
         {c ? <>{c.gaps}<Of>stores</Of></> : wait}
       </Kpi>
-      <Kpi tone="border-t-muted-foreground" label="Cleared by the records" onClick={show("safe")}
+      <Kpi tone="border-t-muted-foreground" label="Cleared" onClick={show("safe")}
         foot={`Every lot they received was traced back to its ingredients. None contains ${lot}.`}>
         {c ? <>{c.safe}<Of>stores</Of></> : wait}
       </Kpi>

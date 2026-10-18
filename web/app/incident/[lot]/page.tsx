@@ -6,6 +6,11 @@ import { api, apiOrNull, LOT_RE } from "@/lib/api";
 import { IncidentClient } from "./incident-client";
 import type { Initial, Status } from "./incident-view";
 
+export async function generateMetadata({ params }: PageProps<"/incident/[lot]">) {
+  const { lot } = await params;
+  return { title: `Incident ${decodeURIComponent(lot)}` };
+}
+
 export default async function Page({ params, searchParams }: PageProps<"/incident/[lot]">) {
   const { lot } = await params;
   const { hazard, start, replay } = await searchParams;

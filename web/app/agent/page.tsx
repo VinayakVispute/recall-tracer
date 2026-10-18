@@ -110,16 +110,12 @@ export default function Page() {
 
   return (
     <main className="mx-auto flex h-[calc(100dvh-3.5rem)] w-full max-w-3xl flex-col gap-4 p-4">
-      <header className="flex items-baseline">
-        <h1 className="text-lg font-semibold">Recall Agent</h1>
-      </header>
-
       <Conversation className="min-h-0 flex-1">
         <ConversationContent>
           {messages.length === 0 && (
             <ConversationEmptyState
-              title="Recall Agent"
-              description="Ask about a contaminated lot. The agent traces it through the supply graph and checks real FDA recalls."
+              title="Ask about a lot or a recall"
+              description="The agent answers from the traceability records, with the evidence behind each answer, and can look up real FDA recalls for comparison."
             />
           )}
           {messages.map((m, mi) => (

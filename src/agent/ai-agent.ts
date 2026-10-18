@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import { query } from '../graph/db.js'; // also loads .env.local / .env
-import { CLUSTER_CASES, INCIDENT_GET, LOT_INFO, SAME_SOURCE_LOTS } from '../graph/queries.js';
+import { CLUSTER_CASES, INCIDENT_GET, LOT_INFO } from '../graph/queries.js';
 import { toResult, toToolCall, type McpOutput, type Recall, type RecallResult, type TraceEvent } from './run.js';
 import type { OutbreakEvent, OutbreakResult } from '../contracts.js';
 import { recordLessons } from '../tools/index.js';
@@ -187,7 +187,7 @@ export async function runOutbreak(cluster: string, onEvent: (e: OutbreakEvent) =
   if (!found) throw new Error('Agent finished without a successful find_common_source');
   const { db_ms, queries, ...r } = found as OutbreakResult & { db_ms: number; queries: number };
   const top = r.candidates[0];
-  const decoys = top ? (await query<{ lot: string }>(SAME_SOURCE_LOTS, { lot: top.lot, ranked: r.candidates.map((c) => c.lot) })).map((d) => d.lot) : [];
+  const decoys = (r.decoys ?? []).map((d) => d.lot); // find_common_source returns them; the page shows them too
   const outbreak = { ...r, summary: r.summary + (decoys.length ? ` ${decoys.join(', ')} (same supplier, same ingredient) explains none.` : '') };
   // Handoff: the incident agent reads this from the graph with recall_memory when the supplier's lot is opened.
   if (top) await recordLessons({ lot: cluster, lessons: [{ about: top.supplier, fact: `Outbreak ${cluster}: ${outbreak.summary}` }] });

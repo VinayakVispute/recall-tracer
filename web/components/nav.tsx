@@ -1,34 +1,75 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { DatabaseIcon, HistoryIcon, MessageSquareIcon, PlayIcon, SearchIcon, SirenIcon, TruckIcon } from "lucide-react";
+import { HistoryIcon, MessageSquareIcon, SearchIcon, SirenIcon, TruckIcon } from "lucide-react";
+import type { IncidentSummary } from "@server/tools/incident";
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarInset,
-  SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarRail, SidebarTrigger,
+  SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarRail, SidebarTrigger, useSidebar,
 } from "@/components/ui/sidebar";
-import { IncidentStrip } from "./incident-strip";
+import { api } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
-// The order a coordinator works in: find the source, take the supplier's notice, run the incident.
+// The order a coordinator works in. Finding the source is optional: most recalls start from a supplier's notice.
 const STEPS = [
-  { href: "/outbreak", label: "Find the source", icon: SearchIcon, lead: "People are sick in several states. Press Find the source and the agent walks every case back through stores and batches to the ingredient lot they share." },
-  { href: "/notice", label: "Open incident", icon: SirenIcon, lead: "The supplier's alert names a lot. Enter it and the incident opens, starting the 24-hour FDA clock." },
-  { href: "/incident", label: "Scope and notify", icon: TruckIcon, lead: "Which product lots contain the bad lot, which stores pull and which are cleared, and the notices to send. Every number is read from the graph." },
+  { href: "/outbreak", label: "Find the source", hint: "optional", icon: SearchIcon, lead: "Start from illness reports: the agent walks each case back to the ingredient lot they share." },
+  { href: "/notice", label: "Supplier notice", icon: SirenIcon, lead: "Enter the lot and hazard from the supplier's alert to open the incident and start the 24-hour clock." },
+  { href: "/incident", label: "Incident", icon: TruckIcon, lead: "Which stores pull, which are cleared, and the notices to approve. Every number comes from the graph." },
 ];
 const MORE = [
   { href: "/history", label: "History", icon: HistoryIcon },
-  { href: "/real", label: "Real data", icon: DatabaseIcon },
   { href: "/agent", label: "Ask the agent", icon: MessageSquareIcon },
 ];
+// Pages reachable by address but not listed (the real-data page used in the pitch).
+const TITLES: Record<string, string> = { "/real": "Real outbreak records" };
 
 const on = (pathname: string, href: string) => pathname === href || pathname.startsWith(`${href}/`);
+
+/** Status in the coordinator's words: what is happening, or what they need to do next. */
+function statusOf(i: IncidentSummary) {
+  if (i.status === "open") return { text: "Tracing", tone: "text-muted-foreground" };
+  if (i.status === "notices_approved") return { text: "Notices approved", tone: "text-muted-foreground" };
+  return i.confirmed_class
+    ? { text: `Class ${i.confirmed_class} confirmed · approve notices`, tone: "text-chart-1" }
+    : { text: "Waiting for your confirmation", tone: "text-chart-1" };
+}
+
+/** Sent by the incident page when it opens, scopes or confirms an incident, so the sidebar card updates without a navigation. */
+export const INCIDENT_CHANGED = "recall-tracer:incident-changed";
+
+/** The newest incident in the graph, re-read on every navigation and whenever the incident page reports a change. */
+function useOpenIncident(pathname: string) {
+  const [inc, setInc] = useState<IncidentSummary | null>(null);
+  useEffect(() => {
+    let live = true;
+    const read = () => api<IncidentSummary[]>("/incidents").then((list) => { if (live) setInc(list[0] ?? null); }).catch(() => { if (live) setInc(null); });
+    read();
+    window.addEventListener(INCIDENT_CHANGED, read);
+    return () => { live = false; window.removeEventListener(INCIDENT_CHANGED, read); };
+  }, [pathname]);
+  return inc;
+}
+
+/** On a phone the sidebar is a sheet over the page: close it once a link has taken you somewhere. */
+function CloseOnNavigate({ pathname }: { pathname: string }) {
+  const { isMobile, setOpenMobile } = useSidebar();
+  useEffect(() => { if (isMobile) setOpenMobile(false); }, [pathname, isMobile, setOpenMobile]);
+  return null;
+}
 
 /** The app shell. `graphLine` is a server component passed in by the layout, streamed under its own Suspense boundary. */
 export function Nav({ graphLine, children }: { graphLine: React.ReactNode; children: React.ReactNode }) {
   const pathname = usePathname();
+  const inc = useOpenIncident(pathname);
   const step = STEPS.findIndex((s) => on(pathname, s.href));
+  // Step 3 opens the incident being worked, not a search box; the list is still one click away from there.
+  const hrefOf = (href: string) => (href === "/incident" && inc ? `/incident/${inc.lot}` : href);
+  const status = inc && statusOf(inc);
   return (
     <SidebarProvider>
+      <CloseOnNavigate pathname={pathname} />
       <Sidebar collapsible="icon">
         <SidebarHeader>
           <SidebarMenu>
@@ -41,15 +82,29 @@ export function Nav({ graphLine, children }: { graphLine: React.ReactNode; child
           </SidebarMenu>
         </SidebarHeader>
         <SidebarContent>
+          {inc && status && (
+            <SidebarGroup className="group-data-[collapsible=icon]:hidden">
+              <SidebarGroupLabel>Open incident</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <Link href={`/incident/${inc.lot}`} aria-current={pathname === `/incident/${inc.lot}` ? "page" : undefined}
+                  className={cn("flex flex-col gap-0.5 rounded-md border px-3 py-2 text-sm transition-colors hover:bg-sidebar-accent", pathname === `/incident/${inc.lot}` && "border-sidebar-ring")}>
+                  <span className="font-medium">Lot {inc.lot}</span>
+                  <span className="truncate text-xs text-destructive">{inc.hazard}</span>
+                  <span className={cn("text-xs", status.tone)}>{status.text}</span>
+                </Link>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          )}
           <SidebarGroup>
-            <SidebarGroupLabel>Recall in 3 steps</SidebarGroupLabel>
+            <SidebarGroupLabel>Recall</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 {STEPS.map((s, i) => (
                   <SidebarMenuItem key={s.href}>
-                    <SidebarMenuButton isActive={i === step} tooltip={`${i + 1}. ${s.label}`} render={<Link href={s.href} />}>
+                    <SidebarMenuButton isActive={i === step} tooltip={`${i + 1}. ${s.label}`} render={<Link href={hrefOf(s.href)} />}>
                       <s.icon />
                       <span>{i + 1}. {s.label}</span>
+                      {s.hint && <span className="ml-auto text-xs text-muted-foreground">{s.hint}</span>}
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 ))}
@@ -57,17 +112,9 @@ export function Nav({ graphLine, children }: { graphLine: React.ReactNode; child
             </SidebarGroupContent>
           </SidebarGroup>
           <SidebarGroup>
-            <SidebarGroupLabel>Demo</SidebarGroupLabel>
+            <SidebarGroupLabel>More</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                <SidebarMenuItem>
-                  {/* The recorded L-204 run with its real timings: the demo path that needs no Claude key.
-                      A full page load, not <Link>: from an open incident, a client navigation would keep the old view mounted. */}
-                  <SidebarMenuButton tooltip="Replay demo" render={<a href="/incident/L-204?replay=1" />}>
-                    <PlayIcon />
-                    <span>Replay demo</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
                 {MORE.map((m) => (
                   <SidebarMenuItem key={m.href}>
                     <SidebarMenuButton isActive={on(pathname, m.href)} tooltip={m.label} render={<Link href={m.href} />}>
@@ -84,14 +131,11 @@ export function Nav({ graphLine, children }: { graphLine: React.ReactNode; child
         <SidebarRail />
       </Sidebar>
       <SidebarInset>
-        <header className="sticky top-0 z-40 flex flex-col gap-2 border-b bg-background px-4 py-2">
-          <div className="flex items-center gap-3 text-sm">
-            <SidebarTrigger className="-ml-1" />
-            {step >= 0
-              ? <p><span className="font-semibold">Step {step + 1} of 3 · {STEPS[step].label}.</span> <span className="text-muted-foreground">{STEPS[step].lead}</span></p>
-              : <p className="font-semibold">{MORE.find((m) => on(pathname, m.href))?.label}</p>}
-          </div>
-          <IncidentStrip pathname={pathname} />
+        <header className="sticky top-0 z-40 flex items-center gap-3 border-b bg-background px-4 py-2 text-sm">
+          <SidebarTrigger className="-ml-1" />
+          {step >= 0
+            ? <p><span className="font-semibold">Step {step + 1} of 3 · {STEPS[step].label}</span><span className="hidden text-muted-foreground md:inline">. {STEPS[step].lead}</span></p>
+            : <p className="font-semibold">{MORE.find((m) => on(pathname, m.href))?.label ?? TITLES[pathname]}</p>}
         </header>
         {children}
       </SidebarInset>

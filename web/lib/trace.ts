@@ -26,6 +26,18 @@ export function stepsOf(events: TraceEvent[]): Step[] {
   return steps;
 }
 
+/**
+ * The betweenness result, read from the rank_chokepoints step's summary ("B-03 is the chokepoint: betweenness 175,
+ * 16 stores downstream", written by src/agent/run.ts). The log, the scope story and the record network all point at it.
+ */
+export function chokepointOf(steps: Step[]): { id: string; score: number; stores: number } | undefined {
+  const s = steps.findLast((x) => x.kind === "tool" && x.name === "rank_chokepoints" && x.call && !x.call.error);
+  const m = s?.kind === "tool" ? /^(\S+) is the chokepoint: betweenness ([\d.]+), (\d+) stores? downstream/.exec(s.call?.summary ?? "") : null;
+  return m ? { id: m[1], score: Number(m[2]), stores: Number(m[3]) } : undefined;
+}
+/** A record id in words: "batch B-03", "product lot TLC-09A". */
+export const recordName = (id: string) => (id.startsWith("B-") ? `batch ${id}` : id.startsWith("TLC-") ? `product lot ${id}` : id);
+
 /** Names of tools that finished without error, in order. Drives the record network's reveal. */
 export const completedOf = (steps: Step[]) => steps.flatMap((s) => (s.kind === "tool" && s.call && !s.call.error ? [s.name] : []));
 

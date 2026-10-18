@@ -11,7 +11,9 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { api, apiOrNull, ApiError, LOT_RE } from "@/lib/api";
 
-const STATUS: Record<IncidentSummary["status"], string> = { open: "Open", scoped: "Scoped", notices_approved: "Notices approved" };
+export const metadata = { title: "Incidents" };
+
+const STATUS: Record<IncidentSummary["status"], string> = { open: "Tracing", scoped: "Scope decided", notices_approved: "Notices approved" };
 // The date part only, so a server in UTC and the coordinator agree on it.
 const day = (iso: string) => new Date(`${iso.slice(0, 10)}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 const UNREACHABLE = "Cannot reach the Recall Tracer API. Check that it is running.";
@@ -60,7 +62,7 @@ export default async function Page({ searchParams }: PageProps<"/incident">) {
       <Card>
         <CardHeader>
           <CardTitle>Incidents in the graph</CardTitle>
-          <CardDescription>Newest first. Each one is an Incident node, so it stays here after a reload or a redeploy of the page.</CardDescription>
+          <CardDescription>Newest first. Click a lot to open its incident.</CardDescription>
         </CardHeader>
         <CardContent className="overflow-x-auto">
           {listError ? <p className="text-sm text-destructive" role="alert">{listError}</p>
@@ -83,13 +85,9 @@ export default async function Page({ searchParams }: PageProps<"/incident">) {
               <Empty>
                 <EmptyDescription>
                   No incidents yet. Start from an <Link href="/outbreak" className="underline">outbreak</Link> or a <Link href="/notice" className="underline">supplier notice</Link>.
-                  {" "}For a look first, <Link href="/incident/L-204?replay=1" className="underline">watch the recorded demo run on L-204</Link>; it needs no API key.
                 </EmptyDescription>
               </Empty>
             )}
-          {incidents.length > 0 && (
-            <p className="mt-3 text-xs text-muted-foreground">Demo: <Link href="/incident/L-204?replay=1" className="underline">watch the recorded L-204 run</Link> on the replay timeline. No API key needed.</p>
-          )}
         </CardContent>
       </Card>
     </div>
