@@ -161,15 +161,15 @@ Three reasons beyond the brief. Traceability is already a graph, a chain of "thi
 
 The app follows the three steps a coordinator works through: find the source (from illness reports), open the incident from the supplier's notice, then decide the scope and approve the notices. Here is the incident page after a run on L-204. The agent's path is across the top, the scope is in the cards, and the investigation log on the right lists every step; open one for its reason and its Cypher.
 
-![The finished incident: 33 of 71 stores, units saved, the hold, and the stores with missing lot codes](04-incident-done.png)
+![The finished incident: 33 of 71 stores, units saved, the hold, and the stores with missing lot codes](04-incident-done-v2.png)
 
 Lot L-108 was delivered and never used. The agent put a hold on all 202 kg, traced forward, found nothing, and set the scope to zero stores. The skipped steps are crossed out, each with the agent's reason.
 
-![L-108: the hold is the whole response, and the skipped steps are shown crossed out](06-l108-hold-only.png)
+![L-108: the hold is the whole response, and the skipped steps are shown crossed out](06-l108-hold-only-v2.png)
 
 The real-records page asks the same questions of the public CDC and openFDA data. This is the soft cheese outbreak: the firm, its 18 recalls, the states they named, and the one state with a sick person that no distribution list names.
 
-![Real records: the Clover Hill Dairy outbreak as a graph, with Illinois flagged as a gap](07-real-records.png)
+![Real records: the Clover Hill Dairy outbreak as a graph, with Illinois flagged as a gap](07-real-records-v2.png)
 
 Two more things on the incident page. Replay plays the recorded run back with the original timing, at 0.5×, 1× or 2×, and the record network shows only what the agent had reached at the playhead. Below the log, the Agent memory panel shows what the agent read from earlier incidents and what it saved for the next one, as the Memory nodes in the graph.
 
