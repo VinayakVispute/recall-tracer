@@ -195,8 +195,17 @@ describe('API', () => {
     console.log(`e2e: ${Date.now() - t0} ms`, JSON.stringify({ counts: r.counts, calls: r.tool_calls, summary: r.summary }, null, 1));
     expect(Date.now() - t0).toBeLessThan(60_000);
     expect(r.counts).toEqual({ blanket: 71, targeted: 33, safe: 38 });
-    expect(r.tool_calls.map((c: any) => c.name)).toEqual(['recall_memory', 'propose_classification', 'place_hold', 'trace_forward', 'rank_chokepoints', 'coverage_gaps', 'minimal_recall', 'trace_backward', 'draft_recall_notice', 'record_lessons']);
-    expect(r.tool_calls.every((c: any) => c.summary && c.cypher.length)).toBe(true);
+    // No fixed script: the agent plans its own order. These are the rules that order must keep for L-204.
+    const names: string[] = r.tool_calls.map((c: any) => c.name);
+    const at = (n: string) => names.indexOf(n);
+    expect(names[0]).toBe('recall_memory');
+    expect(names.at(-1)).toBe('record_lessons');
+    for (const n of ['propose_classification', 'place_hold', 'trace_forward', 'rank_chokepoints', 'coverage_gaps', 'ask_coordinator', 'minimal_recall', 'trace_backward', 'draft_recall_notice']) expect(names).toContain(n);
+    expect(at('coverage_gaps')).toBeLessThan(at('ask_coordinator')); // asks only about gaps it found
+    expect(at('ask_coordinator')).toBeLessThan(at('minimal_recall')); // and scopes with the answer
+    expect(at('minimal_recall')).toBeLessThan(at('trace_backward'));
+    expect(at('trace_backward')).toBeLessThan(at('draft_recall_notice'));
+    expect(r.tool_calls.every((c: any) => c.summary && (c.name === 'ask_coordinator' || c.cypher.length))).toBe(true);
     expect(readNotices().filter((n) => n.lot === LOT)).toHaveLength(33);
   }, 90_000);
 });
@@ -216,7 +225,7 @@ describe('graph algorithm and memory', () => {
     const mine = (lot: string) => recallMemory({ lot }).then((r) => r.lessons.filter((l) => l.from_lot === 'L-TEST').map((l) => [l.about, l.fact]));
     expect(await mine('L-205')).toEqual([['S-03', 'a2']]); // same supplier S-03
     expect(await mine('L-101')).toEqual([]); // supplier S-08
-    expect(await mine('L-TEST')).toEqual([]);
+    await expect(mine('L-TEST')).rejects.toThrow('unknown lot L-TEST'); // not a lot in the graph
     await query('MATCH (m:Memory {lot: $lot}) DELETE m', { lot: 'L-TEST' });
   });
 });

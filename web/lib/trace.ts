@@ -7,22 +7,27 @@ export type Recording = { lot: string; recorded_at: string; events: TimedEvent[]
 
 export type Step =
   | { kind: "note"; text: string }
-  | { kind: "tool"; id: string; name: string; input: unknown; running: boolean; call?: ToolCall };
+  | { kind: "tool"; id: string; name: string; input: unknown; running: boolean; call?: ToolCall; why?: string };
 
 /** Steps where the agent made a judgement, not a graph lookup. Shown as decision cards. */
-export const JUDGEMENT = new Set(["propose_classification", "minimal_recall"]);
+export const JUDGEMENT = new Set(["propose_classification", "minimal_recall", "ask_coordinator"]);
 
-/** Builds the investigation log from events, so a live run and a replay render the same way. */
+/**
+ * Builds the investigation log from events, so a live run and a replay render the same way. The note the agent
+ * writes just before a tool call is its reason for that call, so it becomes the step's `why`.
+ */
 export function stepsOf(events: TraceEvent[]): Step[] {
   const steps: Step[] = [];
+  let note: string | undefined;
   for (const ev of events) {
-    if (ev.type === "note") steps.push({ kind: "note", text: ev.text });
-    else if (ev.type === "tool_start") steps.push({ kind: "tool", id: ev.id, name: ev.name, input: ev.input, running: true });
+    if (ev.type === "note") { if (note) steps.push({ kind: "note", text: note }); note = ev.text; }
+    else if (ev.type === "tool_start") { steps.push({ kind: "tool", id: ev.id, name: ev.name, input: ev.input, running: true, why: note }); note = undefined; }
     else if (ev.type === "tool_end") {
       const i = steps.findIndex((s) => s.kind === "tool" && s.id === ev.call.id);
       if (i >= 0) steps[i] = { ...(steps[i] as Extract<Step, { kind: "tool" }>), running: false, call: ev.call };
     }
   }
+  if (note) steps.push({ kind: "note", text: note });
   return steps;
 }
 

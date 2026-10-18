@@ -15,6 +15,7 @@ Built for [Graph Hacks: Context for AI Agents](https://www.wemakedevs.org/hackat
 | Tool selection through MCP | 13 tools on our own MCP server (stdio and Streamable HTTP at `/mcp`). Each agent gets the subset it needs: the outbreak agent only 2 read-only tools | `src/mcp/server.ts`, `makeOutbreakAgent` / `makeIncidentAgent` in [`src/agent/ai-agent.ts`](src/agent/ai-agent.ts) | The live trace shows each tool call with its input and Cypher |
 | Actions based on what the graph shows | Writes the incident and the proposed class, marks 93 kg and 2,652 units held, widens the recall to 2 stores with missing lot codes, drafts 33 notices for approval | `place_hold`, `minimal_recall`, `draft_recall_notice` | 33 of 71 stores, 2,256 units instead of 7,672 |
 | Explainable results | Every store has the record path that proves its decision. The investigation log shows each step's Cypher and FalkorDB time. The final JSON is built from tool output, not retyped by the model | Evidence drawer, investigation log, `toResult` in `src/agent/run.ts` | Replay any step at `/incident/L-204#step-6` |
+| The agent plans its own path | No fixed script: the prompt gives a goal and a set of checks, and the agent picks the next one from what the last returned, writing one sentence on why before each call. When there are stores with no lot code it stops and asks the coordinator (`ask_coordinator`: pull or flag, with buttons in the trace; no reply in 90 s or no one watching means the default, pull) | `src/agent/prompt.md`, `src/agent/questions.ts` | Recorded runs in `demo/`: L-204 (gaps, coordinator asked), L-205 (memory flags repeat gap stores, checked early), L-143 (one batch, so no chokepoint ranking; no gaps, so no question), L-108 (never used: hold only, scope of zero). Links on `/incident` |
 
 **Track 02: Agent memory and coordination.**
 
@@ -273,6 +274,7 @@ For clients that only speak stdio: `npx -y mcp-remote http://localhost:8787/mcp`
 | GET | `/recall/last` | The last decision, so a page reload doesn't rerun the agent |
 | GET | `/recall/stream?lot=&hazard=` | Same, streaming each step as Server-Sent Events (`note`, `tool_start`, `tool_end`, `done`) |
 | GET | `/incident/:lot` | Dashboard data straight from the graph: incident, hold, lineage with quantities, product lots with UPC and best-by, every store's deliveries, where each lot came from. Add `?gaps=flag` for flag-only mode |
+| POST | `/incident/:lot/answer` | Body `{choice}`. The coordinator's answer to the agent's question during a live run; 409 if nothing is waiting |
 | GET | `/incident/:lot/status` | The incident node and the hold only; polled while the agent runs |
 | POST | `/incident/:lot/confirm` | Body `{class, depth}`. The coordinator's decision on the agent's proposal |
 | GET | `/graph/:lot` | Cytoscape nodes and edges, each tagged with the agent step that reveals it and its hop count, for the live network |
@@ -303,7 +305,7 @@ For clients that only speak stdio: `npx -y mcp-remote http://localhost:8787/mcp`
 - the graph data and the approval step work
 - betweenness ranks B-03 first, the same on every run
 - lessons round-trip: unknown ids are dropped, a rerun replaces earlier lessons, a lot from the same supplier sees them, an unrelated lot and the writing lot don't
-- with `E2E=1`, `POST /recall` runs end to end in under 60 seconds, with all ten tool steps in order, each with a summary and its Cypher
+- with `E2E=1`, `POST /recall` runs end to end in under 60 seconds, starting with memory and ending with lessons, every required check present in a valid order, each MCP call with a summary and its Cypher
 
 ## AI disclosure
 

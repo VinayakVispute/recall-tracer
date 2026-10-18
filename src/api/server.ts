@@ -11,6 +11,7 @@ import { traceForward, coverageGaps, unaffectedStores, traceBackward, readHold, 
 import { createAgentUIStreamResponse } from 'ai';
 import { getRecallAgent, runAgent, runOutbreak } from '../agent/ai-agent.js';
 import type { RecallResult, TraceEvent } from '../agent/run.js';
+import { answer, listen, unlisten } from '../agent/questions.js';
 import { incidentReport, incidentStatus, listIncidents, supplierIncidents } from '../tools/incident.js';
 import { ingestCases, CASE_ID } from '../data/cases.js';
 import { realOutbreaks, realGraph, runDemoQueries } from '../data/real.js';
@@ -109,7 +110,8 @@ app.get('/recall/stream', async (c) => {
   return traceSSE(c, async (send) => {
     const t0 = Date.now(), events: Recording['events'] = [];
     await openIncident(lot!, c.req.query('hazard'));
-    const result = await runAgent(lot!, (e) => { events.push({ t_ms: Date.now() - t0, event: e }); send(e); });
+    listen(lot!); // the coordinator is watching this run, so ask_coordinator waits for their answer
+    const result = await runAgent(lot!, (e) => { events.push({ t_ms: Date.now() - t0, event: e }); send(e); }).finally(() => unlisten(lot!));
     save(result);
     record(lot!, events);
   });
@@ -224,6 +226,14 @@ app.post('/incident/:lot/confirm', async (c) => {
   const [row] = await query<{ id: string }>(INCIDENT_CONFIRM, { lot, class: cls, depth, at: new Date().toISOString() });
   if (!row) return c.json({ error: 'No open incident for this lot' }, 404);
   return c.json(await incidentStatus(lot));
+});
+
+/** The coordinator answers the question the agent is waiting on (ask_coordinator) during a live run. */
+app.post('/incident/:lot/answer', async (c) => {
+  const { choice } = await c.req.json<{ choice?: string }>();
+  if (!choice) return c.json({ error: 'choice is required' }, 400);
+  if (!answer(c.req.param('lot'), choice)) return c.json({ error: 'The agent is not waiting for an answer on this lot' }, 409);
+  return c.json({ ok: true });
 });
 
 /** The shell's graph line: graph size, and FalkorDB's own average time per query over the last run. No Claude call. */
