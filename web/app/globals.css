@@ -140,3 +140,13 @@ body * {
 body *::-webkit-scrollbar {
   display: none;
 }
+
+/* The striped side columns (components/nav.tsx): grey diagonal bands on the black page. */
+:root {
+  --rail-width: clamp(24px, 4vw, 64px);
+  --rail-a: #2a2a2e;
+  --rail-b: var(--background);
+}
+.rail {
+  background: repeating-linear-gradient(135deg, var(--rail-a) 0 12px, var(--rail-b) 12px 24px);
+}

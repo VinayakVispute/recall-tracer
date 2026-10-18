@@ -103,8 +103,15 @@ export function Nav({ graphLine, children }: { graphLine: React.ReactNode; child
         </div>
         {step >= 0 && <p className="mx-auto hidden w-full max-w-none px-4 pb-2.5 text-xs text-muted-foreground md:block"><span className="font-medium text-foreground">Step {step + 1} of 3 · {STEPS[step].label}.</span> {STEPS[step].lead}</p>}
       </header>
-      <div className="flex flex-1 flex-col">{children}</div>
-      <footer className="mx-auto w-full max-w-none px-4 py-4 text-xs text-muted-foreground">{graphLine}</footer>
+      {/* Striped columns down both sides of the page on wider screens; the content sits between them. */}
+      <div className="grid flex-1 md:grid-cols-[var(--rail-width)_minmax(0,1fr)_var(--rail-width)]">
+        <div aria-hidden="true" className="rail hidden md:block" />
+        <div className="flex min-w-0 flex-col">
+          <div className="flex flex-1 flex-col">{children}</div>
+          <footer className="w-full px-4 py-4 text-xs text-muted-foreground">{graphLine}</footer>
+        </div>
+        <div aria-hidden="true" className="rail hidden md:block" />
+      </div>
     </div>
   );
 }
