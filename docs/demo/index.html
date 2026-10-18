@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Recall Tracer Demo Script</title>
+<meta name="description" content="Three-minute run of show for the Graph Hacks video, the moments that win, a recording checklist, judges' questions and backups.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Barlow+Condensed:wght@600;700&display=swap">
+<style>
+/* Layout: a call sheet. Sticky section nav on the left, one reading column; the run of show is a timeline of shot cards. */
+:root {
+  --bg: #f4f5f3; --panel: #ffffff; --fg: #1c2321; --muted: #5a6561; --line: #d8ddda; --soft: #eaedea;
+  --recall: #c4471b; --recall-bg: #fbe8df; --gap: #9a6b00; --gap-bg: #fbf0d3; --safe: #2f7d5b; --safe-bg: #e3f0e9;
+  --judge: #6a3fc8; --judge-bg: #efe9fb; --falkor: #5b3fd1;
+  --sign: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --mono: "IBM Plex Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121615; --panel: #1b201e; --fg: #e7ebe8; --muted: #a0aaa5; --line: #313936; --soft: #232a27;
+  --recall: #f08158; --recall-bg: #3a221a; --gap: #e3b54d; --gap-bg: #362d16; --safe: #74c39c; --safe-bg: #1c2e25;
+  --judge: #b39af5; --judge-bg: #2a2340; --falkor: #a994f5; color-scheme: dark;
+} }
+:root[data-theme="dark"] {
+  --bg: #121615; --panel: #1b201e; --fg: #e7ebe8; --muted: #a0aaa5; --line: #313936; --soft: #232a27;
+  --recall: #f08158; --recall-bg: #3a221a; --gap: #e3b54d; --gap-bg: #362d16; --safe: #74c39c; --safe-bg: #1c2e25;
+  --judge: #b39af5; --judge-bg: #2a2340; --falkor: #a994f5; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+body { background: var(--bg); color: var(--fg); font: 15px/1.55 var(--body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 0 64px; }
+.wrap { max-width: 1120px; margin: 0 auto; display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 40px; }
+@media (max-width: 860px) { .wrap { grid-template-columns: minmax(0, 1fr); } nav.toc { display: none; } }
+nav.toc { position: sticky; top: env(safe-area-inset-top, 0px); align-self: start; padding-block: 28px 16px; font-size: 13px; }
+nav.toc a { display: block; color: var(--muted); text-decoration: none; padding: 4px 0 4px 10px; border-left: 2px solid var(--line); }
+nav.toc a:hover, nav.toc a:focus-visible { color: var(--fg); border-color: var(--recall); outline: none; }
+main { min-width: 0; padding-block: 28px 0; }
+h1, h2 { font-family: var(--sign); font-weight: 700; line-height: 1.05; margin: 0; text-wrap: balance; letter-spacing: 0.01em; }
+h1 { font-size: 2.8rem; }
+h2 { font-size: 1.9rem; margin-top: 56px; padding-top: 16px; border-top: 4px solid var(--fg); }
+h3 { font-size: 1.05rem; margin: 26px 0 0; font-weight: 600; }
+p { max-width: 70ch; margin: 10px 0; }
+ul, ol { max-width: 74ch; padding-left: 22px; margin: 8px 0; }
+li { margin: 4px 0; }
+.eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.lede { font-size: 1.15rem; max-width: 62ch; }
+.muted { color: var(--muted); }
+code { font-family: var(--mono); font-size: 0.86em; background: var(--soft); padding: 1px 5px; border-radius: 3px; }
+pre { font-family: var(--mono); font-size: 12.5px; line-height: 1.5; background: var(--soft); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; overflow-x: auto; margin: 8px 0; }
+a { color: var(--recall); }
+.stripe { height: 8px; margin: 18px 0 6px; background: repeating-linear-gradient(-45deg, var(--gap) 0 12px, var(--fg) 12px 24px); border-radius: 2px; }
+.numbers { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin: 18px 0; }
+.numbers div { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; }
+.numbers b { display: block; font: 700 1.7rem/1.1 var(--sign); font-variant-numeric: tabular-nums; }
+.numbers span { font-size: 12.5px; color: var(--muted); }
+.wins { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; margin: 14px 0; }
+.win { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; min-width: 0; }
+.win h3 { margin: 0 0 4px; }
+.win p { margin: 4px 0; font-size: 14px; }
+.win .when { font-family: var(--mono); font-size: 12px; color: var(--recall); }
+.show { display: grid; gap: 0; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin: 16px 0; }
+.shot { display: grid; grid-template-columns: 92px minmax(0, 1fr); background: var(--panel); border-top: 1px solid var(--line); }
+.shot:first-child { border-top: 0; }
+.shot .t { padding: 14px 12px; font: 700 1.25rem/1 var(--sign); font-variant-numeric: tabular-nums; border-right: 1px solid var(--line); background: var(--soft); }
+.shot .t small { display: block; font: 500 11px var(--body); color: var(--muted); margin-top: 4px; }
+.shot .b { padding: 12px 16px; min-width: 0; }
+.shot h3 { margin: 0; font-size: 1.05rem; }
+.shot .where { font-size: 12.5px; color: var(--muted); margin: 2px 0 6px; }
+.shot dl { display: grid; grid-template-columns: 74px minmax(0, 1fr); gap: 4px 12px; margin: 6px 0 0; font-size: 14px; }
+.shot dt { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); padding-top: 2px; }
+.shot dd { margin: 0; min-width: 0; }
+.cap { display: inline-block; background: var(--fg); color: var(--bg); padding: 2px 8px; border-radius: 3px; font-weight: 500; margin: 2px 0; }
+.say { font-style: italic; }
+.tag { display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 999px; margin-right: 4px; white-space: nowrap; }
+.tag.real { background: var(--safe-bg); color: var(--safe); }
+.tag.wow { background: var(--recall-bg); color: var(--recall); }
+.tag.judge { background: var(--judge-bg); color: var(--judge); }
+.tag.risk { background: var(--gap-bg); color: var(--gap); }
+.tbl { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; margin: 10px 0; }
+th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+th { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.qa { display: grid; gap: 10px; margin: 12px 0; }
+.qa details { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 10px 14px; }
+.qa summary { cursor: pointer; font-weight: 600; }
+.qa summary:focus-visible { outline: 2px solid var(--recall); outline-offset: 3px; }
+.qa p { margin: 8px 0 2px; }
+.check { list-style: none; padding-left: 0; }
+.check li { padding-left: 26px; position: relative; }
+.check input { position: absolute; left: 0; top: 4px; width: 15px; height: 15px; accent-color: var(--recall); }
+.callout { border-left: 4px solid var(--recall); background: var(--recall-bg); padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 14px 0; max-width: 76ch; }
+.callout p { margin: 4px 0; }
+footer { margin-top: 56px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+@media (max-width: 560px) { .shot { grid-template-columns: minmax(0, 1fr); } .shot .t { border-right: 0; border-bottom: 1px solid var(--line); } .shot dl { grid-template-columns: minmax(0, 1fr); } }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+<nav class="toc" aria-label="Sections">
+  <a href="#story">The story</a>
+  <a href="#wins">Six moments that win</a>
+  <a href="#show">Run of show, 3:00</a>
+  <a href="#criteria">What judges score</a>
+  <a href="#live">Live pitch version</a>
+  <a href="#setup">Recording checklist</a>
+  <a href="#qa">Judges' questions</a>
+  <a href="#backup">Backups</a>
+  <a href="#dont">What not to show</a>
+</nav>
+
+<main>
+<div class="eyebrow">Graph Hacks: Context for AI Agents · Track 01 · FalkorDB</div>
+<h1>Recall Tracer Demo Script</h1>
+<div class="stripe" aria-hidden="true"></div>
+<p class="lede">Three minutes, one continuous story. It opens on a real outbreak whose recalls missed a state, then shows an agent that finds the source from sick people, follows the lot through the graph, and proves which stores are safe. Every number on screen comes from a FalkorDB query.</p>
+<p class="muted">Written assuming every lane has merged: the Outbreak page (Dev C), outbreak mode and case ingest (Dev A and B), the replay timeline and dashboard (Dev D), and the deploy. Numbers are from the seeded graph (seed 42) and the real <code>fda</code> graph, checked on Oct 17.</p>
+
+<h2 id="story">The story in one breath</h2>
+<p><b>Food recalls fail at the edges of the records.</b> When nobody can say which stores got a contaminated lot, companies recall everything, or worse, miss a store. Recall Tracer is an agent that works the recall on a traceability graph. It starts from sick people or a supplier's notice, follows the lot through blending, rework and deliveries, holds what hasn't shipped, pulls only what it must, and proves every other store is clear. A human confirms every decision, and every step can be replayed.</p>
+<div class="numbers">
+  <div><b>6 of 6</b><span>sick people explained by one lot, L-204</span></div>
+  <div><b>33 of 71</b><span>stores pull product, instead of a blanket recall</span></div>
+  <div><b>2,256</b><span>units to pull, vs 7,672 blanket (71% fewer)</span></div>
+  <div><b>2,652 u + 93 kg</b><span>held at 5 plants and DCs before they left</span></div>
+  <div><b>38</b><span>stores proven clear by a backward trace</span></div>
+  <div><b>10 ms</b><span>FalkorDB time for all 18 queries in a run</span></div>
+</div>
+
+<h2 id="wins">Six moments that win</h2>
+<p>Most entries will show an agent calling a graph tool. These six moments are what make ours different. Each one appears in the video and is easy to say in one line.</p>
+<div class="wins">
+  <div class="win"><span class="tag real">Real data</span><h3>1. The gap is real</h3><p>Open on a real June 2026 CDC Listeria outbreak, loaded from CDC and openFDA records. One FalkorDB query shows a sick person in Illinois, a state no recall named.</p><p class="when">0:00 · FalkorDB Browser</p></div>
+  <div class="win"><span class="tag wow">Multi-hop</span><h3>2. From symptoms to source</h3><p>Six sick people, no lot named. The agent walks each case backward through deliveries, batches and rework, and one lot explains all six. A decoy lot, the same carrot from the same supplier, explains none.</p><p class="when">0:30 · Outbreak page</p></div>
+  <div class="win"><span class="tag wow">Proof of safety</span><h3>3. Clearing stores, not just flagging them</h3><p>The agent proves 38 stores are clear by walking every lot they hold back to its ingredients. Stores with no lot code on a delivery are pulled, with the reason.</p><p class="when">1:30 · Live trace</p></div>
+  <div class="win"><span class="tag judge">Agent acts</span><h3>4. The graph is written, and the human decides</h3><p>The agent places a hold and writes the incident to FalkorDB. Its two judgements, the hazard class and the gap policy, are labelled as proposals. The coordinator confirms, and nothing is ever sent.</p><p class="when">1:15 and 2:10</p></div>
+  <div class="win"><span class="tag wow">Explainable</span><h3>5. Rewind the investigation</h3><p>Drag the playhead back to any step and the graph, log and dashboard show what the agent knew then. Share a link to that exact step. Every decision can be audited.</p><p class="when">2:25 · Replay timeline</p></div>
+  <div class="win"><span class="tag judge">MCP</span><h3>6. The same tools, anywhere</h3><p>The ten graph tools are an MCP server. In Claude Code, one command adds them, and Claude answers "which stores got L-204, and why?" with the same paths.</p><p class="when">2:40 · Terminal</p></div>
+</div>
+
+<h2 id="show">Run of show, 3:00</h2>
+<p>One take per shot, cut together, captions burned in. Voice-over is optional: the captions carry the story. Lines marked "Say" are for a voice-over or the live pitch.</p>
+<div class="show">
+
+<div class="shot"><div class="t">0:00<small>20 s</small></div><div class="b">
+  <h3>Cold open: a real recall that missed a state <span class="tag real">Real data</span></h3>
+  <p class="where">FalkorDB Browser on graph <code>fda</code>: 2,646 real food recalls since 2025, 855 firms, 1 CDC outbreak.</p>
+  <dl>
+    <dt>Show</dt><dd>Run the outbreak query: Clover Hill Dairy, 18 recall records, shipped to MD, NY and VA. Cases in IL 1, MD 4, NY 6 and VA 4. Then run the gap query, which returns <b>IL</b>.</dd>
+    <dt>Caption</dt><dd><span class="cap">June 2026. Listeria in requesón cheese. 15 sick, 14 in hospital, 1 dead.</span><br><span class="cap">The recalls named Maryland, New York and Virginia. Someone got sick in Illinois.</span></dd>
+    <dt>Say</dt><dd class="say">"These are real CDC and FDA records in FalkorDB. One query finds the hole: a sick person in a state no recall covered. Nobody could trace how the cheese got there."</dd>
+  </dl>
+<pre>MATCH (o:Outbreak)-[:CASES_IN]->(s:State), (o)-[:LINKED_TO]->(f:Firm)
+WHERE NOT (f)-[:RECALLED]->(:Recall)-[:DISTRIBUTED_TO]->(s)
+RETURN o.id AS outbreak, s.code AS state</pre>
+</div></div>
+
+<div class="shot"><div class="t">0:20<small>10 s</small></div><div class="b">
+  <h3>Title card</h3>
+  <dl>
+    <dt>Show</dt><dd>Hazard-stripe card: <b>Recall Tracer</b>. Under it: "An agent that works the recall on a FalkorDB graph, and proves every store."</dd>
+    <dt>Caption</dt><dd><span class="cap">The demo company and stores are synthetic. The rules and record formats are the FDA's.</span></dd>
+  </dl>
+</div></div>
+
+<div class="shot"><div class="t">0:30<small>25 s</small></div><div class="b">
+  <h3>Outbreak intake: six sick people, no lot named <span class="tag wow">Multi-hop</span></h3>
+  <p class="where">Outbreak page, cluster OB-2026-10, Listeria.</p>
+  <dl>
+    <dt>Do</dt><dd>Load the six cases (state, onset, store, purchase date, product if known). Press <b>Find the source</b>. The agent's note and the tool call stream in.</dd>
+    <dt>Show</dt><dd>The ranked lots. <b>L-204</b>, diced carrot from Valley Root Co., explains <b>6 of 6</b> and reached 31 stores. L-162, basil, explains 4 of 6. Click case C3 to show its path back to L-204 through rework batch B-09.</dd>
+    <dt>Caption</dt><dd><span class="cap">The agent walks each case backward: store, delivery, batch, rework, ingredient lot.</span><br><span class="cap">One lot explains all six. L-205, the same carrot from the same supplier, explains none.</span></dd>
+    <dt>Say</dt><dd class="say">"A keyword search would flag both carrot lots. The graph rules out L-205 because no path reaches any of the six stores."</dd>
+  </dl>
+</div></div>
+
+<div class="shot"><div class="t">0:55<small>10 s</small></div><div class="b">
+  <h3>Hand off to the recall</h3>
+  <dl>
+    <dt>Do</dt><dd>Click <b>Open incident on L-204</b>. The notice page opens with the lot filled in and "Epidemiology agrees: 6 of 6 cases". Pick Listeria and press <b>Open incident</b>.</dd>
+    <dt>Caption</dt><dd><span class="cap">The 24-hour clock starts: the FDA's Reportable Food Registry window.</span></dd>
+  </dl>
+</div></div>
+
+<div class="shot"><div class="t">1:05<small>40 s</small></div><div class="b">
+  <h3>The agent works the recall, live on the graph <span class="tag judge">Agent acts</span> <span class="tag wow">Proof of safety</span></h3>
+  <p class="where">Dashboard, Record network tab, investigation log on the right. Record from replay at 1× so the timing is real and nothing stalls.</p>
+  <dl>
+    <dt>Show</dt><dd>The network lights up step by step while the log fills in. Each step shows its FalkorDB time. The two judgement steps appear as purple cards.</dd>
+    <dt>Captions</dt><dd>
+      <span class="cap">Step 1: the agent proposes Class I, consumer-level. A proposal, not a decision.</span><br>
+      <span class="cap">Step 2: hold first. 2,652 units and 93 kg never leave the plants and DCs.</span><br>
+      <span class="cap">Step 3: one query, eight hops: lot, batch, rework, product lot, store. 31 stores.</span><br>
+      <span class="cap">Step 4: 2 deliveries had no lot code. They can't be cleared, so they're pulled.</span><br>
+      <span class="cap">Step 6: 38 stores cleared by walking every lot back to its ingredients.</span><br>
+      <span class="cap">18 queries. 10 ms in FalkorDB.</span></dd>
+    <dt>Say</dt><dd class="say">"Claude chooses the tools and explains. The graph decides what's affected. Claude never decides a store is safe on its own."</dd>
+  </dl>
+</div></div>
+
+<div class="shot"><div class="t">1:45<small>25 s</small></div><div class="b">
+  <h3>The decision, with evidence for every store</h3>
+  <dl>
+    <dt>Show</dt><dd>The headline tiles: <b>33 of 71</b> stores, <b>2,256</b> units instead of 7,672. Click <b>Stores that must pull</b> and the table filters. Open a store that got TLC-09A: the drawer shows L-204 into B-03, 40 kg of leftovers reworked into B-09, then the delivery. Open a cleared store: each lot traced back, "No L-204".</dd>
+    <dt>Caption</dt><dd><span class="cap">A blanket recall pulls 71 stores. The records clear 38 of them, with proof.</span></dd>
+  </dl>
+</div></div>
+
+<div class="shot"><div class="t">2:10<small>15 s</small></div><div class="b">
+  <h3>Human in the loop</h3>
+  <dl>
+    <dt>Do</dt><dd>Confirm Class I in the assessment card. Approve the Ohio notices, then approve all. Download the FDA shipping CSV and show its first rows.</dd>
+    <dt>Caption</dt><dd><span class="cap">Approving marks notices ready. Nothing is sent. The CSV uses the FDA's FSMA 204 column names.</span></dd>
+  </dl>
+</div></div>
+
+<div class="shot"><div class="t">2:25<small>15 s</small></div><div class="b">
+  <h3>Rewind the investigation <span class="tag wow">Explainable</span></h3>
+  <dl>
+    <dt>Do</dt><dd>Press <b>Replay the trace</b>. Drag the playhead back to step 4: the cleared stores disappear and the two amber gap stores remain. Click marker 6: the backward check lights the cleared stores. Show the address ending in <code>#step-6</code>.</dd>
+    <dt>Caption</dt><dd><span class="cap">Every step can be replayed and shared. This is the audit trail.</span></dd>
+  </dl>
+</div></div>
+
+<div class="shot"><div class="t">2:40<small>12 s</small></div><div class="b">
+  <h3>The same tools in any agent <span class="tag judge">MCP</span></h3>
+  <p class="where">Terminal with Claude Code.</p>
+  <dl>
+    <dt>Do</dt><dd>Run <code>claude mcp add --transport http recall-tracer &lt;app&gt;/mcp</code>, then ask "Which stores got lot L-204, and why?". Claude calls <code>trace_forward</code> and answers with the paths.</dd>
+    <dt>Caption</dt><dd><span class="cap">Ten graph tools, one MCP server. Use them from any MCP client.</span></dd>
+  </dl>
+</div></div>
+
+<div class="shot"><div class="t">2:52<small>8 s</small></div><div class="b">
+  <h3>End card</h3>
+  <dl>
+    <dt>Show</dt><dd>"Recall Tracer. Built on FalkorDB." The six numbers from the top of this page. The repo, the live app link, the team names, and one line: "Built with AI coding help, disclosed in the README."</dd>
+  </dl>
+</div></div>
+</div>
+
+<div class="callout"><p><b>If Track 2 work is merged,</b> spend 5 seconds before the end card on the History page: "The graph remembers every incident. The next notice from Valley Root Co. opens with this one." Cut the MCP shot to 8 seconds to make room.</p></div>
+
+<h2 id="criteria">What judges score, and where they see it</h2>
+<div class="tbl"><table>
+<tr><th>Track 1 focus</th><th>Where it shows</th><th>The one line to say</th></tr>
+<tr><td>Multi-hop reasoning</td><td>Outbreak search, forward trace, backward check</td><td>"Eight hops in one query: lot, batch, rework, product lot, store."</td></tr>
+<tr><td>Graph queries and algorithms as tools</td><td>Cypher under every log step, the FalkorDB time per step</td><td>"Ten tools, each one a Cypher query you can read."</td></tr>
+<tr><td>Tool selection through MCP</td><td>The agent lists tools from our MCP server, plus the Claude Code shot</td><td>"The agent only sees the graph through MCP."</td></tr>
+<tr><td>Actions based on what the graph shows</td><td>Hold, incident record, drafted notices, CSV</td><td>"It writes the hold into the graph before anything else."</td></tr>
+<tr><td>Explainable results</td><td>Evidence drawer, judgement cards, replay timeline</td><td>"Every store has a reason, and every step can be replayed."</td></tr>
+<tr><td>Sponsor fit, FalkorDB</td><td>FalkorDB Browser cold open, millisecond timings, two graphs in one instance</td><td>"Real recalls and our demo company in one FalkorDB, side by side."</td></tr>
+</table></div>
+
+<h2 id="live">Live pitch version, 5 minutes</h2>
+<ol>
+  <li><b>0:00, the hook, 30 s.</b> Same cold open, run live in FalkorDB Browser. Ask the room: "How did cheese reach Illinois?"</li>
+  <li><b>0:30, the outbreak, 60 s.</b> Run <b>Find the source</b> live. It is a single tool call and returns in seconds.</li>
+  <li><b>1:30, the recall, 90 s.</b> Open the incident and let the live run stream, about 25 seconds, narrating each step. If it stalls past 10 seconds, switch to replay without comment. It looks identical.</li>
+  <li><b>3:00, the evidence and the human, 60 s.</b> Show a pulled store, a cleared store, then confirm and approve.</li>
+  <li><b>4:00, rewind and MCP, 40 s.</b> Show the replay timeline, then one question in Claude Code.</li>
+  <li><b>4:40, close, 20 s.</b> Show the numbers and FalkorDB, then take questions.</li>
+</ol>
+
+<h2 id="setup">Recording checklist</h2>
+<ul class="check">
+  <li><label><input type="checkbox" id="c1"> Reseed both graphs: <code>bun run generate --seed 42 --reset</code> and <code>bun run real</code>. Then do one live L-204 run, so the incident exists and the latest run is recorded.</label></li>
+  <li><label><input type="checkbox" id="c2"> Use the production build (<code>bun run build</code>, then start), so the Next.js dev badge isn't in the corner.</label></li>
+  <li><label><input type="checkbox" id="c3"> Browser at 1440 by 900, zoom 110%, dark theme, bookmarks bar hidden. Turn on cursor highlighting.</label></li>
+  <li><label><input type="checkbox" id="c4"> Load every page once before recording, so nothing compiles on camera.</label></li>
+  <li><label><input type="checkbox" id="c5"> Record the trace from replay at 1×. Use 2× only between captions.</label></li>
+  <li><label><input type="checkbox" id="c6"> In FalkorDB Browser, save the two cold-open queries so each one is a single click.</label></li>
+  <li><label><input type="checkbox" id="c7"> In the terminal: large font, history cleared, the <code>claude mcp add</code> command ready to paste.</label></li>
+  <li><label><input type="checkbox" id="c8"> Captions under 12 words each, on screen for at least 2.5 seconds, bottom third, high contrast.</label></li>
+  <li><label><input type="checkbox" id="c9"> Final cut under 3:00. Watch it once with sound off: the captions alone must tell the story.</label></li>
+  <li><label><input type="checkbox" id="c10"> Test the hosted link in a private window with no key. Replay must play.</label></li>
+</ul>
+
+<h2 id="qa">Judges' questions, with answers</h2>
+<div class="qa">
+  <details><summary>Why a graph, and not SQL?</summary><p>The trace follows four kinds of relationship to a variable depth: blending, rework, production and delivery. In Cypher that is one pattern, <code>[:USED_IN|REWORKED_INTO|PRODUCED|SHIPPED_TO*1..8]</code>. In SQL it is a recursive query over four tables, and rework loops make it harder. FalkorDB answers the whole run's 18 queries in about 10 ms.</p></details>
+  <details><summary>What stops the model from getting it wrong?</summary><p>The model never decides a store's status. Affected, gap and cleared come only from query results, and the final numbers are built from the tool output, not from the model's text. Its two judgements are proposals that a human confirms. The backward check verifies the cleared stores independently.</p></details>
+  <details><summary>Is the data real?</summary><p>The cold open is real: CDC outbreak pages and 2,646 openFDA recalls, cited in the repo. The demo company is synthetic, generated from a seed, because no company publishes its lot records. Its structure follows the FDA's FSMA 204 traceability records and the CSV uses the FDA's column names.</p></details>
+  <details><summary>Does it scale?</summary><p>Every query starts from an indexed lot code and follows bounded paths, so cost grows with how far one lot spread, not with the size of the company. Edges only point forward in time, so there are no cycles.</p></details>
+  <details><summary>What about stores with missing records?</summary><p>That is the gap rule. A delivery of an affected product with no lot code can't be cleared, so the store is pulled and the reason says which record is missing. The coordinator can preview flag-only instead, which gives 31 stores rather than 33.</p></details>
+  <details><summary>Who would use this?</summary><p>The recall coordinator in a food manufacturer's quality team, in the first hour of an incident. FSMA 204 requires these records by July 2028, so the data will exist. This turns it into a decision.</p></details>
+  <details><summary>What did the AI write, and what did you write?</summary><p>We used Claude Code during the event, as the README discloses. The team designed the graph, the policies and the flows, and can explain every query.</p></details>
+  <details><summary>What would you build next?</summary><p>Ingesting real FSMA 204 spreadsheets, supplier-level graphs across companies, and the memory features: past incidents per supplier and agent handoffs through the graph.</p></details>
+</div>
+
+<h2 id="backup">Backups</h2>
+<div class="tbl"><table>
+<tr><th>If this fails</th><th>Do this</th></tr>
+<tr><td>Live run stalls or the API key fails</td><td>Switch to replay. It plays the recorded run with the same screens.</td></tr>
+<tr><td>Outbreak search errors once</td><td>This was seen once in testing. Rerun it, or use the recorded outbreak result.</td></tr>
+<tr><td>Hosted app is down</td><td>Run locally with Docker Compose and show the video for the rest.</td></tr>
+<tr><td>Wi-Fi drops during the live pitch</td><td>Everything runs locally except Claude. Use replay for the agent parts.</td></tr>
+<tr><td>FalkorDB Browser won't connect</td><td>Show the same two queries in the terminal: <code>bun run real --show</code>.</td></tr>
+</table></div>
+
+<h2 id="dont">What not to show</h2>
+<ul>
+  <li>Waiting. Cut every pause longer than a second, and never show a spinner.</li>
+  <li>Raw JSON, error stacks or the network tab.</li>
+  <li>The chat page as a main feature. It can appear for 3 seconds at most. The dashboard is the product.</li>
+  <li>Claims we can't back: no "detects outbreaks", no "replaces the FDA", no real company names apart from the cited CDC case.</li>
+  <li>The phrase "AI decides". Always say "the graph decides, the coordinator confirms".</li>
+</ul>
+
+<footer>Recall Tracer · demo script, Oct 17, 2026 · real outbreak figures from CDC's soft-cheese Listeria investigation pages, as loaded in the repo's <code>data/real/outbreaks.json</code>.</footer>
+</main>
+</div>
+</body>
+</html>

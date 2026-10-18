@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Real Recall Incidents</title>
+<meta name="description" content="Three real food incidents for the Recall Tracer demo: what happened, what they prove, and how to show them.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Barlow+Condensed:wght@600;700&display=swap">
+<style>
+/* Layout: an evidence file. Sticky nav, one reading column, each incident a case file with facts, a picture, and what it means for the demo. */
+:root {
+  --bg: #f4f5f3; --panel: #ffffff; --fg: #1c2321; --muted: #5a6561; --line: #d8ddda; --soft: #eaedea;
+  --recall: #c4471b; --recall-bg: #fbe8df; --gap: #9a6b00; --gap-bg: #fbf0d3; --safe: #2f7d5b; --safe-bg: #e3f0e9;
+  --link: #3b5bdb; --link-bg: #e8edfd;
+  --sign: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --mono: "IBM Plex Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121615; --panel: #1b201e; --fg: #e7ebe8; --muted: #a0aaa5; --line: #313936; --soft: #232a27;
+  --recall: #f08158; --recall-bg: #3a221a; --gap: #e3b54d; --gap-bg: #362d16; --safe: #74c39c; --safe-bg: #1c2e25;
+  --link: #8ea7ff; --link-bg: #1f2640; color-scheme: dark;
+} }
+:root[data-theme="dark"] {
+  --bg: #121615; --panel: #1b201e; --fg: #e7ebe8; --muted: #a0aaa5; --line: #313936; --soft: #232a27;
+  --recall: #f08158; --recall-bg: #3a221a; --gap: #e3b54d; --gap-bg: #362d16; --safe: #74c39c; --safe-bg: #1c2e25;
+  --link: #8ea7ff; --link-bg: #1f2640; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.55 var(--body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 0 64px; }
+.wrap { max-width: 1120px; margin: 0 auto; display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 40px; }
+@media (max-width: 860px) { .wrap { grid-template-columns: minmax(0, 1fr); } nav.toc { display: none; } }
+nav.toc { position: sticky; top: env(safe-area-inset-top, 0px); align-self: start; padding-block: 28px 16px; font-size: 13px; }
+nav.toc a { display: block; color: var(--muted); text-decoration: none; padding: 4px 0 4px 10px; border-left: 2px solid var(--line); }
+nav.toc a:hover, nav.toc a:focus-visible { color: var(--fg); border-color: var(--recall); outline: none; }
+main { min-width: 0; padding-block: 28px 0; }
+h1, h2 { font-family: var(--sign); font-weight: 700; line-height: 1.05; margin: 0; text-wrap: balance; letter-spacing: 0.01em; }
+h1 { font-size: 2.8rem; }
+h2 { font-size: 1.9rem; margin-top: 56px; padding-top: 16px; border-top: 4px solid var(--fg); }
+h3 { font-size: 1.05rem; margin: 24px 0 0; font-weight: 600; }
+p { max-width: 70ch; margin: 10px 0; }
+ul, ol { max-width: 74ch; padding-left: 22px; margin: 8px 0; }
+li { margin: 4px 0; }
+.eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.lede { font-size: 1.15rem; max-width: 62ch; }
+.muted { color: var(--muted); }
+code { font-family: var(--mono); font-size: 0.86em; background: var(--soft); padding: 1px 5px; border-radius: 3px; }
+pre { font-family: var(--mono); font-size: 12.5px; line-height: 1.5; background: var(--soft); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; overflow-x: auto; margin: 8px 0; }
+a { color: var(--recall); }
+.stripe { height: 8px; margin: 18px 0 6px; background: repeating-linear-gradient(-45deg, var(--gap) 0 12px, var(--fg) 12px 24px); border-radius: 2px; }
+.cases { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin: 18px 0; }
+.case { background: var(--panel); border: 1px solid var(--line); border-top: 4px solid var(--recall); border-radius: 6px; padding: 12px 14px; min-width: 0; }
+.case h3 { margin: 0; }
+.case p { margin: 6px 0; font-size: 14px; }
+.case .use { font-size: 12.5px; color: var(--muted); }
+.tag { display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 999px; white-space: nowrap; }
+.tag.in { background: var(--safe-bg); color: var(--safe); }
+.tag.data { background: var(--link-bg); color: var(--link); }
+.tag.out { background: var(--gap-bg); color: var(--gap); }
+.numbers { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 16px 0; }
+.numbers div { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; }
+.numbers b { display: block; font: 700 1.7rem/1.1 var(--sign); font-variant-numeric: tabular-nums; }
+.numbers span { font-size: 12.5px; color: var(--muted); }
+.states { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 6px 12px; align-items: center; margin: 12px 0; font-size: 14px; }
+.states .lbl { color: var(--muted); font-size: 13px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-family: var(--mono); font-size: 12px; padding: 2px 8px; border-radius: 4px; background: var(--soft); border: 1px solid var(--line); }
+.chip.hot { background: var(--recall-bg); border-color: var(--recall); color: var(--recall); font-weight: 600; }
+.callout { border-left: 4px solid var(--recall); background: var(--recall-bg); padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 14px 0; max-width: 76ch; }
+.callout.gap { border-color: var(--gap); background: var(--gap-bg); }
+.callout.safe { border-color: var(--safe); background: var(--safe-bg); }
+.callout p { margin: 4px 0; }
+.tbl { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; margin: 10px 0; }
+th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+th { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+td .sub { display: block; font-size: 12px; color: var(--muted); }
+.diagram { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin: 14px 0; overflow-x: auto; }
+.diagram svg { display: block; width: 100%; min-width: 720px; height: auto; }
+.diagram .n-src { fill: var(--recall); }
+.diagram .n-firm { fill: var(--panel); stroke: var(--recall); stroke-width: 2; }
+.diagram .n-brand { fill: var(--soft); stroke: var(--line); stroke-width: 1.5; }
+.diagram .e-stated { stroke: var(--recall); stroke-width: 2; fill: none; }
+.diagram .e-inferred { stroke: var(--recall); stroke-width: 2; fill: none; stroke-dasharray: 6 5; opacity: 0.75; }
+.diagram .e-sold { stroke: var(--muted); stroke-width: 1.2; fill: none; }
+.diagram text { fill: var(--fg); font-family: var(--body); font-size: 12.5px; }
+.diagram text.sub { fill: var(--muted); font-size: 11px; }
+.diagram text.head { fill: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: 0.08em; }
+.legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 12.5px; color: var(--muted); margin-top: 6px; }
+.legend i { display: inline-block; width: 26px; height: 0; border-top: 2px solid var(--recall); vertical-align: middle; margin-right: 6px; }
+.legend i.d { border-top-style: dashed; }
+.legend i.g { border-top: 1.5px solid var(--muted); }
+.shots { display: grid; gap: 0; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin: 14px 0; }
+.shot { display: grid; grid-template-columns: 84px minmax(0, 1fr); background: var(--panel); border-top: 1px solid var(--line); }
+.shot:first-child { border-top: 0; }
+.shot .t { padding: 12px; font: 700 1.2rem/1 var(--sign); border-right: 1px solid var(--line); background: var(--soft); font-variant-numeric: tabular-nums; }
+.shot .b { padding: 10px 14px; min-width: 0; }
+.shot p { margin: 4px 0; max-width: none; }
+.cap { display: inline-block; background: var(--fg); color: var(--bg); padding: 2px 8px; border-radius: 3px; font-weight: 500; }
+footer { margin-top: 56px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+@media (max-width: 560px) { .states { grid-template-columns: minmax(0, 1fr); } .shot { grid-template-columns: minmax(0, 1fr); } .shot .t { border-right: 0; border-bottom: 1px solid var(--line); } }
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav class="toc" aria-label="Sections">
+  <a href="#overview">The three incidents</a>
+  <a href="#clover">Clover Hill Dairy</a>
+  <a href="#milk">California Dairies</a>
+  <a href="#onions">McDonald's onions</a>
+  <a href="#demo">In the demo</a>
+  <a href="#build">What to build</a>
+  <a href="#sources">Sources</a>
+</nav>
+
+<main>
+<div class="eyebrow">Recall Tracer · Graph Hacks Track 01 · real data for the demo</div>
+<h1>Real Recall Incidents</h1>
+<div class="stripe" aria-hidden="true"></div>
+<p class="lede">Our demo company is synthetic, but the problem is not. These three real incidents show what goes wrong when a contaminated ingredient moves through other companies' products, and why a traceability graph fixes it.</p>
+<p class="muted">Two of the three are already in our FalkorDB <code>fda</code> graph, loaded from openFDA enforcement reports and CDC outbreak pages. Every number on this page comes from those records or from the cited FDA and CDC pages, as of Oct 17, 2026.</p>
+
+<h2 id="overview">The three incidents</h2>
+<div class="cases">
+  <div class="case"><span class="tag in">In the app</span><h3>Clover Hill Dairy, Listeria, 2026</h3><p>15 sick, 14 in hospital, 1 death. The recalls named three states, and a fourth state had a sick person.</p><p class="use">Proves: the records miss places. Use as the cold open.</p></div>
+  <div class="case"><span class="tag data">In our data, not shown yet</span><h3>California Dairies milk powder, Salmonella, 2026</h3><p>One ingredient recall turned into 8 companies and 22 product recalls in 16 days. The source company listed its US distribution as unknown.</p><p class="use">Proves: one ingredient spreads through other companies' products. Use before the title card.</p></div>
+  <div class="case"><span class="tag out">Not in our data</span><h3>McDonald's onions, E. coli, 2024</h3><p>104 sick in 14 states. Investigators had to decide between two ingredients in the same burger: onions or beef.</p><p class="use">Proves: finding the source is the hard part. Use as a spoken line.</p></div>
+</div>
+
+<h2 id="clover">Clover Hill Dairy, Listeria in requesón</h2>
+<p>A Listeria outbreak linked to requesón, a soft ricotta-style cheese, with illness onsets from March 2023 to July 2026. CDC linked it to Clover Hill Dairy, LLC of Mechanicsville, Maryland, which filed 18 Class I recalls from June 1, 2026.</p>
+<div class="numbers">
+  <div><b>15</b><span>people sick</span></div>
+  <div><b>14</b><span>in hospital</span></div>
+  <div><b>1</b><span>death</span></div>
+  <div><b>18</b><span>Class I recalls by the firm</span></div>
+</div>
+<div class="states">
+  <span class="lbl">Recalls named</span><span class="chips"><span class="chip">MD</span><span class="chip">NY</span><span class="chip">VA</span></span>
+  <span class="lbl">People got sick in</span><span class="chips"><span class="chip hot">IL · 1</span><span class="chip">MD · 4</span><span class="chip">NY · 6</span><span class="chip">VA · 4</span></span>
+</div>
+<div class="callout"><p><b>The gap.</b> Someone got sick in Illinois, and no recall from this firm named Illinois. The records do not say how the cheese got there.</p></div>
+<p>Two other firms also recalled requesón in the same weeks: Nelson &amp; Isa Lacteos LLC (recall H-1189-2026) and La Ceiba Foods Latin Market Inc. Our graph links them to Clover Hill as <b>inferred</b> suppliers, because CDC's updates list them together but no record states the shipment.</p>
+<h3>The query that finds the gap</h3>
+<pre>MATCH (o:Outbreak)-[:CASES_IN]->(s:State), (o)-[:LINKED_TO]->(f:Firm)
+WHERE NOT (f)-[:RECALLED]->(:Recall)-[:DISTRIBUTED_TO]->(s)
+RETURN o.id AS outbreak, s.code AS state</pre>
+<p class="muted">Already built: the real-data page shows this outbreak's record network and runs this query live, in under a millisecond of FalkorDB time.</p>
+
+<h2 id="milk">California Dairies, Salmonella in milk powder</h2>
+<p>On April 20, 2026, California Dairies Inc. of Visalia, California, recalled non-fat dried milk powder and buttermilk powder, sold in 2,200 lb totes and 25 kg bags, for possible Salmonella. Milk powder is an ingredient, so the recall did not stop there. Over the next 16 days, seven other companies recalled their own products because they were made with it.</p>
+<div class="numbers">
+  <div><b>8</b><span>companies recalled</span></div>
+  <div><b>22</b><span>Class I product recalls</span></div>
+  <div><b>16 days</b><span>from the first recall to the last</span></div>
+  <div><b>42</b><span>states named, plus one nationwide recall</span></div>
+</div>
+<div class="callout gap"><p><b>The source didn't know where it went.</b> California Dairies' own recall lists its US distribution as "Unknown and to be determined during RAC assignment". Its customers picked the powder up from the plant, and it also went to Mexico, the Philippines and the Dominican Republic.</p></div>
+
+<div class="diagram">
+<svg viewBox="0 0 900 420" role="img" aria-label="Cascade: California Dairies milk powder to seven companies, and on to the brands on the pack">
+  <text x="40" y="22" class="head">SOURCE</text>
+  <text x="390" y="22" class="head">COMPANIES THAT USED IT</text>
+  <text x="700" y="22" class="head">NAME ON THE PACK</text>
+  <!-- edges source to firms: stated solid, inferred dashed -->
+  <path class="e-inferred" d="M150,215 C260,215 280,60 380,60"/>
+  <path class="e-inferred" d="M150,215 C260,215 280,110 380,110"/>
+  <path class="e-stated"   d="M150,215 C260,215 280,160 380,160"/>
+  <path class="e-inferred" d="M150,215 C260,215 280,210 380,210"/>
+  <path class="e-stated"   d="M150,215 C260,215 280,260 380,260"/>
+  <path class="e-stated"   d="M150,215 C260,215 280,310 380,310"/>
+  <path class="e-inferred" d="M150,215 C260,215 280,360 380,360"/>
+  <!-- firm to brand -->
+  <path class="e-sold" d="M640,110 C665,110 665,96 690,96"/>
+  <path class="e-sold" d="M640,110 C665,110 665,136 690,136"/>
+  <path class="e-sold" d="M640,210 C665,210 665,196 690,196"/>
+  <path class="e-sold" d="M640,260 C665,260 665,246 690,246"/>
+  <path class="e-sold" d="M640,310 C665,310 665,296 690,296"/>
+  <path class="e-sold" d="M640,360 C665,360 665,356 690,356"/>
+  <!-- source -->
+  <circle class="n-src" cx="138" cy="215" r="14"/>
+  <text x="40" y="250" font-weight="600">California Dairies Inc.</text>
+  <text x="40" y="266" class="sub">Visalia, CA · Apr 20 · 3 recalls</text>
+  <text x="40" y="282" class="sub">milk and buttermilk powder</text>
+  <!-- firms -->
+  <circle class="n-firm" cx="388" cy="60" r="8"/><text x="404" y="56">Fontana Flavors</text><text x="404" y="71" class="sub">WI · Apr 22 · 3 cheese flavors</text>
+  <circle class="n-firm" cx="388" cy="110" r="8"/><text x="404" y="106">PS Seasoning &amp; Spices</text><text x="404" y="121" class="sub">WI · Apr 22 · 6 · nationwide</text>
+  <circle class="n-firm" cx="388" cy="160" r="8"/><text x="404" y="156">Pork King Good</text><text x="404" y="171" class="sub">WI · Apr 23 · 1 · 26 states</text>
+  <circle class="n-firm" cx="388" cy="210" r="8"/><text x="404" y="206">Sugar Foods</text><text x="404" y="221" class="sub">GA · Apr 27 · croutons</text>
+  <circle class="n-firm" cx="388" cy="260" r="8"/><text x="404" y="256">Jonco Industries</text><text x="404" y="271" class="sub">WI · May 4 · 1 seasoning</text>
+  <circle class="n-firm" cx="388" cy="310" r="8"/><text x="404" y="306">Legacy Bakehouse</text><text x="404" y="321" class="sub">WI · May 5 · 3 bagel crisps</text>
+  <circle class="n-firm" cx="388" cy="360" r="8"/><text x="404" y="356">The Coffee Connexion</text><text x="404" y="371" class="sub">TN · May 6 · 4 sauce mixes · 41 states</text>
+  <!-- brands -->
+  <rect class="n-brand" x="690" y="86" width="12" height="12" rx="2"/><text x="710" y="96">Blackstone</text><text x="710" y="110" class="sub">Parmesan Ranch Seasoning</text>
+  <rect class="n-brand" x="690" y="126" width="12" height="12" rx="2"/><text x="710" y="136">Save A Lot</text>
+  <rect class="n-brand" x="690" y="186" width="12" height="12" rx="2"/><text x="710" y="196">Kroger</text><text x="710" y="210" class="sub">cheese and garlic croutons</text>
+  <rect class="n-brand" x="690" y="236" width="12" height="12" rx="2"/><text x="710" y="246">Fireworks Popcorn</text>
+  <rect class="n-brand" x="690" y="286" width="12" height="12" rx="2"/><text x="710" y="296">Giant Eagle</text><text x="710" y="310" class="sub">baked pita chips</text>
+  <rect class="n-brand" x="690" y="346" width="12" height="12" rx="2"/><text x="710" y="356">Aramark</text><text x="710" y="370" class="sub">cheese sauce</text>
+  <text x="404" y="404" class="sub">Dates are when each recall was initiated, 2026.</text>
+</svg>
+<div class="legend"><span><i></i>Recall names California Dairies (stated)</span><span><i class="d"></i>Recall says "milk powder recalled by the supplier" (inferred)</span><span><i class="g"></i>Brand printed on the recalled product</span></div>
+</div>
+
+<div class="tbl"><table>
+<tr><th>Initiated</th><th>Company</th><th>What they recalled</th><th>Link to the source</th><th class="num">Recalls</th><th>Where it went</th></tr>
+<tr><td>Apr 20</td><td>California Dairies Inc.<span class="sub">Visalia, CA</span></td><td>Low-heat non-fat dried milk powder and buttermilk powder<span class="sub">H-0698 to H-0700-2026</span></td><td>The source</td><td class="num">3</td><td>US unknown; Mexico, Philippines, Dominican Republic</td></tr>
+<tr><td>Apr 22</td><td>Fontana Flavors<span class="sub">Janesville, WI</span></td><td>White cheddar, cream of mushroom and parmesan flavors, for further processing<span class="sub">H-0811 to H-0813-2026</span></td><td><span class="tag out">inferred</span> "milk powder recalled by the supplier"</td><td class="num">3</td><td>IL, TN, Canada</td></tr>
+<tr><td>Apr 22</td><td>PS Seasoning &amp; Spices<span class="sub">Iron Ridge, WI</span></td><td>Seasonings, including Blackstone Parmesan Ranch and a Save A Lot bind, and its own 1 lb non-fat dry milk<span class="sub">H-0814 to H-0819-2026</span></td><td><span class="tag out">inferred</span> "milk powder recalled by the supplier"</td><td class="num">6</td><td>Nationwide</td></tr>
+<tr><td>Apr 23</td><td>Pork King Good<span class="sub">Cudahy, WI</span></td><td>Onion &amp; sour cream seasoning<span class="sub">H-0830-2026</span></td><td><span class="tag in">stated</span> names California Dairies</td><td class="num">1</td><td>26 states</td></tr>
+<tr><td>Apr 27</td><td>Sugar Foods<span class="sub">Villa Rica, GA</span></td><td>Kroger Homestyle cheese and garlic croutons<span class="sub">H-0781-2026</span></td><td><span class="tag out">inferred</span> "supplier's non-fat milk powder"</td><td class="num">1</td><td>DCs in IN, TN, WI</td></tr>
+<tr><td>May 4</td><td>Jonco Industries<span class="sub">Milwaukee, WI</span></td><td>White cheddar seasoning, Fireworks Popcorn<span class="sub">H-0953-2026</span></td><td><span class="tag in">stated</span> names California Dairies</td><td class="num">1</td><td>MS, WI</td></tr>
+<tr><td>May 5</td><td>Legacy Bakehouse<span class="sub">Waukesha, WI</span></td><td>Bagel crisps, including Giant Eagle baked pita chips<span class="sub">H-0850 to H-0852-2026</span></td><td><span class="tag in">stated</span> names California Dairies</td><td class="num">3</td><td>PA, WI</td></tr>
+<tr><td>May 6</td><td>The Coffee Connexion<span class="sub">Lebanon, TN</span></td><td>Cheese sauce, Alfredo and cream sauce mixes, including Aramark cheese sauce<span class="sub">H-0907 to H-0910-2026</span></td><td><span class="tag out">inferred</span> "dry milk powder recalled by the supplier"</td><td class="num">4</td><td>41 states</td></tr>
+</table></div>
+
+<h3>What this shows</h3>
+<ul>
+  <li><b>The source can't scope its own recall.</b> California Dairies didn't know where its powder went in the US. Each customer had to find out, then recall on its own schedule, over 16 days.</li>
+  <li><b>The name on the pack isn't the company that recalled it.</b> A shopper holding Kroger croutons or Giant Eagle pita chips would not know to look for "California Dairies".</li>
+  <li><b>It goes two and three steps deep.</b> Milk powder went into seasonings sold to popcorn and grocery brands, into croutons and pita chips sold under store names, and into sauce mixes sold under Aramark's name.</li>
+  <li><b>This is our product's trace on real records.</b> Lot, into batches, into products, out to customers. Recall Tracer does this for one company's own records in about 25 seconds, and proves which stores are clear.</li>
+</ul>
+<div class="callout gap"><p><b>Say it carefully.</b> Only three recalls name California Dairies. The other four say "recalled by the supplier", so their links are inferred from the same ingredient in the same weeks. No illnesses are reported for this cascade, so don't claim any.</p></div>
+
+<h2 id="onions">McDonald's onions, E. coli O157:H7</h2>
+<p>In October 2024, sick people across 14 states had eaten Quarter Pounder burgers at McDonald's. Investigators had to work out which ingredient in the same burger was contaminated: the fresh slivered onions or the beef patties. Traceback pointed to yellow onions from Taylor Farms, which recalled them on October 22, 2024.</p>
+<div class="numbers">
+  <div><b>104</b><span>people sick</span></div>
+  <div><b>14</b><span>states</span></div>
+  <div><b>34</b><span>in hospital</span></div>
+  <div><b>63 of 75</b><span>who remembered their order ate slivered onions</span></div>
+</div>
+<div class="callout safe"><p><b>Why it fits our story.</b> "Onions or beef?" is the question our outbreak page answers: which ingredient lot explains every case. Our demo ranks L-204 above L-162 and rules out a decoy, using the graph instead of weeks of interviews and traceback.</p></div>
+<p class="muted">This outbreak is from 2024, before our openFDA data starts, so it isn't in the graph. Use it as a spoken line, not a screen.</p>
+
+<h2 id="demo">How to use them in the demo</h2>
+<div class="shots">
+  <div class="shot"><div class="t">0:00</div><div class="b"><p><b>Clover Hill gap, live in FalkorDB.</b> Run the gap query and get Illinois.</p><p><span class="cap">The recalls named Maryland, New York and Virginia. Someone got sick in Illinois.</span></p></div></div>
+  <div class="shot"><div class="t">0:14</div><div class="b"><p><b>Milk powder cascade, 8 seconds.</b> Show the cascade network: one source, seven companies, the brands on the pack.</p><p><span class="cap">One ingredient. Eight companies. 22 recalls in 16 days. The source didn't know where it went.</span></p></div></div>
+  <div class="shot"><div class="t">0:22</div><div class="b"><p><b>Title card.</b> "Recall Tracer answers this for your own lots in 25 seconds, and proves which stores are clear."</p></div></div>
+</div>
+<p><b>In the live pitch,</b> add the onions as one line before the outbreak page: "In 2024, investigators spent weeks working out whether it was the onions or the beef. Watch the graph answer that question."</p>
+
+<h2 id="build">What to build</h2>
+<div class="tbl"><table>
+<tr><th>Item</th><th>Owner</th><th>Work</th><th class="num">Effort</th></tr>
+<tr><td>Supplier links for the cascade</td><td>Dev A</td><td>Add seven <code>SUPPLIED</code> links from California Dairies to the downstream firms in <code>data/real/outbreaks.json</code>, each with basis stated or inferred, the reason text and the recall number. The loader already reads this list.</td><td class="num">1 h</td></tr>
+<tr><td>Cascade view on the real-data page</td><td>Dev C</td><td>A second network next to Clover Hill: the source, its downstream firms with solid or dashed links, and the brands from the product text. Show the counts above it.</td><td class="num">2 h</td></tr>
+<tr><td>Cascade query, shown with its Cypher</td><td>Dev A</td><td>One query that walks <code>SUPPLIED</code> out from a firm and counts recalls and states, with its FalkorDB time.</td><td class="num">30 min</td></tr>
+<tr><td>Demo script update</td><td>Dev D</td><td>Add the 8-second cascade shot and the onions line to the demo script.</td><td class="num">15 min</td></tr>
+</table></div>
+<pre>// The cascade, after the SUPPLIED links are loaded
+MATCH (src:Firm {name: 'California Dairies Inc.'})-[s:SUPPLIED]->(f:Firm)-[:RECALLED]->(r:Recall)
+OPTIONAL MATCH (r)-[:DISTRIBUTED_TO]->(st:State)
+RETURN f.name AS firm, s.basis AS basis, count(DISTINCT r) AS recalls,
+       min(r.initiated) AS first_recall, collect(DISTINCT st.code) AS states
+ORDER BY first_recall</pre>
+
+<h2 id="sources">Sources</h2>
+<ul>
+  <li><a href="https://open.fda.gov/apis/food/enforcement/">openFDA food enforcement reports</a>: every recall number on this page, loaded into our <code>fda</code> graph from <code>data/real/openfda-food-recalls.json</code>.</li>
+  <li><a href="https://www.cdc.gov/listeria/outbreaks/soft-cheese-06-26/investigation.html">CDC investigation: Listeria outbreak linked to soft cheese</a> and <a href="https://www.cdc.gov/listeria/outbreaks/soft-cheese-06-26/locations.html">where people got sick</a>.</li>
+  <li><a href="https://www.fda.gov/food/outbreaks-foodborne-illness/outbreak-investigation-e-coli-o157h7-onions-october-2024">FDA outbreak investigation: E. coli O157:H7, onions, October 2024</a> and the <a href="https://www.cdc.gov/ecoli/outbreaks/investigation-update-e-coli-o157-2024.html">CDC investigation update</a>.</li>
+</ul>
+
+<footer>Recall Tracer · real incidents for the demo · compiled Oct 17, 2026 from openFDA, CDC and FDA records. Company names appear only as they do in those public records.</footer>
+</main>
+</div>
+</body>
+</html>
