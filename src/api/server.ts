@@ -14,7 +14,7 @@ import type { RecallResult, TraceEvent } from '../agent/run.js';
 import { answer, listen, unlisten } from '../agent/questions.js';
 import { incidentReport, incidentStatus, listIncidents, supplierIncidents } from '../tools/incident.js';
 import { ingestCases, CASE_ID } from '../data/cases.js';
-import { realOutbreaks, realGraph, runDemoQueries } from '../data/real.js';
+import { realOutbreaks, realGraph, runDemoQueries, checkCaseReport } from '../data/real.js';
 import { recordSources } from '../data/sources.js';
 import { registerTools } from '../mcp/tools.js';
 
@@ -218,6 +218,17 @@ app.get('/real/outbreaks', async (c) => c.json(await realOutbreaks()));
 /** The outbreak's neighbourhood as a record network, and the demo queries run live with FalkorDB's time. */
 app.get('/real/graph', async (c) => c.json(await realGraph()));
 app.get('/real/queries', async (c) => c.json(await runDemoQueries()));
+/** A public case report (states and illness dates) checked against the real recalls: the lot they share, and who it reached. No Claude call. */
+app.post('/real/case-report', async (c) => {
+  const { text } = await c.req.json<{ text?: string }>();
+  if (!text?.trim()) return c.json({ error: 'Upload or paste a case report first.' }, 400);
+  try {
+    return c.json(await checkCaseReport(text));
+  } catch (e) {
+    if ((e as { status?: number }).status === 400) return c.json({ error: (e as Error).message }, 400);
+    throw e;
+  }
+});
 
 app.get('/incidents/supplier/:id', async (c) => {
   const id = c.req.param('id');

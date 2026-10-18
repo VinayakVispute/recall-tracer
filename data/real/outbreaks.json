@@ -37,5 +37,22 @@
       "why": "CDC's 2026-06-29 update lists La Ceiba's requesón recall under an outbreak it attributes to cheese supplied by Clover Hill Dairy. Not in openFDA as of 2026-10-07.",
       "source": "https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts/la-ceiba-foods-latin-market-inc-recalls-cottage-cheese-products-because-possible-health-risk"
     }
+  ],
+  "_notices_note": "Recall notices FDA posted that openFDA does not carry yet (checked 2026-10-18). Text copied from the notice; the distribution is the state list in FDA's sprouts outbreak advisory, updated 2026-10-01.",
+  "notices": [
+    {
+      "id": "FDA-NOTICE-2026-09-23-BERLIN-SEEDS",
+      "firm": "Berlin Seeds",
+      "city": "Millersburg",
+      "state": "OH",
+      "classification": "Not in openFDA yet",
+      "reason": "The seed has the potential to be contaminated with Shiga toxin-producing Escherichia coli (STEC) and/or Salmonella. Initiated after the seed supplier said the seed was identified through traceback as seed used by a sprout grower whose sprouts were part of an FDA outbreak investigation.",
+      "product": "Berlin Seeds Alfalfa Sprouting Seed, 1/4 lb, 1/2 lb, 1 lb, 5 lb and 50 lb packages",
+      "code_info": "Packages bear lot code SAL2-24JB on the bottom right-hand corner of the label",
+      "quantity": "950 lbs",
+      "distribution": "Sold at the Berlin Seeds retail store and through the company website from February 13, 2026 to August 23, 2026 to customers in Alaska, Alabama, Arkansas, Arizona, California, Colorado, Connecticut, Delaware, Florida, Iowa, Idaho, Illinois, Indiana, Kansas, Kentucky, Massachusetts, Maryland, Maine, Michigan, Minnesota, Missouri, Mississippi, Montana, North Carolina, North Dakota, Nebraska, New Hampshire, New Mexico, New York, Ohio, Oklahoma, Oregon, Pennsylvania, South Carolina, South Dakota, Tennessee, Texas, Utah, Virginia, Vermont, Washington, Wisconsin, West Virginia, and Wyoming",
+      "initiated": "2026-09-23",
+      "source": "https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts/berlin-seeds-recalls-alfalfa-sprouting-seed-because-possible-health-risk"
+    }
   ]
 }

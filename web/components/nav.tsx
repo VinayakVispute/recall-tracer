@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 
 // The order a coordinator works in. Most recalls start at step 2, from a supplier's notice.
 const STEPS = [
-  { href: "/outbreak", label: "Find the source", icon: SearchIcon, lead: "Start from illness reports: the agent walks each case back to the ingredient lot they share." },
+  { href: "/outbreak", label: "Find the source", icon: SearchIcon, lead: "Start from illness reports and find the lot behind them, in your records or in public recalls." },
   { href: "/notice", label: "Supplier notice", icon: SirenIcon, lead: "Enter the lot and hazard from the supplier's alert to open the incident and start the 24-hour clock." },
   { href: "/incident", label: "Incident", icon: TruckIcon, lead: "Which stores pull, which are cleared, and the notices to approve. Every number comes from the graph." },
 ];
