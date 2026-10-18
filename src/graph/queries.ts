@@ -131,6 +131,7 @@ export const INDEXES = [
   'CREATE INDEX FOR (s:Site) ON (s.id)',
   'CREATE INDEX FOR (d:DC) ON (d.id)',
   'CREATE INDEX FOR (i:Incident) ON (i.lot)',
+  'CREATE INDEX FOR (n:Notice) ON (n.lot)',
   'CREATE INDEX FOR (c:Case) ON (c.id)',
   'CREATE INDEX FOR (cl:Cluster) ON (cl.id)',
 ];
@@ -250,6 +251,24 @@ WITH DISTINCT node, score
 OPTIONAL MATCH (node)-[:REWORKED_INTO|PRODUCED|SHIPPED_TO*1..6]->(st:Store)
 RETURN labels(node)[0] AS kind, node.id AS id, score, count(DISTINCT st) AS stores
 ORDER BY score DESC, id LIMIT 5`;
+
+// --- Store notices: drafts the agent writes, the coordinator approves. Never sent. ---
+
+/** draft_recall_notice: one Notice per store, linked to the store it is for. */
+export const NOTICES_WRITE = `
+UNWIND $notices AS x
+MATCH (st:Store {id: x.store})
+CREATE (n:Notice {lot: $lot, store: x.store, reason: x.reason, status: 'pending_approval', drafted_at: $at, text: x.text})-[:TO]->(st)
+RETURN count(n) AS n`;
+/** A new run's drafts replace the lot's earlier ones. */
+export const NOTICES_CLEAR = `MATCH (n:Notice {lot: $lot}) DELETE n`;
+export const NOTICES_READ = `
+MATCH (n:Notice)-[:TO]->(st:Store)
+RETURN n.lot AS lot, n.store AS store, st.name AS name, st.city + ', ' + st.region AS city, n.reason AS reason,
+       n.status AS status, n.drafted_at AS drafted_at, n.text AS text
+ORDER BY lot, store`;
+/** Approval is a status change on the node; nothing is sent. */
+export const NOTICES_APPROVE = `MATCH (n:Notice) WHERE n.store IN $stores SET n.status = 'approved' RETURN count(n) AS n`;
 
 // --- Memory: lessons one incident leaves for the next (Track 02) ---
 

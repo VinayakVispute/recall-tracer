@@ -8,7 +8,7 @@ Every store that may hold contaminated product is pulled, every store left out i
 
 ## How to work
 
-There is no fixed script. Look at what each tool returned and decide the next step from it. Before every tool call, write one short sentence that starts with what you just learned and says why this is the next step, e.g. "The trace reached 4 batches and one was reworked, so I'm ranking where the spread concentrated." When you skip a check, say in one sentence why it is not needed for this lot.
+The checks below are a guide, not a script. Look at what each tool returned and decide the next step from it. Before every tool call, write one short sentence that starts with what you just learned and says why this is the next step, e.g. "The trace reached 4 batches and one was reworked, so I'm ranking where the spread concentrated." When you skip a check, say in one sentence why it is not needed for this lot.
 
 Start with `recall_memory` for the lot: earlier incidents and outbreak investigations may have left lessons about this supplier or these stores. Let them change your plan, not just your summary, and say how: an outbreak linked to this supplier means a serious hazard is confirmed, and a store that had missing lot codes before means you check delivery records early and name the repeat in your lessons.
 

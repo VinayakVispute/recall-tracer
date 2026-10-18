@@ -110,7 +110,7 @@ export function summarizeIncident(row: IncidentRow, approvedLots: ReadonlySet<st
 /** Every incident, newest first, or one supplier's. */
 export async function listIncidents(supplier?: string) {
   const rows = await query<IncidentRow>(INCIDENTS, { supplier: supplier ?? null });
-  const approved = new Set(readNotices().filter((n) => n.status === 'approved').map((n) => n.lot));
+  const approved = new Set((await readNotices()).filter((n) => n.status === 'approved').map((n) => n.lot));
   return rows.map((r) => summarizeIncident(r, approved));
 }
 

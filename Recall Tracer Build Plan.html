@@ -1,0 +1,1089 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Recall Tracer Build Plan</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Serif:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=Barlow+Condensed:wght@600;700&display=swap">
+<style>
+/* Layout: one reading column with a sticky section nav; the same palette as the product (lot red, recall orange, gap amber, cleared grey-green). */
+:root {
+  --bg: #f7f6f2; --panel: #ffffff; --fg: #1f2622; --muted: #5d6762; --line: #d9ddd9; --soft: #eef0ec;
+  --accent: #c4471b; --lot: #8f1d1d; --gap: #b88412; --gap-bg: #fbf1d6; --safe: #5f7a6b; --safe-bg: #e6eee9; --accent-bg: #fbe9e1;
+  --falkor: #5b3fd1; --falkor-bg: #ece7fb;
+  --display: "IBM Plex Serif", Georgia, "Times New Roman", serif;
+  --body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --mono: "IBM Plex Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+  --sign: "Barlow Condensed", "Arial Narrow", sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #161a18; --panel: #1f2422; --fg: #e8ebe7; --muted: #a3aca6; --line: #343b37; --soft: #262c29;
+  --accent: #ea7a4c; --lot: #e06a6a; --gap: #e0b24a; --gap-bg: #3a3119; --safe: #8fb09d; --safe-bg: #22302a; --accent-bg: #3b2419;
+  --falkor: #a994f5; --falkor-bg: #2a2440; color-scheme: dark;
+} }
+:root[data-theme="dark"] {
+  --bg: #161a18; --panel: #1f2422; --fg: #e8ebe7; --muted: #a3aca6; --line: #343b37; --soft: #262c29;
+  --accent: #ea7a4c; --lot: #e06a6a; --gap: #e0b24a; --gap-bg: #3a3119; --safe: #8fb09d; --safe-bg: #22302a; --accent-bg: #3b2419;
+  --falkor: #a994f5; --falkor-bg: #2a2440; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 0 64px; }
+.wrap { max-width: 1160px; margin: 0 auto; display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 40px; }
+@media (max-width: 860px) { .wrap { grid-template-columns: minmax(0, 1fr); gap: 0; } nav.toc { display: none; } }
+nav.toc { position: sticky; top: env(safe-area-inset-top, 0px); align-self: start; padding-block: 28px 16px; font-size: 13px; max-height: 100vh; overflow-y: auto; }
+nav.toc a { display: block; color: var(--muted); text-decoration: none; padding: 4px 0 4px 10px; border-left: 2px solid var(--line); }
+nav.toc a:hover, nav.toc a:focus-visible { color: var(--fg); border-color: var(--accent); outline: none; }
+nav.toc .eyebrow { margin: 14px 0 6px; }
+main { min-width: 0; padding-block: 28px 0; }
+h1, h2, h3, h4 { font-family: var(--display); font-weight: 600; line-height: 1.2; text-wrap: balance; margin: 0; }
+h1 { font-size: 2.3rem; letter-spacing: -0.01em; }
+h2 { font-size: 1.55rem; margin-top: 56px; padding-top: 18px; border-top: 1px solid var(--line); }
+h3 { font-size: 1.12rem; margin-top: 30px; font-family: var(--body); font-weight: 600; }
+h4 { font-size: 0.95rem; margin-top: 14px; font-family: var(--body); font-weight: 600; color: var(--muted); letter-spacing: 0.04em; text-transform: uppercase; font-size: 11.5px; }
+p { max-width: 70ch; margin: 12px 0; }
+ul, ol { max-width: 74ch; padding-left: 22px; margin: 10px 0; }
+li { margin: 4px 0; }
+.eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.lede { font-size: 1.12rem; max-width: 64ch; }
+.muted { color: var(--muted); }
+code { font-family: var(--mono); font-size: 0.86em; background: var(--soft); padding: 1px 5px; border-radius: 3px; }
+pre { font-family: var(--mono); font-size: 12.5px; line-height: 1.5; background: var(--soft); border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; overflow-x: auto; margin: 10px 0; max-width: 100%; }
+pre code { background: none; padding: 0; font-size: inherit; }
+pre.mermaid { background: var(--panel); text-align: center; }
+a { color: var(--accent); }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.status { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin: 22px 0; }
+.status div { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; }
+.status b { display: block; font-size: 1.35rem; font-family: var(--display); font-weight: 600; font-variant-numeric: tabular-nums; }
+.status span { font-size: 12.5px; color: var(--muted); }
+.callout { border-left: 3px solid var(--accent); background: var(--accent-bg); padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 16px 0; max-width: 74ch; }
+.callout.falkor { border-color: var(--falkor); background: var(--falkor-bg); }
+.callout.safe { border-color: var(--safe); background: var(--safe-bg); }
+.callout.gap { border-color: var(--gap); background: var(--gap-bg); }
+.callout p { margin: 4px 0; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; margin: 12px 0; }
+.tbl { overflow-x: auto; max-width: 100%; }
+th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+th { font-size: 11.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pill { display: inline-block; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; padding: 1px 7px; border-radius: 999px; border: 1px solid transparent; white-space: nowrap; }
+.pill.p0 { background: var(--accent-bg); color: var(--accent); border-color: var(--accent); }
+.pill.p1 { background: var(--gap-bg); color: var(--gap); border-color: var(--gap); }
+.pill.p2 { background: var(--safe-bg); color: var(--safe); border-color: var(--safe); }
+.pill.falkor { background: var(--falkor-bg); color: var(--falkor); border-color: var(--falkor); }
+.page { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 16px 18px; margin: 18px 0; }
+.page > .head { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; }
+.page > .head h3 { margin: 0; }
+.page > .head .route { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.page p, .page ul { max-width: none; }
+.spec { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 4px 24px; font-size: 13.5px; margin-top: 10px; }
+.spec > div { min-width: 0; }
+.spec ul { margin: 4px 0; padding-left: 18px; }
+.script { display: grid; margin: 14px 0; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.beat { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 14px; padding: 12px 14px; border-top: 1px solid var(--line); background: var(--panel); }
+.beat:first-child { border-top: 0; }
+.beat .t { font-family: var(--mono); font-size: 13px; color: var(--accent); font-variant-numeric: tabular-nums; }
+.beat p { margin: 3px 0; max-width: none; }
+.beat .say { color: var(--muted); font-style: italic; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.grid2 > div { min-width: 0; }
+.check { list-style: none; padding-left: 0; }
+.check li { padding-left: 24px; position: relative; }
+.check li::before { content: ""; position: absolute; left: 2px; top: 8px; width: 11px; height: 11px; border: 1.5px solid var(--accent); border-radius: 2px; }
+
+/* --- Mockups: pictures of the product, drawn in its own light palette --- */
+.shot { overflow-x: auto; margin: 12px 0; border: 1px solid var(--line); border-radius: 8px; background: var(--soft); padding: 10px; }
+.screen { width: 940px; background: #eef1ee; color: #1c2321; font: 12px/1.4 var(--body); border-radius: 6px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.15); }
+.screen.narrow { width: 600px; }
+.chrome { display: flex; gap: 6px; align-items: center; background: #dfe3e0; padding: 6px 10px; font-size: 11px; color: #55615d; }
+.chrome i { width: 9px; height: 9px; border-radius: 50%; background: #b8c0bc; display: inline-block; }
+.chrome span { margin-left: 8px; background: #fff; border-radius: 3px; padding: 1px 8px; flex: 1; font-family: var(--mono); font-size: 10.5px; }
+.m-top { display: flex; align-items: center; gap: 18px; padding: 10px 16px 8px; border-bottom: 5px solid #1c2321; border-image: repeating-linear-gradient(-45deg, #e5b021 0 10px, #1c2321 10px 20px) 5; }
+.m-top h1 { font: 700 22px var(--sign); margin: 0; color: #1c2321; }
+.m-tabs { display: flex; gap: 4px; }
+.m-tabs span { padding: 4px 10px; border-radius: 4px; font-weight: 500; color: #55615d; }
+.m-tabs span.on { background: #1c2321; color: #fff; }
+.m-meta { margin-left: auto; color: #55615d; font-size: 11px; display: flex; gap: 10px; align-items: center; }
+.m-toggle { border: 1px solid #1c2321; border-radius: 12px; padding: 1px 8px; font-weight: 600; font-size: 11px; color: #1c2321; }
+.m-strip { display: grid; grid-template-columns: 1fr auto; gap: 4px 20px; padding: 10px 16px 6px; align-items: center; }
+.m-strip h2 { font: 700 20px var(--sign); margin: 0; color: #1c2321; }
+.m-strip .sub { color: #55615d; font-size: 11.5px; }
+.m-strip .sub b { color: #8f1d1d; }
+.m-strip .clock { text-align: right; color: #55615d; font-size: 10.5px; }
+.m-strip .clock b { font: 700 24px/1 var(--sign); display: block; font-variant-numeric: tabular-nums; color: #1c2321; }
+.m-stages { grid-column: 1 / -1; display: flex; gap: 5px; flex-wrap: wrap; margin-top: 4px; }
+.m-stages span { font-size: 11px; padding: 3px 9px 3px 20px; border-radius: 20px; background: #fff; border: 1px solid #dde2df; color: #8a9591; position: relative; }
+.m-stages span::before { content: ""; position: absolute; left: 8px; top: 50%; width: 7px; height: 7px; margin-top: -3.5px; border-radius: 50%; background: #dde2df; }
+.m-stages .ok { color: #1c2321; } .m-stages .ok::before { background: #2f7d5b; }
+.m-stages .act { color: #1c2321; border-color: #c4471b; } .m-stages .act::before { background: #c4471b; }
+.m-body { padding: 8px 16px 16px; display: grid; gap: 10px; }
+.m-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.m-cols.w { grid-template-columns: 3fr 2fr; }
+.m-cols > div { min-width: 0; }
+.m-panel { background: #fff; border: 1px solid #dde2df; border-radius: 5px; padding: 10px 12px; }
+.m-panel h3 { font: 700 15px var(--sign); margin: 0 0 6px; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; color: #1c2321; flex-wrap: wrap; }
+.m-panel h3 small { font: 400 11px var(--body); color: #55615d; }
+.m-panel p { margin: 3px 0; max-width: none; font-size: 11.5px; }
+.m-btn { display: inline-block; font: 600 12.5px var(--sign); padding: 4px 11px; border-radius: 3px; border: 1.5px solid #1c2321; background: #1c2321; color: #fff; letter-spacing: .02em; white-space: nowrap; }
+.m-btn.sec { background: #fff; color: #1c2321; }
+.m-link { color: #55615d; text-decoration: underline; font-size: 11px; white-space: nowrap; }
+.m-table { width: 100%; border-collapse: collapse; font-size: 11.5px; margin: 0; }
+.m-table th { font-size: 10px; letter-spacing: .05em; text-transform: uppercase; color: #55615d; padding: 4px 6px; border-bottom: 1px solid #dde2df; text-align: left; font-weight: 600; }
+.m-table td { padding: 4px 6px; border-bottom: 1px solid #eef1ee; vertical-align: top; color: #1c2321; }
+.m-table td.n, .m-table th.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.m-table tr.sel td { background: #fff7f4; }
+.m-table .sub { display: block; color: #8a9591; font-size: 10px; }
+.badge { display: inline-block; font-size: 10px; font-weight: 600; padding: 1px 7px; border-radius: 10px; color: #fff; white-space: nowrap; }
+.badge.pull { background: #c4471b; } .badge.gap { background: #e5b021; color: #1c2321; } .badge.clear { background: #a9b1ae; color: #1c2321; } .badge.hold { background: #2f5d8a; } .badge.draft { background: #eef1ee; color: #55615d; } .badge.ok { background: #2f7d5b; }
+.chip { display: inline-block; font-family: var(--mono); font-size: 10.5px; padding: 0 5px; border-radius: 3px; background: #eef1ee; border: 1px solid #dde2df; margin: 1px 2px 1px 0; color: #1c2321; }
+.chip.bad { background: #fbe9e1; border-color: #c4471b; color: #8f1d1d; } .chip.unk { background: #fbf1d6; border-color: #e5b021; color: #8a6400; }
+.m-input { display: inline-block; border: 1.5px solid #1c2321; border-radius: 3px; padding: 2px 8px; background: #fff; font: 600 15px var(--sign); color: #8f1d1d; letter-spacing: .04em; }
+.m-select { display: inline-block; border: 1.5px solid #1c2321; border-radius: 3px; padding: 3px 8px; background: #fff; font-size: 11.5px; color: #1c2321; }
+.m-select::after { content: "  \25BE"; color: #55615d; }
+.m-field { display: flex; gap: 8px; align-items: center; margin: 4px 0; font-size: 11.5px; flex-wrap: wrap; }
+.m-field label { width: 70px; color: #55615d; font-weight: 500; }
+.m-line { font-size: 11.5px; padding: 5px 8px; border-radius: 4px; margin: 4px 0; }
+.m-line.ok { background: #e6eee9; color: #1f5a3f; } .m-line.warn { background: #fbf1d6; color: #8a6400; } .m-line.info { background: #eef1ee; color: #55615d; }
+.m-tiles { display: grid; grid-template-columns: 1.7fr 1fr 1fr 1fr 1fr; gap: 8px; }
+.tile { background: #fff; border: 1px solid #dde2df; border-radius: 5px; padding: 8px 10px; min-width: 0; }
+.tile .l { font-size: 10px; color: #55615d; text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
+.tile .v { font: 700 24px/1.1 var(--sign); font-variant-numeric: tabular-nums; color: #1c2321; }
+.tile .v small { font: 500 11.5px var(--body); color: #55615d; margin-left: 4px; }
+.tile .f { font-size: 10.5px; color: #55615d; }
+.tile.warn { border-color: #e5b021; }
+.ticks { display: flex; gap: 1px; margin: 5px 0; } .ticks i { flex: 1; height: 6px; background: #a9b1ae; } .ticks i.r { background: #c4471b; } .ticks i.g { background: #e5b021; }
+.log { display: grid; gap: 6px; }
+.step { border: 1px solid #dde2df; border-radius: 5px; padding: 7px 9px; background: #fff; font-size: 11.5px; color: #1c2321; }
+.step .h { display: flex; justify-content: space-between; gap: 8px; font-weight: 600; }
+.step .h .ms { font-family: var(--mono); font-weight: 500; color: #5b3fd1; font-size: 10.5px; white-space: nowrap; }
+.step .h .ms.j { color: #8a6400; }
+.step .note { color: #55615d; font-style: italic; }
+.step .tool { font-family: var(--mono); font-size: 10.5px; color: #55615d; margin-top: 3px; }
+.step.judge { border-color: #e5b021; background: #fffaf0; }
+.step.run { border-color: #c4471b; }
+.step .q { display: block; font-family: var(--mono); font-size: 10px; background: #eef1ee; padding: 4px 6px; border-radius: 3px; margin-top: 4px; white-space: pre; overflow-x: auto; color: #1c2321; }
+.bar { display: flex; height: 8px; border-radius: 2px; overflow: hidden; background: #eef1ee; }
+.bar i { display: block; height: 100%; } .bar .r { background: #c4471b; } .bar .g { background: #e5b021; } .bar .s { background: #a9b1ae; }
+.rows { display: grid; gap: 5px; font-size: 11.5px; }
+.rows > div { display: grid; grid-template-columns: 28px 1fr 130px; gap: 8px; align-items: center; }
+.pips i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin: 0 2px 0 0; background: #fff; border: 1.5px solid #c4471b; }
+.pips i.d { background: #2f7d5b; border-color: #2f7d5b; }
+.prog { height: 10px; background: #eef1ee; border-radius: 5px; overflow: hidden; margin: 4px 0 8px; } .prog i { display: block; height: 100%; background: #2f7d5b; }
+.cand { border: 1px solid #dde2df; border-radius: 5px; padding: 7px 9px; margin-bottom: 6px; font-size: 11.5px; }
+.cand.top { border-left: 4px solid #8f1d1d; background: #fff7f4; }
+.cand .l { font-weight: 600; display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.cand .l code { font-family: var(--mono); background: none; padding: 0; color: #8f1d1d; }
+.cand .b { color: #55615d; font-size: 11px; }
+.chain { list-style: none; padding: 0; margin: 4px 0; font-size: 11.5px; max-width: none; }
+.chain li { padding: 3px 0 3px 16px; position: relative; border-left: 1.5px solid #dde2df; margin: 0 0 0 5px; }
+.chain li::before { content: ""; position: absolute; left: -5px; top: 8px; width: 8px; height: 8px; border-radius: 50%; background: #c4471b; }
+.chain li.rw::before { background: #fff; border: 2px solid #c4471b; width: 5px; height: 5px; }
+.chain li.end::before { background: #1c2321; }
+.chain li.ok::before { background: #a9b1ae; }
+.chain li span { display: block; color: #55615d; font-size: 10.5px; }
+.notice { font-family: var(--mono); font-size: 10.5px; background: #eef1ee; border: 1px solid #dde2df; border-radius: 4px; padding: 6px 8px; white-space: pre-wrap; margin: 4px 0; color: #1c2321; }
+.dots { display: flex; gap: 14px; align-items: center; font-size: 11px; color: #55615d; flex-wrap: wrap; }
+.dots i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #c4471b; margin-right: 2px; } .dots i.g { background: #e5b021; }
+.legend { font-size: 10.5px; color: #55615d; display: flex; gap: 12px; flex-wrap: wrap; margin-top: 6px; }
+.legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; vertical-align: -1px; margin-right: 3px; }
+.scope-tabs { display: inline-flex; gap: 2px; flex-wrap: wrap; } .scope-tabs span { font-size: 11px; padding: 2px 8px; border-radius: 3px; color: #55615d; } .scope-tabs span.on { background: #1c2321; color: #fff; }
+.drawer { background: #fff; border: 1px solid #dde2df; border-left: 4px solid #c4471b; border-radius: 5px; padding: 10px 12px; font-size: 11.5px; color: #1c2321; }
+.drawer h3 { font: 700 17px var(--sign); margin: 2px 0 0; color: #1c2321; }
+.drawer h4 { margin: 8px 0 2px; font: 600 10.5px var(--body); text-transform: uppercase; letter-spacing: .05em; color: #55615d; }
+.drawer .lead { font-size: 12.5px; margin: 6px 0; }
+
+.tl { margin-top: 10px; }
+.tl .track { position: relative; height: 26px; background: #eef1ee; border-radius: 4px; }
+.tl .fill { position: absolute; left: 0; top: 0; bottom: 0; width: 72%; background: #fbe9e1; border-radius: 4px 0 0 4px; }
+.tl .mk { position: absolute; top: 4px; width: 18px; height: 18px; border-radius: 50%; background: #fff; border: 2px solid #c4471b; font: 600 9px var(--body); color: #c4471b; display: flex; align-items: center; justify-content: center; margin-left: -9px; }
+.tl .mk.on { background: #c4471b; color: #fff; }
+.tl .mk.j { border-color: #e5b021; color: #8a6400; }
+.tl .mk.j.on { background: #e5b021; color: #1c2321; }
+.tl .mk.gr { border-color: #2f7d5b; color: #2f7d5b; }
+.tl .head { position: absolute; top: -4px; bottom: -4px; width: 2px; background: #1c2321; left: 72%; }
+.tl .labels { display: flex; justify-content: space-between; font-size: 10px; color: #8a9591; margin-top: 3px; font-family: var(--mono); }
+.tl .ctl { display: flex; gap: 10px; align-items: center; margin-top: 8px; font-size: 11.5px; }
+.tl .ctl .m-btn { padding: 3px 9px; }
+.tl .now { font-size: 11.5px; margin-top: 6px; padding: 6px 8px; background: #e6eee9; border-radius: 4px; color: #1f5a3f; }
+.tl .now b { color: #1c2321; }
+
+.lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin: 14px 0; }
+.lane { background: var(--panel); border: 1px solid var(--line); border-top: 4px solid var(--accent); border-radius: 6px; padding: 12px 14px; min-width: 0; }
+.lane.b { border-top-color: var(--falkor); } .lane.c { border-top-color: var(--gap); } .lane.d { border-top-color: var(--safe); }
+.lane h3 { margin: 0; font-size: 1rem; }
+.lane .who { font-size: 12px; color: var(--muted); margin: 2px 0 8px; }
+.lane ol { padding-left: 20px; margin: 6px 0; font-size: 13.5px; max-width: none; }
+.lane li { margin: 5px 0; }
+.lane .own { font-size: 12px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 6px; margin-top: 8px; }
+.dep { font-family: var(--mono); font-size: 11px; color: var(--muted); white-space: nowrap; }
+footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+@media (prefers-reduced-motion: no-preference) { nav.toc a { transition: color .15s, border-color .15s; } }
+</style>
+
+<div class="wrap">
+<nav class="toc" aria-label="Sections">
+  <div class="eyebrow">Plan</div>
+  <a href="#target">What we submit</a>
+  <a href="#demo">The demo, minute by minute</a>
+  <a href="#flow">User flow</a>
+  <a href="#pages">Pages and mockups</a>
+  <a href="#outbreak">Outbreak source finder</a>
+  <a href="#live">Live tracing</a>
+  <a href="#ingest">Data ingestion</a>
+  <a href="#data">Real vs synthetic</a>
+  <a href="#business">How real recalls work</a>
+  <a href="#falkor">FalkorDB showcase</a>
+  <a href="#track2">Track 2 use cases</a>
+  <a href="#build">Build plan</a>
+  <a href="#team">Team plan</a>
+  <a href="#judging">Judging checklist</a>
+  <a href="#risks">Risks and fallbacks</a>
+  <a href="#sources">Sources</a>
+</nav>
+
+<main>
+<div class="eyebrow">Graph Hacks: Context for AI Agents · Track 01 · Sponsor FalkorDB · Plan of Oct 17, 2026</div>
+<h1>Recall Tracer Build Plan</h1>
+<p class="lede">What Recall Tracer must be when we press Submit: one agent, one FalkorDB graph, from the first illness report to approved store notices in under an hour of a coordinator's time and under a minute of the agent's. This page describes the finished product, page by page, and the work that gets us there.</p>
+<p>Everything on this page is written as the target state. The repo on <code>main</code> (commit <code>a6fef2c</code>) is the starting point, not the finish line; the <a href="#build">build plan</a> says what remains per item. Priorities: <span class="pill p0">P0</span> is in the demo video, <span class="pill p1">P1</span> strengthens the README and the live pitch, <span class="pill p2">P2</span> is Track 2 and only after the video is recorded.</p>
+
+<h2 id="target">What we submit</h2>
+<p>A hosted web app, a repository with one-command Docker setup, a three-minute captioned video, and a README that quotes every Cypher query. The product, as a judge will experience it:</p>
+<ol>
+  <li><b>Outbreak intake.</b> Paste six illness reports. The agent walks each case backward through the graph and names the one ingredient lot that explains every case, with the decoys ruled out and the evidence path per case.</li>
+  <li><b>Supplier notice.</b> Open the incident on that lot with its hazard. A 24-hour regulatory clock starts and an Incident node is written to FalkorDB.</li>
+  <li><b>Live trace.</b> Seven agent steps stream in. The record network lights up hop by hop. Every step shows its tool, its Cypher, and FalkorDB's latency in milliseconds.</li>
+  <li><b>Incident dashboard.</b> Hazard class to confirm, headline numbers, what left the plant, where it went, exposure, public notice facts, and a decision for every store.</li>
+  <li><b>Evidence for any store.</b> One plain sentence and the chain of records that proves it, or the missing record, or the backward proof that the store is clear.</li>
+  <li><b>Approval and export.</b> Confirm the class, approve notices by state, download the FDA-format shipping CSV. Nothing is ever sent.</li>
+  <li><b>Incident history.</b> The graph remembers every incident; the next notice on the same supplier says so.</li>
+</ol>
+<div class="status">
+  <div><b>33 of 71</b><span>stores pull product, instead of a blanket recall</span></div>
+  <div><b>2,256</b><span>units to pull, vs 7,672 for a blanket recall</span></div>
+  <div><b>93 kg + 2,652 u</b><span>held before leaving, at 2 plants and 3 DCs</span></div>
+  <div><b>6 of 6</b><span>cases explained by L-204; runner-up explains 2</span></div>
+  <div><b>38</b><span>stores cleared by backward trace</span></div>
+  <div><b>&lt; 60 s</b><span>agent run, every query under 10 ms</span></div>
+</div>
+<p class="small muted">These are the seeded demo numbers. The tests assert them, so they are the same in the video, on the hosted app, and in the judges' own run.</p>
+
+<h2 id="demo">The demo, minute by minute</h2>
+<p>The video is the submission. Three minutes, one continuous run, captions on screen. A feature that does not appear in this script is cut from the plan.</p>
+<div class="script">
+  <div class="beat"><span class="t">0:00</span><div><b>Hook: a real recall</b><p>Title card over the CDC case map: in November 2024, organic carrots from one supplier made 48 people sick in 19 states; one died. Every bag, every brand, every store was recalled, because nobody could answer one question fast enough.</p><p class="say">Caption: "Which stores got <em>this</em> lot?"</p></div></div>
+  <div class="beat"><span class="t">0:20</span><div><b>Outbreak intake</b><p>Page 1. Six illness reports pasted in (state, onset, store, purchase date, product if known). Press <b>Find the source</b>.</p><p class="say">Agent note on screen: "Walking each case backward from its store to every ingredient lot that could have reached it."</p></div></div>
+  <div class="beat"><span class="t">0:40</span><div><b>The graph answers</b><p>Ranked candidates: L-204 explains 6 of 6 and reached 31 stores. L-117, blended with it in one batch, explains 2 of 6. L-205, same ingredient, same supplier, same week, explains 0. The Cypher and "FalkorDB 4 ms" sit under the result.</p><p class="say">Caption: "One lot explains every case. A human decides."</p></div></div>
+  <div class="beat"><span class="t">1:00</span><div><b>Supplier notice confirms it</b><p>Page 2 with L-204 prefilled and the line "Epidemiology agrees". Hazard Listeria monocytogenes. <b>Open incident</b>. The 24-hour clock starts.</p></div></div>
+  <div class="beat"><span class="t">1:10</span><div><b>Live trace</b><p>Page 3. Hazard assessment (proposed Class I, consumer), hold at plants and DCs, forward trace hop by hop with moving dashes, two stores with no delivery record in amber, the scope decision card, the backward check in green, notices drafted. Each step: tool, Cypher, milliseconds.</p><p class="say">Caption: "The graph decides. Claude explains. Nothing is sent."</p></div></div>
+  <div class="beat"><span class="t">1:55</span><div><b>The dashboard</b><p>Page 4. Headline numbers. Click Ohio. Click one store: the evidence chain with kilograms and dates, rework included. Click a cleared store: each lot traced back to its ingredients, none containing L-204.</p></div></div>
+  <div class="beat"><span class="t">2:25</span><div><b>Human in the loop</b><p>Confirm Class I. Approve Ohio, then approve all. Download the FDA shipping CSV.</p></div></div>
+  <div class="beat"><span class="t">2:40</span><div><b>FalkorDB is the audit trail</b><p>FalkorDB Browser: the Incident node with proposed and confirmed class, the HELD_AT edges stamped <code>held_for: L-204</code>. Page 7 for two seconds: "the graph remembers". End card: repo, stack line, AI disclosure.</p></div></div>
+</div>
+<div class="callout"><p><b>Recording rule:</b> record from replay mode, which plays a recorded live run as the same SSE events with real timings. The video shows exactly what a live run shows and never stalls. Keep the recorded run's JSON in the repo.</p></div>
+
+<h2 id="flow">User flow</h2>
+<p>The user is the recall coordinator in a food manufacturer's quality team. Two entry points lead to one incident, and the pages follow the order the coordinator works in.</p>
+<pre class="mermaid">
+flowchart LR
+  A[1 Outbreak intake<br/>illness reports] -->|find_common_source| B[Candidate lots<br/>ranked with evidence]
+  B -->|Open incident on L-204| C[2 Supplier notice<br/>lot + hazard]
+  S[Supplier calls<br/>and names the lot] --> C
+  C -->|Open incident| D[3 Live trace<br/>7 agent steps stream]
+  D -->|done| E[4 Incident dashboard]
+  D -.->|any finished run| R[3b Replay on the graph<br/>scrubber, step markers]
+  E --> F[5 Store evidence]
+  E --> G[6 Confirm class,<br/>approve notices, export]
+  E -.-> H[7 Incident history]
+  H -.->|next notice on same supplier| C
+</pre>
+<h3>States the shell must handle</h3>
+<ul>
+  <li><b>No incident open.</b> Outbreak and Supplier notice tabs are active; Incident tab shows "No incident open" with a one-line explanation and the seeded example ready to run.</li>
+  <li><b>Running.</b> Incident tab shows the live trace; the Open button is disabled; the progress bar in the header advances per step.</li>
+  <li><b>Decided, unconfirmed.</b> Dashboard visible; notices queue disabled with the reason "Confirm the class first".</li>
+  <li><b>Confirmed.</b> Approvals enabled; header shows who confirmed and when.</li>
+  <li><b>Reload.</b> The last decision loads from the API without rerunning the agent; replay is offered.</li>
+  <li><b>Error.</b> Bad lot code, unknown lot, unreachable FalkorDB, model declined: each is a sentence that says what to do next, shown where the user acted.</li>
+</ul>
+
+<h2 id="pages">Pages and mockups</h2>
+<p>One mockup per page, drawn in the product's own look at desktop width. Each page lists what is on it, what the user can do, which API route feeds it, and what it must look like in its empty, running and finished states. Phone width stacks every two-column layout into one.</p>
+
+<div class="page">
+  <div class="head"><h3>Shell</h3><span class="route">every page</span></div>
+<div class="shot"><div class="screen"><div class="chrome"><i></i><i></i><i></i><span>recall-tracer.app/incident/L-204</span></div><div class="m-top"><h1>Recall Tracer</h1><div class="m-tabs"><span class="">Outbreak</span><span class="">Supplier notice</span><span class="on">Incident</span><span class="">History</span></div><div class="m-meta"><span>Northfield Foods · graph "recall" · 163 records · FalkorDB avg 2.4 ms · synthetic demo data</span><span class="m-toggle">⟳ Replay</span></div></div><div class="m-strip"><div><h2>Lot L-204, diced carrot</h2><div class="sub"><b>Listeria monocytogenes</b> · Harlow Farms (S-03) · notice Oct 17, 09:14</div></div><div class="clock">24 h clock<b>00:41</b>scope decided 00:41 after notice</div><div class="m-stages"><span class="ok">Hazard</span><span class="ok">Hold</span><span class="ok">Forward trace</span><span class="ok">Records</span><span class="ok">Scope</span><span class="ok">Backward</span><span class="ok">Notices</span><span class="">Approved 0/33</span></div></div></div></div>
+  <div class="spec">
+    <div><h4>Always visible</h4><ul><li>Four tabs. Incident is disabled until one is open.</li><li>Graph line: tenant name, graph name, record count, average FalkorDB latency of the last run.</li><li>Replay toggle: plays the last recorded run instead of calling Claude.</li></ul></div>
+    <div><h4>Incident strip (once open)</h4><ul><li>Lot, ingredient, hazard, notice time, live 24 h clock that freezes when the scope is decided ("scope decided 00:41 after notice").</li><li>Eight progress dots, one per agent step plus Approved. Active step pulses; failed step turns red with the error.</li></ul></div>
+  </div>
+</div>
+
+<div class="page">
+  <div class="head"><h3>Page 1 · Outbreak intake</h3><span class="route">POST /outbreak · GET /outbreak/stream?cases= · GET /outbreak/last</span><span class="pill p0">P0</span></div>
+<div class="shot"><div class="screen"><div class="chrome"><i></i><i></i><i></i><span>recall-tracer.app/outbreak</span></div><div class="m-top"><h1>Recall Tracer</h1><div class="m-tabs"><span class="on">Outbreak</span><span class="">Supplier notice</span><span class="">Incident</span><span class="">History</span></div><div class="m-meta"><span>Northfield Foods · graph "recall" · 163 records · FalkorDB avg 2.4 ms · synthetic demo data</span><span class="m-toggle">⟳ Replay</span></div></div>
+<div class="m-body">
+ <div class="m-panel"><h3>Linked cluster OB-2026-10 <small>Listeria monocytogenes · 6 cases · 4 states · opened Oct 16</small><span><span class="m-btn sec">Paste reports</span> <span class="m-btn sec">Load example</span></span></h3>
+  <table class="m-table"><tr><th>Case</th><th>State</th><th>Onset</th><th>Store</th><th>Bought</th><th>Product</th></tr>
+  <tr class="sel"><td>C1</td><td>OH</td><td>Oct 12</td><td>FreshMart #032 <span class="sub">ST-032 · Columbus</span></td><td>Oct 8</td><td>Carrot &amp; Lentil Soup</td></tr>
+  <tr><td>C2</td><td>PA</td><td>Oct 13</td><td>GreenBasket #045 <span class="sub">ST-045 · Pittsburgh</span></td><td>Oct 9</td><td>Garden Vegetable Stew</td></tr>
+  <tr><td>C3</td><td>MI</td><td>Oct 13</td><td>DailyGrocer #058 <span class="sub">ST-058 · Detroit</span></td><td>Oct 10</td><td><span class="chip unk">unknown</span></td></tr>
+  <tr><td>C4</td><td>OH</td><td>Oct 14</td><td>FreshMart #021 <span class="sub">ST-021 · Cleveland</span></td><td>Oct 9</td><td>Carrot Baby Puree</td></tr>
+  <tr><td>C5</td><td>IN</td><td>Oct 14</td><td>GreenBasket #066 <span class="sub">ST-066 · Indianapolis</span></td><td>Oct 11</td><td>Carrot &amp; Lentil Soup</td></tr>
+  <tr><td>C6</td><td>OH</td><td>Oct 15</td><td>DailyGrocer #049 <span class="sub">ST-049 · Toledo</span></td><td>Oct 10</td><td>Garden Vegetable Stew</td></tr></table>
+  <p style="text-align:right;margin-top:8px"><span class="m-btn">Find the source</span></p></div>
+ <div class="m-cols w"><div>
+  <div class="m-panel"><h3>Candidate lots <small>ranked by cases explained, then specificity</small></h3>
+   <div class="cand top"><div class="l"><span><code>L-204</code> diced carrot · Harlow Farms (S-03)</span><span class="m-btn">Open incident on L-204</span></div><div class="b">explains <b>6 of 6</b> cases · reached 31 stores · specificity 0.19 · received Sep 14</div><div class="bar" style="margin-top:4px"><i class="r" style="width:100%"></i></div></div>
+   <div class="cand"><div class="l"><span><code>L-117</code> tomato paste · Oakline Foods (S-08)</span></div><div class="b">explains 2 of 6 (C1, C4) · blended with L-204 in batch B-03 · reached 12 stores</div><div class="bar" style="margin-top:4px"><i class="r" style="width:33%"></i></div></div>
+   <div class="cand"><div class="l"><span><code>L-131</code> celery · Riverbend Herbs (S-07)</span></div><div class="b">explains 1 of 6 · reached 9 stores</div><div class="bar" style="margin-top:4px"><i class="r" style="width:17%"></i></div></div>
+   <div class="cand"><div class="l"><span><code>L-205</code> diced carrot · Harlow Farms (S-03)</span></div><div class="b">explains 0 of 6 · same ingredient and supplier, received Sep 16 · no path to any case store</div><div class="bar" style="margin-top:4px"></div></div>
+  </div>
+  <div class="m-panel" style="margin-top:10px"><h3>Case evidence <small>C1 · FreshMart #032</small></h3>
+   <ul class="chain"><li class="end"><b>C1</b> bought Carrot &amp; Lentil Soup on Oct 8 at FreshMart #032<span>onset Oct 12</span></li><li><b>TLC-03A</b> Carrot &amp; Lentil Soup · delivered 96 units on Oct 8<span>before the purchase date</span></li><li><b>B-03</b> Northfield Plant 1 · produced Oct 1<span>used 210 kg of L-204 and 90 kg of L-117</span></li><li><b>L-204</b> diced carrot · Harlow Farms · received Sep 14 <span class="chip bad">candidate</span> <span class="chip">L-117 also possible</span></li></ul>
+  </div></div>
+  <div><div class="m-panel"><h3>Agent</h3><div class="log">
+   <div class="step"><div class="note">"Walking each case backward from its store to every ingredient lot that could have reached it before the purchase date."</div></div>
+   <div class="step"><div class="h"><span>Common source search</span><span class="ms">FalkorDB 4 ms</span></div>4 candidate lots; L-204 explains 6 of 6<div class="tool">find_common_source {cases: 6 items} · <span class="m-link">Cypher</span> · <span class="m-link">Plan</span></div></div>
+   <div class="step"><div class="h"><span>Conclusion</span></div>L-204 is the only lot that reaches all six stores before each purchase. L-117 shares batch B-03 with it and explains only C1 and C4. L-205, the same ingredient from the same supplier, does not reach any case store. Likely source: L-204. The coordinator and the supplier's test result decide.</div>
+  </div></div></div>
+ </div>
+</div></div></div>
+  <div class="spec">
+    <div><h4>Content</h4><ul><li>Cluster header: id, pathogen, case count, states.</li><li>Case table: id, state, onset, store (name and id), purchase date, product or "unknown".</li><li>Candidate lots ranked: cases explained of total, stores reached, specificity, supplier, ingredient. Top row highlighted with the handoff button.</li><li>Case evidence: the backward path for the selected case with dates and quantities.</li><li>Agent column: note, tool call with latency, Cypher and plan on demand, conclusion.</li></ul></div>
+    <div><h4>Interactions</h4><ul><li><b>Paste reports</b> accepts CSV or tab-separated text; invalid rows are listed, not silently dropped.</li><li><b>Load example</b> fills the six seeded cases.</li><li><b>Find the source</b> streams the agent; the button reads "Searching…" while running.</li><li>Click a candidate to highlight the cases it explains in the table. Click a case to see its path.</li><li><b>Open incident on L-204</b> goes to Page 2 with the lot prefilled.</li></ul></div>
+    <div><h4>States</h4><ul><li>Empty: table has the example loaded and a one-line explanation of what a case needs.</li><li>Running: candidates panel shows "Reading the graph…", agent column streams.</li><li>No single lot explains all cases: the agent says so, the top two rows are shown, no handoff button is highlighted.</li><li>Case store not in graph: the row is flagged "store unknown" and excluded with the count shown.</li></ul></div>
+  </div>
+</div>
+
+<div class="page">
+  <div class="head"><h3>Page 2 · Supplier notice</h3><span class="route">GET /incident/:lot/status · POST /recall · GET /recall/stream?lot=&amp;hazard=</span><span class="pill p0">P0</span></div>
+<div class="shot"><div class="screen narrow"><div class="chrome"><i></i><i></i><i></i><span>recall-tracer.app/notice</span></div><div class="m-top"><h1>Recall Tracer</h1><div class="m-tabs"><span class="">Outbreak</span><span class="on">Supplier notice</span><span class="">Incident</span><span class="">History</span></div><div class="m-meta"><span>Northfield Foods · graph "recall" · 163 records · FalkorDB avg 2.4 ms · synthetic demo data</span><span class="m-toggle">⟳ Replay</span></div></div>
+<div class="m-body">
+ <div class="m-panel"><h3>Supplier notice</h3>
+  <div class="m-field"><label>Lot code</label><span class="m-input">L-204</span></div>
+  <div class="m-field"><label>Hazard</label><span class="m-select">Listeria monocytogenes</span></div>
+  <p style="color:#55615d;margin-left:78px;font-size:11px">Salmonella · E. coli O121 · undeclared allergen · foreign material · other</p>
+  <div class="m-line info">Harlow Farms (S-03) · diced carrot · received Sep 14 · 480 kg received · 93 kg unused at Northfield Plant 1</div>
+  <div class="m-line ok">✓ Epidemiology agrees: L-204 explains 6 of 6 cases in cluster OB-2026-10</div>
+  <div class="m-line warn">Prior incidents on this supplier: none in the graph</div>
+  <p style="text-align:right;margin-top:8px"><span class="m-btn">Open incident</span></p>
+  <p style="color:#55615d;font-size:11px">Opening the incident writes an Incident record to the graph and starts the 24-hour clock for the FDA Reportable Food Registry and the FSMA 204 records request.</p>
+ </div>
+</div></div></div>
+  <div class="spec">
+    <div><h4>Content</h4><ul><li>Lot code input with validation (L- and digits). Hazard select with the five common recall reasons and "other".</li><li>Lot facts read from the graph as soon as the code is valid: supplier, ingredient, received date, kilograms received and unused.</li><li>Epidemiology line when the user came from Page 1; supplier history line from the Incident nodes.</li></ul></div>
+    <div><h4>Interactions and states</h4><ul><li>Unknown lot: "No lot L-999 in the traceability records. Check the code on the supplier's alert." No Claude call is made.</li><li>Incident already open on this lot: button reads "Reopen incident" and warns that drafts will be replaced.</li><li><b>Open incident</b> switches to Page 3 immediately.</li></ul></div>
+  </div>
+</div>
+
+<div class="page">
+  <div class="head"><h3>Page 3 · Live trace</h3><span class="route">GET /recall/stream · GET /graph/:lot · GET /explain · GET /recall/replay</span><span class="pill p0">P0</span></div>
+<div class="shot"><div class="screen"><div class="chrome"><i></i><i></i><i></i><span>recall-tracer.app/incident/L-204</span></div><div class="m-top"><h1>Recall Tracer</h1><div class="m-tabs"><span class="">Outbreak</span><span class="">Supplier notice</span><span class="on">Incident</span><span class="">History</span></div><div class="m-meta"><span>Northfield Foods · graph "recall" · 163 records · FalkorDB avg 2.4 ms · synthetic demo data</span><span class="m-toggle">⟳ Replay</span></div></div><div class="m-strip"><div><h2>Lot L-204, diced carrot</h2><div class="sub"><b>Listeria monocytogenes</b> · Harlow Farms (S-03) · notice Oct 17, 09:14</div></div><div class="clock">24 h clock<b>00:00:37</b>running · graph answered 3 queries in 9 ms</div><div class="m-stages"><span class="ok">Hazard</span><span class="ok">Hold</span><span class="act">Forward trace</span><span class="">Records</span><span class="">Scope</span><span class="">Backward</span><span class="">Notices</span><span class="">Approved</span></div></div>
+<div class="m-body"><div class="m-cols w">
+ <div class="m-panel"><h3>Record network <small>live · lights up as the agent reaches each record</small><span class="scope-tabs"><span>Pause</span><span class="on">1×</span><span>2×</span></span></h3>
+  <svg viewBox="0 0 520 250" width="100%" style="max-width:100%;display:block" role="img" aria-label="Record network lighting up">
+<defs><marker id="ar" viewBox="0 0 6 6" refX="5" refY="3" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#c4471b"/></marker></defs>
+<g stroke="#c4471b" stroke-width="1.6" fill="none" marker-end="url(#ar)">
+ <path d="M48,125 L132,60"/><path d="M48,125 L132,125"/><path d="M48,125 L132,190"/>
+ <path d="M152,60 L248,45"/><path d="M152,60 L248,80"/><path d="M152,125 L248,115"/><path d="M152,125 L248,150"/>
+ <path d="M258,45 L372,40" stroke-dasharray="4 3"/><path d="M258,80 L372,70" stroke-dasharray="4 3"/><path d="M258,115 L372,100" stroke-dasharray="4 3"/>
+</g>
+<path d="M152,62 C190,62 190,95 210,95" stroke="#c4471b" stroke-width="1.6" fill="none" stroke-dasharray="2 3"/>
+<g stroke="#dde2df" stroke-width="1.2" fill="none"><path d="M152,190 L248,185"/><path d="M152,190 L248,215"/><path d="M258,185 L372,170"/><path d="M258,215 L372,200"/><path d="M258,150 L372,135"/></g>
+<g font-family="IBM Plex Sans, sans-serif" font-size="9" fill="#1c2321">
+ <circle cx="40" cy="125" r="10" fill="#8f1d1d"/><text x="40" y="146" text-anchor="middle" font-weight="600">L-204</text>
+ <circle cx="142" cy="60" r="6" fill="#c4471b"/><text x="142" y="50" text-anchor="middle">B-03</text>
+ <circle cx="142" cy="125" r="6" fill="#c4471b"/><text x="142" y="115" text-anchor="middle">B-05</text>
+ <circle cx="142" cy="190" r="6" fill="#c4471b"/><text x="142" y="208" text-anchor="middle">B-07</text>
+ <circle cx="215" cy="95" r="5" fill="#fff" stroke="#c4471b" stroke-width="2"/><text x="215" y="110" text-anchor="middle">B-09 rework</text>
+ <circle cx="252" cy="45" r="5" fill="#c4471b"/><text x="260" y="40">TLC-03A</text>
+ <circle cx="252" cy="80" r="5" fill="#c4471b"/><text x="260" y="76">TLC-03B</text>
+ <circle cx="252" cy="115" r="5" fill="#c4471b"/><text x="260" y="111">TLC-05A</text>
+ <circle cx="252" cy="150" r="5" fill="#dde2df"/><text x="260" y="146" fill="#8a9591">TLC-05B</text>
+ <circle cx="252" cy="185" r="5" fill="#dde2df"/><text x="260" y="181" fill="#8a9591">TLC-07A</text>
+ <circle cx="252" cy="215" r="5" fill="#dde2df"/><text x="260" y="211" fill="#8a9591">TLC-07B</text>
+ <circle cx="378" cy="40" r="5" fill="#c4471b"/><text x="386" y="43">ST-032</text>
+ <circle cx="378" cy="70" r="5" fill="#c4471b"/><text x="386" y="73">ST-045</text>
+ <circle cx="378" cy="100" r="5" fill="#c4471b"/><text x="386" y="103">ST-021</text>
+ <circle cx="378" cy="135" r="5" fill="#dde2df"/><circle cx="378" cy="170" r="5" fill="#dde2df"/><circle cx="378" cy="200" r="5" fill="#dde2df"/>
+ <circle cx="420" cy="135" r="5" fill="#dde2df"/><circle cx="420" cy="170" r="5" fill="#dde2df"/><circle cx="420" cy="200" r="5" fill="#dde2df"/>
+ <circle cx="460" cy="135" r="5" fill="#dde2df"/><circle cx="460" cy="170" r="5" fill="#dde2df"/><circle cx="460" cy="200" r="5" fill="#dde2df"/>
+ <rect x="30" y="20" width="12" height="12" fill="#2f5d8a" transform="rotate(45 36 26)"/><text x="48" y="30">PL-1 held 93 kg · 310 u</text>
+ <rect x="30" y="226" width="12" height="12" fill="#2f5d8a" transform="rotate(45 36 232)"/><text x="48" y="236">DC-1, DC-2, DC-3 held 2,342 u</text>
+ <text x="40" y="12" fill="#55615d">Lot</text><text x="142" y="12" fill="#55615d" text-anchor="middle">Batches</text><text x="252" y="12" fill="#55615d">Product lots</text><text x="378" y="12" fill="#55615d">Stores</text>
+</g></svg>
+  <div class="legend"><span><i style="background:#8f1d1d"></i>bad lot</span><span><i style="background:#c4471b"></i>contains L-204</span><span><i style="background:#2f5d8a;border-radius:1px"></i>held</span><span><i style="background:#e5b021"></i>no lot code</span><span><i style="background:#a9b1ae"></i>cleared</span><span>┄ active hop</span></div>
+ </div>
+ <div class="m-panel"><h3>Investigation log</h3><div class="log">
+  <div class="step judge"><div class="h"><span>1 · Hazard assessment</span><span class="ms j">judgement</span></div><div class="note">"Listeria in chilled ready-to-eat food is Class I."</div>Proposed <b>Class I, consumer-level</b>. Awaiting the coordinator's confirmation.<div class="tool">propose_classification {lot, class: "I", depth: "consumer"} · <span class="m-link">Cypher</span></div></div>
+  <div class="step"><div class="h"><span>2 · Hold at plants and DCs</span><span class="ms">FalkorDB 3 ms</span></div><div class="note">"Stopping what has not left the company."</div>93 kg raw at PL-1; 2,652 units at 2 plants and 3 DCs. Written to the graph.<div class="tool">place_hold {lot: "L-204"} · <span class="m-link">Cypher</span> · <span class="m-link">Plan</span></div></div>
+  <div class="step run"><div class="h"><span>3 · Forward trace</span><span class="ms">running · 4 ms</span></div><div class="note">"Following L-204 through every batch, rework and delivery."</div><span class="q">MATCH path = (l:Lot {code: $lot})
+  -[:USED_IN|REWORKED_INTO|PRODUCED|SHIPPED_TO*1..8]->(st:Store)
+RETURN st.id, [n IN nodes(path) | coalesce(n.code, n.id)], …</span></div>
+  <div class="step" style="opacity:.45"><div class="h"><span>4 · Delivery record check</span><span class="ms">waiting</span></div></div>
+ </div></div>
+</div></div></div></div>
+  <div class="spec">
+    <div><h4>Content</h4><ul><li>Left: the record network, revealed by step. Lot first; plants and DCs when held; the spread hop by hop with moving dashes; gap stores in amber; cleared stores in grey; the backward check paints cleared stores green.</li><li>Right: one card per step with a plain title, the agent's note, the one-line result, the tool name and input, latency, and expanders for Cypher and query plan.</li><li>Decision cards (hazard proposal, gap policy) have a distinct style and say "judgement" instead of a latency.</li></ul></div>
+    <div><h4>Interactions and states</h4><ul><li>Pause and speed apply to the animation, never to the agent.</li><li>Replay re-runs the animation and the log from the saved run. In replay mode the header says "Replay of run 09:14".</li><li>Error mid-run: the failed step turns red with the tool's error text; the dashboard does not open; a Retry button reruns from the start.</li><li>When the <code>done</code> event arrives, the page switches to Page 4 and keeps the log in the right rail.</li></ul></div>
+  </div>
+</div>
+
+<div class="page">
+  <div class="head"><h3>Page 3b · Replay the trace on the graph</h3><span class="route">GET /recall/replay?lot=&amp;speed= · GET /graph/:lot (step and hop tags)</span><span class="pill p0">P0</span></div>
+<div class="shot"><div class="screen"><div class="chrome"><i></i><i></i><i></i><span>recall-tracer.app/incident/L-204#step-6</span></div>
+<div class="m-top"><h1>Recall Tracer</h1><div class="m-tabs"><span>Outbreak</span><span>Supplier notice</span><span class="on">Incident</span><span>History</span></div><div class="m-meta"><span>Replay of run Oct 17, 09:14 · 7 steps · 9 queries · 31 ms in FalkorDB</span><span class="m-toggle" style="background:#1c2321;color:#fff">⟳ Replay on</span></div></div>
+<div class="m-strip"><div><h2>Lot L-204, diced carrot</h2><div class="sub"><b>Listeria monocytogenes</b> · Harlow Farms (S-03) · notice Oct 17, 09:14</div></div><div class="clock">replay position<b>0:41</b>of 0:58</div><div class="m-stages"><span class="ok">Hazard</span><span class="ok">Hold</span><span class="ok">Forward trace</span><span class="ok">Records</span><span class="ok">Scope</span><span class="act">Backward</span><span>Notices</span><span>Approved</span></div></div>
+<div class="m-body"><div class="m-cols w">
+ <div class="m-panel"><h3>Record network <small>state after step 6 · drag the playhead or click a step</small></h3>
+  <svg viewBox="0 0 520 250" width="100%" style="max-width:100%;display:block" role="img" aria-label="Record network at step 6, backward check">
+<defs><marker id="ar2" viewBox="0 0 6 6" refX="5" refY="3" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#c4471b"/></marker><marker id="ag" viewBox="0 0 6 6" refX="5" refY="3" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#2f7d5b"/></marker></defs>
+<g stroke="#c4471b" stroke-width="1.4" fill="none" marker-end="url(#ar2)">
+ <path d="M48,125 L132,60"/><path d="M48,125 L132,125"/><path d="M48,125 L132,190"/>
+ <path d="M152,60 L248,45"/><path d="M152,60 L248,80"/><path d="M152,125 L248,115"/><path d="M152,125 L248,150"/><path d="M152,190 L248,185"/><path d="M152,190 L248,215"/>
+ <path d="M258,45 L372,40"/><path d="M258,80 L372,70"/><path d="M258,115 L372,100"/><path d="M258,150 L372,130"/><path d="M258,185 L372,160"/>
+</g>
+<path d="M152,62 C190,62 190,95 210,95" stroke="#c4471b" stroke-width="1.4" fill="none"/>
+<path d="M220,95 L372,100" stroke="#c4471b" stroke-width="1.4" fill="none"/>
+<g stroke="#e5b021" stroke-width="1.4" fill="none" stroke-dasharray="4 3"><path d="M252,230 L372,228"/></g>
+<g stroke="#2f7d5b" stroke-width="1.4" fill="none" marker-end="url(#ag)" stroke-dasharray="3 2">
+ <path d="M420,190 L300,200 L190,228"/><path d="M460,190 L300,210 L200,236"/><path d="M440,215 L310,225 L210,240"/>
+</g>
+<g font-family="IBM Plex Sans, sans-serif" font-size="9" fill="#1c2321">
+ <circle cx="40" cy="125" r="10" fill="#8f1d1d"/><text x="40" y="146" text-anchor="middle" font-weight="600">L-204</text>
+ <circle cx="142" cy="60" r="6" fill="#c4471b"/><text x="142" y="50" text-anchor="middle">B-03</text>
+ <circle cx="142" cy="125" r="6" fill="#c4471b"/><text x="142" y="115" text-anchor="middle">B-05</text>
+ <circle cx="142" cy="190" r="6" fill="#c4471b"/><text x="142" y="208" text-anchor="middle">B-07</text>
+ <circle cx="215" cy="95" r="5" fill="#fff" stroke="#c4471b" stroke-width="2"/><text x="215" y="110" text-anchor="middle">B-09</text>
+ <circle cx="252" cy="45" r="5" fill="#c4471b"/><text x="260" y="40">TLC-03A</text>
+ <circle cx="252" cy="80" r="5" fill="#c4471b"/><text x="260" y="76">TLC-03B</text>
+ <circle cx="252" cy="115" r="5" fill="#c4471b"/><text x="260" y="111">TLC-05A</text>
+ <circle cx="252" cy="150" r="5" fill="#c4471b"/><text x="260" y="146">TLC-05B</text>
+ <circle cx="252" cy="185" r="5" fill="#c4471b"/><text x="260" y="181">TLC-07A</text>
+ <circle cx="252" cy="215" r="5" fill="#c4471b"/><text x="260" y="211">TLC-07B</text>
+ <rect x="244" y="224" width="12" height="12" fill="#e5b021"/><text x="260" y="244" fill="#8a6400">P-02 no lot code</text>
+ <circle cx="378" cy="40" r="5" fill="#c4471b"/><circle cx="378" cy="70" r="5" fill="#c4471b"/><circle cx="378" cy="100" r="5" fill="#c4471b"/><circle cx="378" cy="130" r="5" fill="#c4471b"/><circle cx="378" cy="160" r="5" fill="#c4471b"/>
+ <circle cx="378" cy="228" r="5" fill="#e5b021"/><circle cx="398" cy="228" r="5" fill="#e5b021"/>
+ <text x="392" y="43">31 stores pull</text><text x="412" y="231" fill="#8a6400">2 no record</text>
+ <g fill="#e6eee9" stroke="#2f7d5b" stroke-width="1.5">
+  <circle cx="420" cy="190" r="5"/><circle cx="440" cy="190" r="5"/><circle cx="460" cy="190" r="5"/><circle cx="480" cy="190" r="5"/><circle cx="500" cy="190" r="5"/>
+  <circle cx="420" cy="205" r="5"/><circle cx="440" cy="205" r="5"/><circle cx="460" cy="205" r="5"/><circle cx="480" cy="205" r="5"/><circle cx="500" cy="205" r="5"/>
+ </g>
+ <text x="420" y="178" fill="#2f7d5b" font-weight="600">38 cleared · checking backward</text>
+ <circle cx="190" cy="228" r="4" fill="#e6eee9" stroke="#2f7d5b" stroke-width="1.5"/><circle cx="200" cy="236" r="4" fill="#e6eee9" stroke="#2f7d5b" stroke-width="1.5"/><circle cx="210" cy="240" r="4" fill="#e6eee9" stroke="#2f7d5b" stroke-width="1.5"/>
+ <text x="120" y="246" fill="#2f7d5b">L-205, L-131, L-117 …</text>
+ <text x="40" y="12" fill="#55615d">Lot</text><text x="142" y="12" fill="#55615d" text-anchor="middle">Batches</text><text x="252" y="12" fill="#55615d">Product lots</text><text x="378" y="12" fill="#55615d">Stores</text>
+</g></svg>
+  <div class="tl">
+   <div class="track"><div class="fill"></div><span class="mk j" style="left:2%">1</span><span class="mk " style="left:14%">2</span><span class="mk " style="left:30%">3</span><span class="mk " style="left:44%">4</span><span class="mk j" style="left:58%">5</span><span class="mk gr on" style="left:72%">6</span><span class="mk " style="left:90%">7</span><div class="head"></div></div>
+   <div class="labels"><span>0:00</span><span>0:12 hold</span><span>0:24 forward</span><span>0:41 backward</span><span>0:58 done</span></div>
+   <div class="ctl"><span class="m-btn">❚❚ Pause</span><span class="m-btn sec">⟲ Restart</span><span class="scope-tabs"><span>0.5×</span><span class="on">1×</span><span>2×</span></span><span style="margin-left:auto;color:#55615d">← → step · space play</span></div>
+   <div class="now"><b>Step 6 · Backward check on cleared stores</b> · 12 product lots walked back to their ingredient lots; none contain L-204 · trace_backward · FalkorDB 5 ms</div>
+  </div>
+  <div class="legend"><span><i style="background:#8f1d1d"></i>bad lot</span><span><i style="background:#c4471b"></i>contains L-204</span><span><i style="background:#e5b021"></i>no lot code</span><span><i style="background:#e6eee9;border:1.5px solid #2f7d5b"></i>cleared, verified</span><span>┄ green: backward check in progress</span></div>
+ </div>
+ <div class="m-panel"><h3>Investigation log <small>follows the playhead</small></h3><div class="log">
+  <div class="step" style="opacity:.55"><div class="h"><span>4 · Delivery record check</span><span class="ms">FalkorDB 3 ms</span></div>2 stores got Garden Vegetable Stew with no lot code</div>
+  <div class="step judge" style="opacity:.55"><div class="h"><span>5 · Scope decision</span><span class="ms j">judgement</span></div>Gap stores added: 33 of 71 stores, 2,256 units</div>
+  <div class="step run" style="border-color:#2f7d5b"><div class="h"><span>6 · Backward check</span><span class="ms">FalkorDB 5 ms</span></div><div class="note">"Verifying the cleared stores independently: every lot they hold, traced back to its ingredients."</div>12 product lots walked back; 0 contain L-204<div class="tool">trace_backward {product_lots: 12 items, lot: "L-204"} · <span class="m-link">Cypher</span> · <span class="m-link">Plan</span></div><span class="q">MATCH (l:Lot)-[:USED_IN]->(:Batch)-[:REWORKED_INTO*0..3]->(:Batch)
+      -[:PRODUCED]->(pl:ProductLot) WHERE pl.id IN $product_lots
+RETURN pl.id, collect(DISTINCT l.code) AS ingredient_lots</span></div>
+  <div class="step" style="opacity:.35"><div class="h"><span>7 · Store notices drafted</span><span class="ms">0:52</span></div></div>
+ </div></div>
+</div></div></div></div>
+  <div class="spec">
+    <div><h4>What the replay shows</h4><ul><li>The same record network as the live view, set to the state after any step: which records had been reached, held, flagged or cleared at that moment.</li><li>A timeline with one marker per agent step at its real timestamp. Amber markers are judgement steps, green the backward check. The filled track is what has played.</li><li>A caption under the track naming the current step, its result, its tool and its FalkorDB latency.</li><li>The log on the right scrolls to the current step and dims the others.</li></ul></div>
+    <div><h4>Interactions</h4><ul><li>Play, pause, restart, speed 0.5×, 1×, 2×. Arrow keys step; space plays.</li><li>Drag the playhead or click a marker to jump; the graph redraws instantly to that step's state.</li><li>The link carries the step as a plain anchor (<code>#step-6</code>) so a judge can open the exact moment.</li><li>Replay works without an API key from the recorded run; "Replay on" in the top bar says it is not live.</li></ul></div>
+    <div><h4>Where it is used</h4><ul><li>On the Incident tab after any finished run, and as the default for the demo video.</li><li>On the hosted app for judges, so the first thing they see moves.</li><li>Also embedded at the top of the dashboard (Record network tab) with the same controls.</li></ul></div>
+  </div>
+</div>
+<div class="page">
+  <div class="head"><h3>Page 4 · Incident dashboard</h3><span class="route">GET /incident/:lot · POST /incident/:lot/confirm · GET /notices</span><span class="pill p0">P0</span></div>
+<div class="shot"><div class="screen"><div class="chrome"><i></i><i></i><i></i><span>recall-tracer.app/incident/L-204</span></div><div class="m-top"><h1>Recall Tracer</h1><div class="m-tabs"><span class="">Outbreak</span><span class="">Supplier notice</span><span class="on">Incident</span><span class="">History</span></div><div class="m-meta"><span>Northfield Foods · graph "recall" · 163 records · FalkorDB avg 2.4 ms · synthetic demo data</span><span class="m-toggle">⟳ Replay</span></div></div><div class="m-strip"><div><h2>Lot L-204, diced carrot</h2><div class="sub"><b>Listeria monocytogenes</b> · Harlow Farms (S-03) · notice Oct 17, 09:14</div></div><div class="clock">24 h clock<b>00:41</b>scope decided 00:41 after notice</div><div class="m-stages"><span class="ok">Hazard</span><span class="ok">Hold</span><span class="ok">Forward trace</span><span class="ok">Records</span><span class="ok">Scope</span><span class="ok">Backward</span><span class="ok">Notices</span><span class="">Approved 0/33</span></div></div>
+<div class="m-body">
+ <div class="m-panel" style="border-color:#e5b021"><h3>Hazard assessment <small>agent proposal · awaiting confirmation</small></h3>
+  <p>Agent proposes <b>Class I, consumer-level</b>. "Listeria monocytogenes in chilled ready-to-eat soups: reasonable probability of serious illness; product is on shelves." In the US the FDA assigns the final classification.</p>
+  <div class="m-field"><label>Class</label><span class="m-select">I</span><label style="width:auto">Depth</label><span class="m-select">consumer</span><span style="flex:1"></span><span class="m-btn">Confirm</span></div></div>
+ <div class="m-tiles">
+  <div class="tile"><div class="l">Stores to pull</div><div class="v">33<small>of 71</small></div><div class="ticks"><i class="r"></i><i class="r"></i><i class="r"></i><i class="r"></i><i class="r"></i><i class="r"></i><i class="r"></i><i class="r"></i><i class="r"></i><i class="r"></i><i class="r"></i><i class="r"></i><i class="r"></i><i class="r"></i><i class="r"></i><i class="r"></i><i class="r"></i><i class="r"></i><i class="r"></i><i class="r"></i><i class="r"></i><i class="r"></i><i class="r"></i><i class="r"></i><i class="r"></i><i class="r"></i><i class="r"></i><i class="r"></i><i class="r"></i><i class="r"></i><i class="r"></i><i class="g"></i><i class="g"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="f">71 stores got these products. A blanket recall pulls all of them.</div></div>
+  <div class="tile"><div class="l">Units to pull</div><div class="v">2,256</div><div class="f">vs 7,672 blanket · 71% fewer</div></div>
+  <div class="tile"><div class="l">Held before leaving</div><div class="v">2,652<small>u</small></div><div class="f">plus 93 kg raw · 2 plants, 3 DCs</div></div>
+  <div class="tile warn"><div class="l">Can't be cleared</div><div class="v">2<small>stores</small></div><div class="f">no lot code on delivery · added</div></div>
+  <div class="tile"><div class="l">Cleared</div><div class="v">38<small>stores</small></div><div class="f">verified by backward trace</div></div>
+ </div>
+ <div class="m-panel"><h3>What left the plant <span class="scope-tabs"><span class="on">Scope table</span><span>Units flow</span><span>Record network</span></span></h3>
+  <table class="m-table"><tr><th>Product lot</th><th>Product · UPC</th><th>Made</th><th>Contains L-204 via</th><th>Best by</th><th class="n">Made</th><th class="n">Shipped</th><th class="n">Held</th></tr>
+  <tr><td><span class="chip bad">TLC-03A</span></td><td>Carrot &amp; Lentil Soup · 0 12345 67890 1</td><td>PL-1 · Oct 1</td><td>B-03 used 210 kg (blend with L-117)</td><td>Oct 29</td><td class="n">820</td><td class="n">590 · 9 stores</td><td class="n"><span class="badge hold">230</span></td></tr>
+  <tr><td><span class="chip bad">TLC-05B</span></td><td>Carrot Baby Puree · 0 12345 67891 8</td><td>PL-2 · Oct 2</td><td>B-05 used 180 kg</td><td>Oct 30</td><td class="n">640</td><td class="n">420 · 6 stores</td><td class="n"><span class="badge hold">220</span></td></tr>
+  <tr><td><span class="chip bad">TLC-09A</span></td><td>Carrot &amp; Lentil Soup · 0 12345 67890 1</td><td>PL-1 · Oct 4</td><td>B-09 reused 40 kg of B-03 leftovers</td><td>Nov 1</td><td class="n">510</td><td class="n">380 · 5 stores</td><td class="n"><span class="badge hold">130</span></td></tr>
+  <tr><td colspan="8" style="color:#8a9591">4 more product lots …</td></tr></table></div>
+ <div class="m-cols">
+  <div class="m-panel"><h3>Where it went <small>click a state to filter</small></h3><div class="rows">
+   <div><b>OH</b><div class="bar"><i class="r" style="width:50%"></i><i class="g" style="width:4%"></i><i class="s" style="width:46%"></i></div><span>14 pull · 1 gap · 13 cleared</span></div>
+   <div><b>PA</b><div class="bar"><i class="r" style="width:44%"></i><i class="g" style="width:6%"></i><i class="s" style="width:50%"></i></div><span>8 pull · 1 gap · 9 cleared</span></div>
+   <div><b>MI</b><div class="bar"><i class="r" style="width:36%"></i><i class="s" style="width:64%"></i></div><span>5 pull · 9 cleared</span></div>
+   <div><b>IN</b><div class="bar"><i class="r" style="width:40%"></i><i class="s" style="width:60%"></i></div><span>3 pull · 4 cleared</span></div>
+   <div><b>KY</b><div class="bar"><i class="r" style="width:25%"></i><i class="s" style="width:75%"></i></div><span>1 pull · 3 cleared</span></div></div></div>
+  <div class="m-panel"><h3>Exposure</h3><div class="dots"><span>Oct 5 <i></i><i></i><i></i></span><span>Oct 7 <i></i><i></i><i></i><i></i><i></i></span><span>Oct 9 <i></i><i></i><i class="g"></i></span><span>Oct 12 <i></i></span></div><p>First affected delivery Oct 5, last Oct 12. Oldest product on shelves 12 days. Best-by Oct 28 to Nov 3.</p><p style="color:#55615d">34 deliveries · 2 with no lot code</p></div>
+ </div>
+ <div class="m-panel"><h3>Public notice facts <small>consumer-level · read from the graph</small></h3><p><b>Carrot &amp; Lentil Soup</b> UPC 0 12345 67890 1 · lots TLC-03A, TLC-05A, TLC-09A · best-by Oct 29 to Nov 1 · <b>Garden Vegetable Stew</b> UPC 0 12345 67892 5 · lots TLC-03B, TLC-07A · <b>Carrot Baby Puree</b> UPC 0 12345 67891 8 · TLC-05B, TLC-07B · sold at FreshMart, GreenBasket, DailyGrocer in OH, PA, MI, IN, KY</p></div>
+ <div class="m-panel"><h3>Store decisions <span class="scope-tabs"><span class="on">All 71</span><span>Pull 31</span><span>No record 2</span><span>Cleared 38</span><span class="m-select" style="padding:1px 8px">search store, city or lot</span></span></h3>
+  <table class="m-table"><tr><th>Decision</th><th>Store</th><th>Location</th><th>Lots received</th><th class="n">Units to pull</th><th>Last delivery</th><th>Notice</th></tr>
+  <tr><td><span class="badge pull">Pull</span></td><td><b>FreshMart #032</b><span class="sub">ST-032</span></td><td>Columbus, OH</td><td><span class="chip bad">TLC-03A</span><span class="chip bad">TLC-09A</span><span class="chip">TLC-04A</span></td><td class="n">96</td><td>Oct 8</td><td><span class="badge draft">Draft</span></td></tr>
+  <tr><td><span class="badge gap">No record</span></td><td><b>GreenBasket #015</b><span class="sub">ST-015</span></td><td>Erie, PA</td><td><span class="chip unk">P-02, no lot code</span></td><td class="n">48</td><td>Oct 9</td><td><span class="badge draft">Draft</span></td></tr>
+  <tr><td><span class="badge clear">Cleared</span></td><td><b>DailyGrocer #001</b><span class="sub">ST-001</span></td><td>Toledo, OH</td><td><span class="chip">TLC-04A</span><span class="chip">TLC-06B</span></td><td class="n">0</td><td>Oct 6</td><td></td></tr>
+  <tr><td colspan="7" style="color:#8a9591">68 more stores …</td></tr></table></div>
+</div></div></div>
+  <div class="spec">
+    <div><h4>Content, top to bottom</h4><ul><li>Hazard assessment card with the agent's proposal and rationale; class and depth selects; Confirm. After confirming, the card collapses to "Class I consumer, confirmed by J. Park 09:58".</li><li>Five headline tiles, each with one line that says what the number means. The first tile has one tick per store.</li><li>What left the plant: scope table (product, UPC, plant, date, how it contains the lot, best-by, made, shipped, held), units flow (Sankey to states, hatched band for no lot code), record network (the same graph as Page 3, static, with Replay).</li><li>Where it went: stacked bars per state (pull, no record, cleared). Click filters the table.</li><li>Exposure: delivery dates, shelf time, best-by range, units per day.</li><li>Public notice facts: products, UPCs, lot codes on pack, best-by dates, chains and states.</li><li>Store decisions: every store with decision, lots received, units to pull, last delivery, notice status.</li></ul></div>
+    <div><h4>Interactions and states</h4><ul><li>Every number is reachable: clicking a tile scrolls to and filters the table (Pull, No record, Cleared).</li><li>Flag-only mode: a switch in the No record tile reruns the dashboard with gaps flagged, not added, and the numbers change to 31 and 38 with the two stores listed separately.</li><li>Before confirmation, the notices panel in the rail is disabled with "Confirm the class first".</li><li>Right rail keeps the investigation log and the notices queue (Page 6) on wide screens; on phones they are tabs under the dashboard.</li></ul></div>
+  </div>
+</div>
+
+<div class="page">
+  <div class="head"><h3>Page 5 · Store evidence drawer</h3><span class="route">from GET /incident/:lot · GET /evidence/:lot/:store (shortest path)</span><span class="pill p0">P0</span> <span class="pill p1">P1 shortest path</span></div>
+<div class="shot"><div class="screen narrow"><div class="chrome"><i></i><i></i><i></i><span>recall-tracer.app/incident/L-204 · ST-032</span></div>
+<div class="m-body"><div class="drawer" style="width:100%">
+ <div style="display:flex;justify-content:space-between;align-items:flex-start"><div><span class="badge pull">Pull product</span><h3>FreshMart #032</h3><p style="color:#55615d">ST-032 · Columbus, OH</p></div><span class="m-link">✕ close</span></div>
+ <p class="lead">Received <b>TLC-09A</b> from batch B-09, which reused 40 kg of B-03 leftovers made with L-204. Pull <b>96 units</b>.</p>
+ <h4>Chain of records · shortest of 2 paths · FalkorDB 1 ms</h4>
+ <ul class="chain"><li><b>L-204</b> diced carrot<span>Harlow Farms · received Sep 14 · 480 kg</span></li><li><b>B-03</b> Northfield Plant 1 · Oct 1<span>used 210 kg of L-204 and 90 kg of L-117</span></li><li class="rw"><b>B-09</b> rework · Oct 4<span>reused 40 kg of B-03 leftovers</span></li><li><b>TLC-09A</b> Carrot &amp; Lentil Soup<span>510 units made · best-by Nov 1</span></li><li class="end"><b>Delivered 96 units</b> to this store<span>Oct 8</span></li></ul>
+ <h4>Also received (clean)</h4>
+ <ul class="chain"><li class="ok"><b>TLC-04A</b> Garden Vegetable Stew · 60 units · Oct 6<span>traced back to L-205, L-131. No L-204.</span></li></ul>
+ <h4>Recall notice · draft</h4>
+ <div class="notice">RECALL NOTICE: FreshMart #032 (Columbus, OH)
+Ingredient lot L-204 is contaminated. Remove the products below from sale and hold them for collection.
+Reason: Received TLC-09A from batch B-09, which reused leftovers of B-03 made with L-204.</div>
+ <p style="text-align:right"><span class="m-btn">Approve this notice</span></p>
+</div></div></div></div>
+  <div class="spec">
+    <div><h4>Three shapes</h4><ul><li><b>Pull:</b> sentence, chain with quantities and dates, clean lots the store also holds, the draft notice and its approve button.</li><li><b>No record:</b> "48 units of Garden Vegetable Stew arrived Oct 9 with no lot code recorded. P-02 lots that contain L-204: TLC-03B, TLC-07A. The records cannot rule them out, so the agent added this store." Then the notice.</li><li><b>Cleared:</b> each lot the store holds, traced back to its ingredient lots, with "No L-204" on every line and the backward query's latency.</li></ul></div>
+    <div><h4>Interactions</h4><ul><li>Opens from the table, the state bars, the network, the notices queue and the outbreak case paths.</li><li>Approve this notice updates the queue and the table without closing the drawer.</li><li>Escape closes; focus returns to the row that opened it.</li></ul></div>
+  </div>
+</div>
+
+<div class="page">
+  <div class="head"><h3>Page 6 · Notices, approval, export</h3><span class="route">GET /notices · POST /notices/approve · GET /export/:lot.csv</span><span class="pill p0">P0</span></div>
+<div class="shot"><div class="screen narrow"><div class="chrome"><i></i><i></i><i></i><span>recall-tracer.app/incident/L-204 · notices</span></div>
+<div class="m-body"><div class="m-panel">
+ <h3>Store notices <small>Class I consumer · confirmed by J. Park 09:58</small><small>16 of 33 approved</small></h3>
+ <div class="prog"><i style="width:48%"></i></div>
+ <div class="rows">
+  <div><b>OH</b><span class="pips"><i class="d"></i><i class="d"></i><i class="d"></i><i class="d"></i><i class="d"></i><i class="d"></i><i class="d"></i><i class="d"></i><i class="d"></i><i class="d"></i><i class="d"></i><i class="d"></i><i class="d"></i><i class="d"></i><i class="d"></i><i class="d"></i></span><span class="badge ok">16 approved</span></div>
+  <div><b>PA</b><span class="pips"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span><span class="m-link">Approve PA</span></div>
+  <div><b>MI</b><span class="pips"><i></i><i></i><i></i><i></i><i></i></span><span class="m-link">Approve MI</span></div>
+  <div><b>IN</b><span class="pips"><i></i><i></i><i></i></span><span class="m-link">Approve IN</span></div>
+  <div><b>KY</b><span class="pips"><i></i><i></i></span><span class="m-link">Approve KY</span></div>
+ </div>
+ <p style="margin-top:10px"><span class="m-btn">Approve all 17 remaining</span> <span class="m-btn sec">FDA shipping CSV</span> <span class="m-btn sec">Copy public notice</span></p>
+ <p style="color:#55615d">Approving marks a notice ready for the comms team. Nothing is sent from here.</p>
+</div></div></div></div>
+  <div class="spec">
+    <div><h4>Content</h4><ul><li>Progress bar and count. Rows per state with one pip per store; hover shows the store and status; click opens its drawer.</li><li>FDA shipping CSV: one row per delivery of an affected product lot, plus one row per gap delivery with an empty lot code, columns named after the FDA template's Shipping tab.</li><li>Copy public notice: the public notice facts as plain text for the press release.</li></ul></div>
+    <div><h4>States</h4><ul><li>Disabled until the class is confirmed, with the reason shown.</li><li>All approved: the button reads "All approved" and the header dot turns green.</li><li>Rerun of the same lot replaces drafts; approved state is not carried over, and the page says so.</li></ul></div>
+  </div>
+</div>
+
+<div class="page">
+  <div class="head"><h3>Page 7 · Incident history</h3><span class="route">GET /incidents · GET /incidents/supplier/:id</span><span class="pill p2">P2</span></div>
+<div class="shot"><div class="screen"><div class="chrome"><i></i><i></i><i></i><span>recall-tracer.app/history</span></div><div class="m-top"><h1>Recall Tracer</h1><div class="m-tabs"><span class="">Outbreak</span><span class="">Supplier notice</span><span class="">Incident</span><span class="on">History</span></div><div class="m-meta"><span>Northfield Foods · graph "recall" · 163 records · FalkorDB avg 2.4 ms · synthetic demo data</span><span class="m-toggle">⟳ Replay</span></div></div>
+<div class="m-body">
+ <div class="m-panel"><h3>Incident history <small>every Incident node in graph "recall"</small></h3>
+  <table class="m-table"><tr><th>Lot</th><th>Hazard</th><th>Opened</th><th>Scope in</th><th>Proposed</th><th>Confirmed</th><th class="n">Pulled</th><th class="n">Held</th><th>Supplier</th></tr>
+  <tr><td><span class="chip bad">L-204</span></td><td>Listeria monocytogenes</td><td>Oct 17</td><td>00:41</td><td>I consumer</td><td><span class="badge ok">I consumer</span></td><td class="n">33 / 71</td><td class="n">2,652</td><td>Harlow Farms</td></tr>
+  <tr><td><span class="chip">L-156</span></td><td>foreign material</td><td>Sep 3</td><td>00:38</td><td>II retail</td><td><span class="badge ok">II retail</span></td><td class="n">9 / 44</td><td class="n">1,104</td><td>Sunfield Grains</td></tr>
+  <tr><td><span class="chip">L-108</span></td><td>undeclared milk</td><td>Aug 21</td><td>00:52</td><td>I consumer</td><td><span class="badge ok">I consumer</span></td><td class="n">21 / 60</td><td class="n">880</td><td>Cedar Hill Dairy</td></tr></table></div>
+ <div class="m-cols">
+  <div class="m-panel"><h3>By supplier</h3><div class="rows"><div><span></span><span>Harlow Farms (S-03)</span><span class="bar"><i class="r" style="width:33%"></i></span></div><div><span></span><span>Sunfield Grains (S-06)</span><span class="bar"><i class="r" style="width:33%"></i></span></div><div><span></span><span>Cedar Hill Dairy (S-05)</span><span class="bar"><i class="r" style="width:33%"></i></span></div></div></div>
+  <div class="m-panel"><h3>Policies the agent follows</h3><p><b>Gap stores:</b> add to the recall · set by J. Park · Oct 2 · used in 3 incidents</p><p><b>Class I triggers:</b> Listeria, Salmonella, E. coli, undeclared major allergen in ready-to-eat food</p></div>
+ </div>
+</div></div></div>
+  <div class="spec">
+    <div><h4>Content</h4><ul><li>One row per Incident node: lot, hazard, opened, time from notice to scope, proposed and confirmed class and depth, stores pulled of blanket, units held.</li><li>Counts per supplier, read by one query through CONCERNS and SUPPLIED.</li><li>The current gap policy, read from a Policy node if we build it, otherwise from the prompt.</li></ul></div>
+    <div><h4>Why it exists</h4><ul><li>It is the Track 2 surface: episodic memory (incidents), procedural memory (policy), shared state (Incident node read by other agents).</li><li>It feeds the "prior incident on this supplier" line on Page 2.</li></ul></div>
+  </div>
+</div>
+
+<h2 id="outbreak">Outbreak source finder</h2>
+<p>The feature that turns a recall tool into an investigation tool, and the clearest multi-hop reasoning in the project. It follows how FDA and CDC actually work a cluster: cases linked by whole genome sequencing, interviews that yield where and when people shopped, then a backward trace from each point of purchase to a common source.</p>
+<h3>Graph additions</h3>
+<div class="tbl"><table>
+<tr><th>Element</th><th>Properties</th><th>Meaning</th></tr>
+<tr><td><code>Cluster</code> node</td><td><code>id</code>, <code>pathogen</code>, <code>opened_at</code></td><td>The linked cluster the cases belong to. Page 7 lists past clusters.</td></tr>
+<tr><td><code>Case</code> node</td><td><code>id</code>, <code>region</code>, <code>onset</code>, <code>reported_at</code>, <code>sku</code> (optional)</td><td>One sick person in the cluster. No names, no health data beyond onset date.</td></tr>
+<tr><td><code>(Cluster)-[:HAS_CASE]->(Case)</code></td><td></td><td>Membership.</td></tr>
+<tr><td><code>(Case)-[:BOUGHT_AT]->(Store)</code></td><td><code>date</code></td><td>Where and when they shopped, from loyalty card or interview.</td></tr>
+</table></div>
+<p>Seed: six cases in four states, five with a product named and one store-only. Every case store received an affected product lot before the purchase date. Two of the six stores also received the L-117 blend, so L-117 partially explains; none received anything from L-205, so the decoy explains nothing. The generator writes the expected ranking into <code>data/expected.json</code> and a test asserts it.</p>
+<h3>The tool: <code>find_common_source</code></h3>
+<p>Input: a list of case ids. Output: every ingredient lot that could have reached each case, ranked. The rule is simple enough to say out loud: first the lot that explains the most cases, then the one that reached the fewest stores. The agent reads the table and writes the explanation; it computes nothing.</p>
+<pre><code>// For each case, walk back from the store to every ingredient lot that could have reached it,
+// through product lots delivered before the purchase, batches, and rework (0..3 hops).
+MATCH (c:Case) WHERE c.id IN $cases
+MATCH (c)-[b:BOUGHT_AT]->(st:Store)&lt;-[s:SHIPPED_TO]-(pl:ProductLot)
+      &lt;-[:PRODUCED]-(:Batch)&lt;-[:REWORKED_INTO*0..3]-(:Batch)&lt;-[:USED_IN]-(l:Lot)
+WHERE s.shipped_at &lt;= b.date AND (c.sku IS NULL OR pl.sku = c.sku)
+WITH l, collect(DISTINCT c.id) AS explained
+// How far did that lot spread in total? Fewer stores for the same cases = more specific.
+MATCH (l)-[:USED_IN|REWORKED_INTO|PRODUCED|SHIPPED_TO*1..8]->(reach:Store)
+WITH l, explained, count(DISTINCT reach) AS stores_reached
+RETURN l.code AS lot, l.ingredient AS ingredient, l.supplier_id AS supplier,
+       size(explained) AS cases_explained, explained,
+       stores_reached, toFloat(size(explained)) / stores_reached AS specificity
+ORDER BY cases_explained DESC, specificity DESC
+LIMIT 10</code></pre>
+<p>A second tool, <code>case_path</code>, returns the backward path for one case (same pattern with <code>path =</code> and the case id as a parameter) for the evidence panel. The handler adds <code>total_cases</code> so the UI prints "6 of 6".</p>
+<h3>Agent behaviour</h3>
+<ul>
+  <li>Outbreak mode has its own short prompt: call <code>find_common_source</code> once with all case ids, then write at most four sentences: the leading lot and how many cases it explains, the runner-up and why it does not explain the rest, the decoy ruled out, and the recommendation. It must say "likely" and that the coordinator and the supplier's test decide.</li>
+  <li>If no lot explains every case, say so and name the two leading lots. Never invent a lot.</li>
+  <li>The result is a proposal. The coordinator's click on <b>Open incident</b> is the decision, and it enters the seven-step recall flow unchanged.</li>
+</ul>
+<div class="callout safe"><p><b>Why the decoy matters on stage.</b> L-205 is the same ingredient from the same supplier, received the same week. A keyword search or a spreadsheet filter would pull it in. The graph rules it out in one query because no path connects it to any case store. Say this in the video.</p></div>
+
+<h2 id="live">Live tracing</h2>
+<p>Judges score "explainable results" on what they can see in thirty seconds. The live trace is where they see it. It must make FalkorDB visibly the thing doing the work.</p>
+<div class="grid2">
+  <div>
+    <h3>Event stream</h3>
+    <ul>
+      <li>SSE events: <code>start</code>, <code>note</code> (the agent's one-line intent), <code>tool_start</code>, <code>tool_end</code> (tool, input, one-line result, total ms, FalkorDB ms, Cypher list), <code>done</code>, <code>error</code>.</li>
+      <li>The graph route tags every node and edge with the step that reveals it and its hop count, so the network animates in the same order as the log.</li>
+      <li>Replay serves a recorded run as the same events with recorded delays; <code>?speed=2</code> halves the waits.</li>
+    </ul>
+  </div>
+  <div>
+    <h3>What each step card shows</h3>
+    <ul>
+      <li>Plain title, the agent's note, the one-line result.</li>
+      <li>Tool name and condensed input ("notices: 33 items").</li>
+      <li>FalkorDB latency badge per query; a running total in the header ("graph answered 9 queries in 31 ms").</li>
+      <li>Expanders: Cypher with parameters highlighted; query plan from <code>GRAPH.EXPLAIN</code> showing the index scan.</li>
+      <li>Decision cards for the hazard proposal and the gap policy, with the policy text and "awaiting the coordinator".</li>
+    </ul>
+  </div>
+</div>
+<h3>How a step reads on screen</h3>
+<div class="shot"><div class="screen narrow"><div class="m-body"><div class="log">
+ <div class="step"><div class="h"><span>3 · Forward trace</span><span class="ms">FalkorDB 4 ms</span></div><div class="note">"Following L-204 through every batch, rework and delivery."</div>4 batches, 7 product lots, 31 stores reached<div class="tool">trace_forward {lot: "L-204"} · <span class="m-link">Hide Cypher</span> · <span class="m-link">Plan</span></div><span class="q">MATCH path = (l:Lot {code: $lot})
+      -[:USED_IN|REWORKED_INTO|PRODUCED|SHIPPED_TO*1..8]->(st:Store)
+RETURN st.id AS store, [n IN nodes(path) | coalesce(n.code, n.id)] AS path, …
+
+Plan: Index Scan (l:Lot.code) → Conditional Variable Length Traverse → Project</span></div>
+ <div class="step judge"><div class="h"><span>5 · Scope decision</span><span class="ms j">agent judgement</span></div><b>Policy:</b> a recall that misses contaminated product is worse than one that pulls a few extra units. The 2 stores with no delivery record are <b>added</b>. The coordinator can switch to "flag only" on the dashboard.<div class="tool">minimal_recall {lot: "L-204", add_gap_stores: true}</div></div>
+</div></div></div></div>
+
+<h2 id="ingest">Data ingestion</h2>
+<p>How records get into the graph. There are four paths. The demo uses the first; the second is what makes the product real for a judge who works in food; the third is the outbreak input; the fourth is enrichment.</p>
+<pre class="mermaid">
+flowchart LR
+  G[Seeded generator<br/>build seed 42] --> L[Loader<br/>UNWIND rows, MERGE on ids]
+  F[FSMA 204 spreadsheet<br/>Receiving, Transformation, Shipping tabs] --> M[Column mapper<br/>KDE to node and edge] --> L
+  C[Outbreak cases CSV<br/>or pasted text] --> L
+  O[openFDA enforcement API<br/>hazard catalogue, recent recalls] -.-> L
+  L --> V[Validation report<br/>invariants, gaps, counts] --> D[(FalkorDB<br/>graph recall)]
+</pre>
+
+<h3>Path 1 · Seeded generator <span class="pill p0">P0</span></h3>
+<ul>
+  <li><code>build(seed)</code> is pure: same seed, same graph. Planted cases are hard-coded and documented (bad lot L-204, blend with L-117 in B-03, rework B-03 to B-09, decoy L-205 in B-04 and B-06, two gap stores on P-02, four untouched stores, six outbreak cases in cluster OB-2026-10). Everything else is random from the seed.</li>
+  <li><code>load(data, reset)</code> deletes the graph when asked, creates indexes, then loads each node and edge type with one <code>UNWIND $rows</code> query per type, in batches of 1,000 rows.</li>
+  <li>Writes <code>data/expected.json</code>: counts, store sets, units, held quantities, outbreak ranking. The tests assert the graph against it.</li>
+  <li><code>--scale N</code> multiplies the random fill (stores, lots, batches, deliveries) while keeping the planted story at the centre, so answers stay 33 and 38 on a graph 50 times larger. Used for one benchmark line in the README. <span class="pill p1">P1</span></li>
+</ul>
+
+<h3>Path 2 · FSMA 204 sortable spreadsheet import <span class="pill p1">P1</span></h3>
+<p>The FDA's rule requires firms to produce a sortable spreadsheet of Key Data Elements within 24 hours. Most firms already keep this format. <code>POST /ingest/fsma</code> accepts the three tabs as CSV and builds the graph from them. This is the sentence for the pitch: "upload the spreadsheet the FDA already makes you keep, and the graph builds itself."</p>
+<div class="tbl"><table>
+<tr><th>Tab (CTE)</th><th>KDE columns we read</th><th>Becomes</th></tr>
+<tr><td>Receiving</td><td>Traceability Lot Code, Quantity, Unit, Product Description, Immediate Previous Source (Business Name), Receive Date, Location Description (where received)</td><td><code>Supplier</code> (MERGE on name), <code>Lot</code> (MERGE on TLC) with ingredient, received_at, received_kg, <code>Site</code> (MERGE on location), <code>SUPPLIED</code>, <code>STORED_AT</code></td></tr>
+<tr><td>Transformation</td><td>Input TLC(s) and quantities, New TLC, New Product Description, Quantity produced, Transformation Date, Location</td><td><code>Batch</code> (one per transformation event), <code>USED_IN {qty_kg}</code> from each input Lot, <code>PRODUCED {units}</code> to a <code>ProductLot</code>, <code>OF</code> to <code>Product</code>. An input TLC that is itself a finished product lot becomes <code>REWORKED_INTO</code> from its batch.</td></tr>
+<tr><td>Shipping</td><td>Traceability Lot Code, Quantity, Unit, Product Description, Immediate Subsequent Recipient (Business Name, City, State), Ship Date, Location shipped from</td><td><code>Store</code> or <code>DC</code> (MERGE on name and city), <code>SHIPPED_TO {units, shipped_at}</code>. A row with an empty TLC becomes <code>SHIPPED_UNTRACKED</code> from the <code>Product</code>: the gap is ingested, not lost.</td></tr>
+</table></div>
+<ul>
+  <li>Dry-run mode returns the mapping and counts without writing. The response lists unmatched columns, rows with missing TLCs, and the inferred gaps.</li>
+  <li>MERGE on identifiers everywhere, so re-uploading the same file is idempotent and a corrected file updates in place.</li>
+  <li>Dates are normalised to ISO; quantities to integers; units to kilograms or units by the Unit column.</li>
+  <li>The sample file in <code>data/fsma-sample/</code> is exported from the seeded graph, so the round trip (export, import, same counts) is a test.</li>
+</ul>
+
+<h3>Path 3 · Outbreak cases <span class="pill p0">P0</span></h3>
+<ul>
+  <li><code>POST /ingest/cases</code> with CSV or tab-separated text: <code>case_id, state, onset, store_id or store name, purchase_date, sku or product name (optional)</code>. Also the Paste box on Page 1.</li>
+  <li>Stores are matched by id, then by name and city; unmatched rows are returned with the reason and excluded, never guessed.</li>
+  <li>Writes <code>Cluster</code>, <code>Case</code>, <code>HAS_CASE</code>, <code>BOUGHT_AT</code>. Re-pasting the same cluster id replaces its cases.</li>
+</ul>
+
+<h3>Path 4 · openFDA enrichment <span class="pill p2">P2</span></h3>
+<ul>
+  <li>One scheduled pull from <code>/food/enforcement.json</code> fills the hazard select on Page 2 with the most frequent recall reasons and classes, and a "recent recalls like this" line in the hazard assessment (attributed, read-only, no firm data stored in our graph).</li>
+</ul>
+
+<h3>Rules for every path</h3>
+<ul>
+  <li>Indexes exist before any load: Lot.code, Batch.id, ProductLot.id, Product.sku, Store.id, Supplier.id, Site.id, DC.id, Incident.lot, Case.id, Cluster.id.</li>
+  <li>Edges point forward in time, so the graph has no cycles and bounded variable-length matches are safe. The validation step checks it.</li>
+  <li>Invariants checked after load and reported: units made = shipped + held for every product lot; every case store received an affected lot before the purchase date; node and edge counts.</li>
+  <li>Loading is parameterised Cypher only; no string-built queries. Every loader query is in <code>src/graph/queries.ts</code> and quoted in the README.</li>
+</ul>
+
+<h2 id="data">Real vs synthetic</h2>
+<p>All company, product, store, lot and case data stays synthetic, generated from a seed. Everything that shapes the data is real: the record structure, the column names, the recall classes, the timelines, and the outbreak precedent. This keeps us clear of impersonating any firm while making the demo look like a real coordinator's screen.</p>
+<div class="tbl"><table>
+<tr><th>What</th><th>Source</th><th>Real or synthetic</th></tr>
+<tr><td>Record structure: Lot, Batch, ProductLot, deliveries, holds</td><td>FDA FSMA 204 CTE and KDE tables; sortable spreadsheet template</td><td>Real structure</td></tr>
+<tr><td>CSV column names and import mapping</td><td>FDA template tabs</td><td>Real names</td></tr>
+<tr><td>Recall class and depth definitions; 24 h duties</td><td>21 CFR 7.3; Reportable Food Registry</td><td>Real rules</td></tr>
+<tr><td>Hazard list</td><td>openFDA food enforcement reports: most common reasons</td><td>Real categories</td></tr>
+<tr><td>Outbreak precedent for the hook</td><td>FDA and CDC pages on the 2024 organic carrot E. coli O121 outbreak</td><td>Real event, cited, narrative only</td></tr>
+<tr><td>Illness report shape</td><td>CDC outbreak investigation method; NORS dashboard fields</td><td>Real shape, synthetic cases</td></tr>
+<tr><td>Suppliers, plants, DCs, products, UPCs, stores, cities, chains</td><td>Generator, seed 42, fictional names</td><td>Synthetic</td></tr>
+<tr><td>Lots, batches, rework, deliveries, holds, best-by, cases</td><td>Generator; planted cases plus random fill</td><td>Synthetic</td></tr>
+<tr><td>Scale set for the speed line (5,000 stores, about 150k deliveries)</td><td>Generator <code>--scale 50</code></td><td>Synthetic</td></tr>
+</table></div>
+<p>The page itself says "synthetic demo data" in the shell, so no viewer mistakes it for a real firm.</p>
+
+<h2 id="business">How real recalls work, and how the product mirrors it</h2>
+<p>The product uses the vocabulary a quality manager uses, so a judge who knows food safety nods and a judge who does not can still follow. The agent, the UI copy and the README all use this mapping.</p>
+<div class="tbl"><table>
+<tr><th>In the industry</th><th>In Recall Tracer</th><th>Where it shows</th></tr>
+<tr><td><b>FSMA 204 (Food Traceability Rule).</b> Firms handling foods on the Food Traceability List keep Key Data Elements at each Critical Tracking Event and hand FDA a sortable spreadsheet within 24 hours. Compliance date July 20, 2028.</td><td>The graph is those records. Receiving = Lot, Transformation = Batch and ProductLot, Shipping = SHIPPED_TO. The import reads the template; the export writes it.</td><td>Ingestion, CSV export, 24 h clock</td></tr>
+<tr><td><b>Traceability Lot Code (TLC).</b> The identifier that follows a lot through the chain.</td><td><code>ProductLot.id</code> (TLC-03A) and <code>Lot.code</code> (L-204).</td><td>Scope table, evidence, CSV</td></tr>
+<tr><td><b>Reportable Food Registry.</b> Report within 24 hours when there is a reasonable probability a food will cause serious health consequences.</td><td>The clock that starts when the incident opens, and the header line "scope decided 00:41 after the notice".</td><td>Supplier notice, header</td></tr>
+<tr><td><b>Recall classification (21 CFR 7.3).</b> Class I: reasonable probability of serious health consequences or death. Class II: temporary or reversible. Class III: not likely to cause harm. Depth: consumer, retail, wholesale.</td><td><code>propose_classification</code> writes the agent's proposal to the Incident node; the coordinator confirms. In the US, FDA assigns the final class; the UI says so.</td><td>Hazard assessment card</td></tr>
+<tr><td><b>Hold, then recall.</b> First stop what has not shipped (plant and DC inventory), then pull what has.</td><td><code>place_hold</code> stamps STORED_AT and HELD_AT edges with held_for and held_at.</td><td>Hold tile, FalkorDB Browser</td></tr>
+<tr><td><b>Blending and rework.</b> One ingredient lot goes into several batches; leftovers get reworked into the next batch. This is why recalls grow.</td><td>USED_IN and REWORKED_INTO edges with kilograms. B-03 blends L-204 with L-117; B-09 reuses B-03 leftovers.</td><td>Units flow, evidence chain</td></tr>
+<tr><td><b>Record gaps.</b> Retail deliveries often lack the lot code on the invoice. A firm cannot clear those stores.</td><td>SHIPPED_UNTRACKED edges. The gap policy adds them and says why; the import creates them from empty-TLC rows.</td><td>Delivery record check, gap stores</td></tr>
+<tr><td><b>Outbreak traceback.</b> CDC links cases by whole genome sequencing; FDA traces back from points of purchase to a common supplier. The 2024 carrot outbreak took weeks and ended in a brand-wide recall.</td><td>Case nodes and <code>find_common_source</code>. Minutes, with the evidence path per case.</td><td>Outbreak page</td></tr>
+<tr><td><b>Public notice.</b> Consumer-level recalls publish products, UPCs, lot codes on pack, best-by dates, and where sold.</td><td>Public notice facts panel, read from Product.upc, ProductLot.best_by, chains and states.</td><td>Dashboard</td></tr>
+</table></div>
+<div class="callout gap"><p><b>Where we simplify, and say so in the README.</b> Units to pull are units delivered, not units still on the shelf (no sales data). Any path from the bad lot counts as affected (no dilution or risk scoring). One manufacturer's records only; a real chain spans growers, packers and distributors. Cases are a linked cluster given to us, not something we detect.</p></div>
+
+<h2 id="falkor">FalkorDB showcase</h2>
+<p>FalkorDB is the sponsor and the graph is the product. Each of these is visible in the video or the README, and each is true of our code.</p>
+<div class="tbl"><table>
+<tr><th>FalkorDB feature</th><th>How we use it</th><th>Where the judge sees it</th><th></th></tr>
+<tr><td>Multi-type variable-length paths <code>[:A|B|C*1..8]</code></td><td>One query follows blending, rework, production and delivery in a single pattern: the forward trace.</td><td>Cypher under step 3; README</td><td><span class="pill p0">P0</span></td></tr>
+<tr><td>Backward traversal with bounded rework hops <code>*0..3</code></td><td>Independent verification of cleared stores; the outbreak source finder.</td><td>Steps 6 and 0</td><td><span class="pill p0">P0</span></td></tr>
+<tr><td>Indexes on every id property</td><td>Lot.code, Batch.id, ProductLot.id, Product.sku, Store.id, Site.id, DC.id, Incident.lot, Case.id</td><td>Query plan expander shows Index Scan</td><td><span class="pill p1">P1</span></td></tr>
+<tr><td>Write-back as audit trail</td><td>Incident node with proposed and confirmed class; held_for and held_at on inventory edges; Cluster and Case nodes</td><td>FalkorDB Browser shot at 2:40</td><td><span class="pill p0">P0</span></td></tr>
+<tr><td>Millisecond latency</td><td>Per-query timing badge and running total; one benchmark line on the scale set</td><td>Every step; README</td><td><span class="pill p0">P0</span></td></tr>
+<tr><td><code>algo.SPpaths</code> and <code>algo.BFS</code></td><td>Shortest evidence path from lot to store in the drawer; BFS depth drives the reveal order</td><td>Evidence drawer</td><td><span class="pill p1">P1</span></td></tr>
+<tr><td>Many graphs in one instance</td><td>One graph per tenant; the MCP server takes the graph name from the session</td><td>Track 2 section, one screenshot</td><td><span class="pill p2">P2</span></td></tr>
+<tr><td>FalkorDB Cloud</td><td>Hosted graph behind the judges' link</td><td>README "Try it"</td><td><span class="pill p0">P0</span></td></tr>
+<tr><td>FalkorDB Browser</td><td>Raw graph view, Incident node, held edges</td><td>Video and README screenshot</td><td><span class="pill p0">P0</span></td></tr>
+<tr><td>MCP</td><td>Our domain MCP server (10 tools) is what the agent sees. The README explains why domain tools beat raw Cypher for safety and names FalkorDB's own MCP server as the generic alternative.</td><td>README "How it works"</td><td><span class="pill p0">P0</span></td></tr>
+</table></div>
+<div class="callout falkor"><p><b>One sentence for the pitch:</b> "Every decision on this screen is the result of a Cypher query you can read, answered by FalkorDB in milliseconds, and the agent never decides anything the graph did not say."</p></div>
+
+<h2 id="track2">Track 2 use cases (low priority)</h2>
+<p>We submit to Track 1. Track 2 asks for memory that persists, updates and is shared between agents, with per-tenant separation. Our graph already is that memory. This is what we can honestly claim, and what is cheap enough to build after the video.</p>
+<div class="tbl"><table>
+<tr><th>Track 2 focus</th><th>In Recall Tracer</th><th>Cost</th></tr>
+<tr><td>Episodic memory</td><td>Every incident is an Incident node with timestamps, hazard, proposal, confirmation and holds. Page 7 lists them. A new notice on a supplier with a prior incident says so on Page 2.</td><td>Page 7: 3 h <span class="pill p2">P2</span></td></tr>
+<tr><td>Procedural memory</td><td>The gap policy and class rules move from the prompt to a Policy node the coordinator can change; the agent cites "policy v3, set by J. Park, Oct 2".</td><td>One node, one tool: 2 h <span class="pill p2">P2</span></td></tr>
+<tr><td>Shared state and handoffs</td><td>A second agent (supplier audit) reads the same Incident node after the recall agent finishes and writes a supplier risk score. The handoff is the graph; no message bus.</td><td>Prompt plus one tool: 3 h <span class="pill p2">P2</span></td></tr>
+<tr><td>Per-tenant separation</td><td>One FalkorDB graph per manufacturer; the MCP server selects the graph by a tenant header.</td><td>1 h <span class="pill p2">P2</span></td></tr>
+<tr><td>High-concurrency reads and writes</td><td>Approvals move from the JSON file to APPROVED edges in the graph, so several coordinators can approve at once.</td><td>Not this hackathon</td></tr>
+</table></div>
+
+<h2 id="build">Build plan</h2>
+<p>Ordered by demo value. The "starting point" column says what the repo already gives us so nobody rebuilds it; the "done when" column is the acceptance test.</p>
+<div class="tbl"><table>
+<tr><th></th><th>Work item</th><th>Starting point in the repo</th><th>Done when</th><th class="num">Est.</th></tr>
+<tr><td><span class="pill p0">P0</span></td><td>Cluster and Case nodes in the generator; outbreak ranking in expected.json</td><td>Seeded generator with planted cases and invariants</td><td>6 cases load; invariants hold; test asserts L-204 6/6, L-117 2/6, L-205 0/6</td><td class="num">2 h</td></tr>
+<tr><td><span class="pill p0">P0</span></td><td>Tools <code>find_common_source</code> and <code>case_path</code>, registered on the MCP server</td><td>8 tools with zod schemas; list arguments accept JSON strings</td><td>MCP lists 10 tools; ranked lots and per-case paths returned; latency recorded</td><td class="num">2 h</td></tr>
+<tr><td><span class="pill p0">P0</span></td><td>Agent outbreak mode: prompt, <code>runOutbreak</code>, routes <code>POST /outbreak</code> and stream, <code>POST /ingest/cases</code></td><td>Agent loop, SSE streaming, lot validation before any Claude call</td><td>Stream shows note, tool call, result; summary names the lot and the decoys; bad case ids rejected without a Claude call</td><td class="num">2.5 h</td></tr>
+<tr><td><span class="pill p0">P0</span></td><td>Page 1 Outbreak intake as mocked up, with the handoff to Page 2</td><td>App shell, panels, styles</td><td>Flow from Page 1 to Page 2 works with the lot prefilled and the "epidemiology agrees" line</td><td class="num">4 h</td></tr>
+<tr><td><span class="pill p0">P0</span></td><td>Shell: four tabs, graph line, replay toggle, incident strip with eight dots</td><td>Header with lot form and five stages</td><td>States listed under User flow all render</td><td class="num">2 h</td></tr>
+<tr><td><span class="pill p0">P0</span></td><td>Page 2 supplier notice: lot facts, supplier history line, reopen warning</td><td>Lot and hazard intake with 24 h clock</td><td>Mockup matches; unknown lot message; no Claude call before validation</td><td class="num">1.5 h</td></tr>
+<tr><td><span class="pill p0">P0</span></td><td>FalkorDB latency per query and running total in the log and header</td><td>Tool call timing (total ms) in the trace</td><td>Each step shows "FalkorDB N ms"; header shows the total</td><td class="num">1.5 h</td></tr>
+<tr><td><span class="pill p0">P0</span></td><td>Decision cards and plain step titles in the log; error state with Retry</td><td>Investigation log with Cypher per step</td><td>Hazard and gap steps render as judgement cards; failed step is red with Retry</td><td class="num">1.5 h</td></tr>
+<tr><td><span class="pill p0">P0</span></td><td>Replay route from a recorded run, speed flag, replay header</td><td>Network replay button on a finished run; last result saved to disk</td><td>Video can be recorded without an API key; UI identical to live</td><td class="num">2 h</td></tr>
+<tr><td><span class="pill p0">P0</span></td><td>Page 3b replay scrubber: timeline with step markers, playhead, caption, graph state per step, keyboard and anchor links</td><td>Step and hop tags on graph elements; replay animation</td><td>Mockup matches; dragging to step 6 shows cleared stores green with the backward dashes</td><td class="num">3 h</td></tr>
+<tr><td><span class="pill p0">P0</span></td><td>Page 4 polish: tile to table links, confirmed-state collapse, flag-only switch, notices disabled reason</td><td>Dashboard with tiles, scope table, Sankey, network, state bars, exposure, public notice facts, store table</td><td>Every number is clickable; states under User flow render</td><td class="num">2 h</td></tr>
+<tr><td><span class="pill p0">P0</span></td><td>Pages 5 and 6 polish: opening sentence on every drawer, escape and focus return, copy public notice</td><td>Evidence drawer with chain, gap and cleared shapes; notices queue by state; CSV export</td><td>Mockups match; keyboard flow works</td><td class="num">1.5 h</td></tr>
+<tr><td><span class="pill p0">P0</span></td><td>Hosted deployment: FalkorDB Cloud plus app container; seed on boot; replay without a key</td><td>Dockerfile and Compose that seed on start</td><td>Public URL opens the dashboard; live run works with the team key</td><td class="num">2 h</td></tr>
+<tr><td><span class="pill p0">P0</span></td><td>Demo video to the script above, captions, FalkorDB Browser shot, under 3 minutes</td><td>Previous video and captions</td><td>Uploaded and linked in the README</td><td class="num">3 h</td></tr>
+<tr><td><span class="pill p0">P0</span></td><td>README: outbreak section, ingestion section, real vs synthetic table, FalkorDB feature list, Try it link, AI disclosure</td><td>README with graph model and every query</td><td>Every query on this page appears in the README verbatim</td><td class="num">1.5 h</td></tr>
+<tr><td><span class="pill p1">P1</span></td><td>Query plan expander via <code>GET /explain</code> running GRAPH.EXPLAIN</td><td>Cypher list per tool</td><td>Plan shows Index Scan on Lot.code</td><td class="num">1.5 h</td></tr>
+<tr><td><span class="pill p1">P1</span></td><td>Shortest evidence path via <code>algo.SPpaths</code> in the drawer</td><td>First path from trace_forward</td><td>Drawer says "shortest of N paths" and draws it</td><td class="num">2 h</td></tr>
+<tr><td><span class="pill p1">P1</span></td><td>FSMA 204 spreadsheet import with dry run and round-trip test</td><td>CSV export in the FDA format</td><td>Export then import gives identical counts; empty-TLC rows become gaps</td><td class="num">4 h</td></tr>
+<tr><td><span class="pill p1">P1</span></td><td>Scale set flag and one benchmark line</td><td>Generator</td><td><code>--scale 50</code> loads; trace timing in the README</td><td class="num">2 h</td></tr>
+<tr><td><span class="pill p2">P2</span></td><td>Page 7 incident history and the supplier history line</td><td>Incident node with timestamps</td><td>Lists incidents with time from notice to scope</td><td class="num">3 h</td></tr>
+<tr><td><span class="pill p2">P2</span></td><td>Tenant graph selection in the MCP server</td><td>Single graph name</td><td>Two graphs, two incidents, no crossover</td><td class="num">1 h</td></tr>
+<tr><td><span class="pill p2">P2</span></td><td>openFDA hazard catalogue pull</td><td>Static hazard list</td><td>Hazard select shows top reasons with attribution</td><td class="num">2 h</td></tr>
+</table></div>
+<p>Who builds each item, and in what order, is in the <a href="#team">team plan</a>.</p>
+<p>Freeze the code before recording the video. After the recording, only README and deployment changes.</p>
+<h3>Local setup</h3>
+<pre><code>docker run -d --name falkordb -p 6380:6379 -p 3001:3000 falkordb/falkordb:latest
+bun install
+cp .env.example .env            # add ANTHROPIC_API_KEY; FALKORDB_PORT=6380
+bun run generate --seed 42 --reset
+bun run test                    # no API calls; E2E=1 adds one live agent run
+bun run dev                     # API :8787, page :5173, FalkorDB Browser :3001</code></pre>
+
+
+<h2 id="team">Team plan: four developers</h2>
+<p>Four lanes, each owning a set of files, so two people rarely edit the same file. Work that depends on other work stays in one lane where it can. Where a dependency crosses lanes, the two sides agree a data shape in the first hour and the downstream developer builds against a fixture file until the real code lands. Nobody waits on anybody's code; they wait only on a shape.</p>
+<div class="callout"><p><b>Assumption about time.</b> The event runs Oct 15 to 18 and the plan is written on Oct 17, so roughly a day and a half remains. The schedule below puts the code freeze on Oct 18 at 12:00 and submission at 18:00. If the deadline is earlier, shift every slot by the same amount and cut the P1 items first.</p></div>
+
+<h3>Lanes</h3>
+<div class="lanes">
+ <div class="lane"><h3>Dev A · Graph and data</h3><div class="who">FalkorDB, Cypher, generator, ingestion</div>
+  <ol>
+   <li>Contract C1: Case and Cluster schema, the seeded cases <span class="dep">hour 1</span></li>
+   <li>Generator: Cluster, Case, HAS_CASE, BOUGHT_AT; invariants; outbreak ranking in expected.json <span class="dep">needs C1</span></li>
+   <li>Cypher: FIND_COMMON_SOURCE, CASE_PATH, LOAD and INDEXES for Case and Cluster <span class="dep">needs 2</span></li>
+   <li>Handlers <code>findCommonSource</code>, <code>casePath</code> and their tests <span class="dep">needs 3</span></li>
+   <li>Query timing in <code>db.ts</code>: every query returns its FalkorDB milliseconds <span class="dep">none</span></li>
+   <li>Cases ingest: parse CSV or pasted text, match stores, report rejected rows <span class="dep">needs 2</span></li>
+   <li>P1: shortest evidence path with <code>algo.SPpaths</code>; FSMA 204 import with dry run; scale set <span class="dep">after freeze list is green</span></li>
+  </ol>
+  <div class="own">Owns src/graph/*, src/data/*, the new query and handler functions in src/tools/index.ts, tests/tools.test.ts, data/*</div></div>
+ <div class="lane b"><h3>Dev B · Agent, MCP and API</h3><div class="who">Claude loop, MCP server, routes, replay</div>
+  <ol>
+   <li>Contracts C2 and C3: the outbreak result shape and the SSE event shape with <code>db_ms</code> <span class="dep">hour 1</span></li>
+   <li>Replay route: serve a recorded run as SSE with recorded delays and <code>?speed=</code> <span class="dep">needs C3</span></li>
+   <li>Register <code>find_common_source</code> and <code>case_path</code> on the MCP server; add <code>db_ms</code> to every tool_end <span class="dep">needs A4, A5</span></li>
+   <li>Outbreak mode: its own prompt, <code>runOutbreak</code>, <code>POST /outbreak</code>, <code>GET /outbreak/stream</code>, <code>POST /ingest/cases</code> <span class="dep">needs 3, A6</span></li>
+   <li>Incidents route for History and the supplier history line on the notice page <span class="dep">none</span></li>
+   <li>P1: <code>GET /explain</code> running GRAPH.EXPLAIN <span class="dep">none</span></li>
+  </ol>
+  <div class="own">Owns src/agent/*, src/mcp/*, src/api/*, demo/run-*.json</div></div>
+ <div class="lane c"><h3>Dev C · Intake pages</h3><div class="who">Shell, Outbreak, Supplier notice, History, deploy</div>
+  <ol>
+   <li>Split App.tsx into one file per page and a shared <code>shell.tsx</code>, so lanes C and D never edit the same file <span class="dep">hour 1, before anyone else touches web/</span></li>
+   <li>Shell: four tabs, graph line, Replay toggle, incident strip with eight stages, the six shell states <span class="dep">needs 1</span></li>
+   <li>Page 1 Outbreak against the C2 fixture: case table, paste and load example, candidates, case evidence, agent column <span class="dep">needs C2 fixture</span></li>
+   <li>Page 2 notice: lot facts, "epidemiology agrees" line, supplier history line, reopen warning <span class="dep">needs 3 for the handoff</span></li>
+   <li>Wire Page 1 to the real stream; swap fixture for API <span class="dep">needs B4</span></li>
+   <li>Hosted deploy: FalkorDB Cloud, app container, seed on boot, replay without a key <span class="dep">needs B2; redo after freeze</span></li>
+   <li>P2: Page 7 History <span class="dep">needs B5</span></li>
+  </ol>
+  <div class="own">Owns web/src/App.tsx (router only after step 1), web/src/shell.tsx, web/src/pages/outbreak.tsx, notice.tsx, history.tsx, web/fixtures/outbreak.json, Dockerfile, docker-compose.yml, .env.example</div></div>
+ <div class="lane d"><h3>Dev D · Trace, dashboard and demo</h3><div class="who">Live trace, replay, dashboard, drawer, notices, video</div>
+  <ol>
+   <li>Record one live L-204 run with the current code and save it as the replay fixture <span class="dep">hour 1, needs a working local setup</span></li>
+   <li>Page 3 polish: FalkorDB badge per step, running total, decision cards, error state with Retry <span class="dep">needs C3 fixture</span></li>
+   <li>Page 3b replay scrubber: timeline, step markers, playhead, caption, graph state per step, keys, <code>#step-N</code> <span class="dep">needs 1</span></li>
+   <li>Pages 4, 5, 6 polish to the mockups: clickable tiles, flag-only switch, drawer sentence and focus, copy public notice <span class="dep">none</span></li>
+   <li>Switch replay to the real route <span class="dep">needs B2</span></li>
+   <li>Video to the script; README sections; screenshots <span class="dep">after freeze</span></li>
+  </ol>
+  <div class="own">Owns web/src/pages/incident.tsx, web/src/panels.tsx, web/src/charts.tsx, web/src/replay.tsx, web/fixtures/run-L-204.json, README.md, demo/*.mp4</div></div>
+</div>
+
+<h3>Dependencies between lanes</h3>
+<p>Solid arrows are code dependencies. Dotted arrows are where a fixture lets the downstream work start before the upstream code exists.</p>
+<pre class="mermaid">
+flowchart LR
+  subgraph H1[Hour 1: contracts]
+    C1[C1 Case schema<br/>and seed cases]
+    C2[C2 outbreak result<br/>shape + fixture]
+    C3[C3 SSE event shape<br/>with db_ms + fixture]
+    CS[C split App.tsx]
+  end
+  subgraph A[Dev A]
+    A2[Generator cases] --> A3[Cypher] --> A4[Handlers + tests]
+    A5[db.ts timing]
+    A2 --> A6[Cases ingest]
+  end
+  subgraph B[Dev B]
+    B2[Replay route]
+    B3[MCP tools + db_ms] --> B4[Outbreak mode + routes]
+    B5[Incidents route]
+  end
+  subgraph C[Dev C]
+    C2s[Shell] --> C3p[Page 1 on fixture] --> C5[Page 1 live]
+    C4[Page 2]
+    C6[Page 7]
+    C7[Deploy]
+  end
+  subgraph D[Dev D]
+    D1[Record run] --> D3[Replay scrubber] --> D5[Replay live route]
+    D2[Page 3 badges]
+    D4[Pages 4-6 polish]
+    D6[Video + README]
+  end
+  C1 --> A2
+  A4 --> B3
+  A5 --> B3
+  A6 --> B4
+  B4 --> C5
+  B2 --> D5
+  B2 --> C7
+  B5 --> C6
+  CS --> C2s
+  CS --> D3
+  C2 -.-> C3p
+  C3 -.-> D2
+  C3 -.-> B2
+  D1 -.-> B2
+</pre>
+<p>The critical path is the outbreak feature: C1, then A2, A3, A4, then B3, B4, then C5. Every other item can slip without delaying it. Dev A starts that chain first, and Dev B takes the replay route and incidents route while waiting for A4.</p>
+
+<h3>Contracts to agree in hour 1</h3>
+<p>Each contract is a TypeScript type in <code>src/contracts.ts</code> plus a fixture JSON file. Its owner writes it; the other side reviews it in the same hour. Changing a contract after that needs both sides to agree in the team chat.</p>
+<div class="tbl"><table>
+<tr><th>Contract</th><th>Owner</th><th>Used by</th><th>Shape</th></tr>
+<tr><td>C1 Case schema</td><td>A</td><td>B, C</td><td><code>Case {id, region, onset, reported_at, sku?}</code>, <code>BOUGHT_AT {date}</code>, <code>Cluster {id, pathogen, opened_at}</code>, plus the six seeded cases with their stores and dates.</td></tr>
+<tr><td>C2 Outbreak result</td><td>B</td><td>C</td><td><code>{cluster, total_cases, candidates: [{lot, ingredient, supplier, supplier_name, cases_explained, explained: string[], stores_reached, specificity}], paths: {[caseId]: string[][]}, summary}</code>. Fixture in web/fixtures/outbreak.json.</td></tr>
+<tr><td>C3 Trace events</td><td>B</td><td>C, D</td><td>The existing TraceEvent union, with <code>ToolCall.db_ms: number</code> and <code>ToolCall.queries: number</code> added, a <code>kind: "judgement"</code> flag on propose_classification and minimal_recall, and the same events for the outbreak stream. Fixture is D's recorded run.</td></tr>
+<tr><td>C4 Graph step tags</td><td>B</td><td>D</td><td>Already returned by <code>GET /graph/:lot</code>: each element carries the step that reveals it and its hop count. Freeze the field names; the scrubber depends on them.</td></tr>
+</table></div>
+
+<h3>Schedule</h3>
+<div class="tbl"><table>
+<tr><th>When</th><th>Dev A</th><th>Dev B</th><th>Dev C</th><th>Dev D</th></tr>
+<tr><td>Oct 17, hour 1</td><td>Local setup, C1</td><td>C2, C3, C4</td><td>Split App.tsx and merge it first</td><td>Local setup, record run</td></tr>
+<tr><td>Oct 17, afternoon</td><td>Generator cases, Cypher</td><td>Replay route, incidents route</td><td>Shell, Page 1 on fixture</td><td>Page 3 badges, decision cards</td></tr>
+<tr><td>Oct 17, evening</td><td>Handlers, tests, db timing</td><td>MCP tools, db_ms</td><td>Page 1 finish, Page 2</td><td>Replay scrubber</td></tr>
+<tr><td><b>Sync 1</b>, Oct 17 22:00</td><td colspan="4">Merge to main. Every test green. One full run on one machine: supplier notice to approval, replay works.</td></tr>
+<tr><td>Oct 18, 08:00 to 11:00</td><td>Cases ingest, then P1 SPpaths</td><td>Outbreak mode and routes</td><td>Wire Page 1 live, handoff to Page 2</td><td>Pages 4 to 6 polish, replay on the real route</td></tr>
+<tr><td><b>Sync 2</b>, Oct 18 11:00</td><td colspan="4">Full demo script run live, then from replay. Fix list agreed; nothing new starts.</td></tr>
+<tr><td><b>Freeze</b>, Oct 18 12:00</td><td colspan="4">Main is tagged. Only bug fixes for the demo path, reviewed by a second person.</td></tr>
+<tr><td>Oct 18, 12:00 to 18:00</td><td>README graph and Cypher sections, data sourcing table</td><td>Demo-path bug fixes, keep replay working on the hosted app</td><td>Deploy the tag, check the hosted link, test without a key; phone-width check, P2 History if time</td><td>Record and caption the video, screenshots, submission form</td></tr>
+</table></div>
+
+<h3>Working rules</h3>
+<ul>
+  <li><b>One owner per file.</b> To change a file in another lane, open a small pull request and tag its owner. The files that cause most conflicts are App.tsx, styles.css, src/tools/index.ts and src/graph/queries.ts. After Dev C's split, styles.css gets one section per lane, marked with a comment.</li>
+  <li><b>Short branches.</b> Branch per item, merge to main at least twice a day. Rebase before merging; never merge a red test run.</li>
+  <li><b>Fixtures first.</b> Frontend work starts from the fixture, never from waiting. The fixture is deleted only when the real route returns the same shape.</li>
+  <li><b>One FalkorDB per developer.</b> Everyone runs the Docker container locally with the same seed, so tests and screenshots match. The hosted FalkorDB Cloud graph is for the demo only.</li>
+  <li><b>Demo path first.</b> If an item is late at Sync 1, its owner says so then, and the lane with slack picks up the next item on the critical path.</li>
+</ul>
+<h2 id="judging">Judging checklist, Track 1</h2>
+<ul class="check">
+  <li><b>Multi-hop reasoning.</b> Forward trace through blend, rework, production and delivery; backward verification; outbreak traceback across six cases. Say the hop counts out loud: "eight hops, one query".</li>
+  <li><b>Graph queries and algorithms as agent tools.</b> Ten Cypher-backed tools; SPpaths and BFS in the drawer and the reveal. Every tool's Cypher is visible in the UI and the README.</li>
+  <li><b>Tool selection through MCP.</b> The agent discovers tools from our MCP server at runtime; the same server runs in Claude Code and Claude Desktop through <code>.mcp.json</code>.</li>
+  <li><b>Actions based on what the graph shows.</b> Hold placed on inventory edges, class proposed, notices drafted, cluster recorded. The graph is written, not just read.</li>
+  <li><b>Explainable results.</b> One plain sentence per store, the chain of records, the query, the latency, the decision cards, and a human confirm on every judgement.</li>
+  <li><b>Runs for the judges.</b> Public URL with replay, repo with one-command Docker, video under three minutes.</li>
+  <li><b>Honest scope.</b> Limits section in the README; "synthetic demo data" in the shell.</li>
+</ul>
+
+<h2 id="risks">Risks and fallbacks</h2>
+<div class="tbl"><table>
+<tr><th>Risk</th><th>Fallback</th></tr>
+<tr><td>Live agent run is slow or the API is down during recording or pitch</td><td>Replay mode is the default for the video; live is a toggle. The recorded JSON is in the repo.</td></tr>
+<tr><td>The model skips a step or sends an array as a string</td><td>Fixed step order in the prompt, list arguments accept JSON strings, the final JSON is built from tool output, not from the model.</td></tr>
+<tr><td>Outbreak ranking is ambiguous on the seeded data</td><td>The generator asserts L-204 explains 6/6 and the runner-up at most 2/6; the test fails before the demo does.</td></tr>
+<tr><td>Hosting the graph costs time</td><td>Docker Compose on a single VM is the fallback; FalkorDB Cloud is preferred for the sponsor story.</td></tr>
+<tr><td>Scope creep into P1 and P2</td><td>Nothing below P0 starts until the video is recorded.</td></tr>
+<tr><td>Phone-width layout breaks in the judges' browser</td><td>Every two-column layout stacks; tables scroll inside their own container; checked at 400 px before the freeze.</td></tr>
+</table></div>
+
+<h2 id="sources">Sources to understand how things work</h2>
+<h3>FalkorDB</h3>
+<ul>
+  <li><a href="https://docs.falkordb.com/">FalkorDB documentation</a>: Cypher support, commands, clients.</li>
+  <li><a href="https://docs.falkordb.com/algorithms">Graph algorithms</a> (<code>CALL algo.*</code>): <a href="https://docs.falkordb.com/algorithms/bfs">BFS</a>, <a href="https://docs.falkordb.com/algorithms/sppath">SPpaths</a>, <a href="https://docs.falkordb.com/algorithms/wcc">WCC</a>, <a href="https://docs.falkordb.com/algorithms/pagerank">PageRank</a>.</li>
+  <li><a href="https://docs.falkordb.com/genai-tools/mcpserver">FalkorDB MCP Server</a> and its <a href="https://github.com/falkordb/falkordb-mcpserver">repository</a>: the generic Cypher-over-MCP alternative to our domain tools.</li>
+  <li><a href="https://docs.falkordb.com/agentic-memory/graphiti-mcp-server">Graphiti MCP server on FalkorDB</a>: the agent-memory stack relevant to Track 2.</li>
+  <li><a href="https://www.falkordb.com/blog/mcp-integration-falkordb-graphrag/">MCP integration with FalkorDB</a> (blog).</li>
+  <li><a href="https://github.com/FalkorDB/falkordb-browser">FalkorDB Browser</a>: the raw graph view used in the video.</li>
+  <li><a href="https://github.com/FalkorDB/falkordb-ts">falkordb-ts</a>: the Node client we use.</li>
+</ul>
+<h3>Agents and MCP</h3>
+<ul>
+  <li><a href="https://modelcontextprotocol.io/">Model Context Protocol</a>: spec, stdio transport, TypeScript SDK.</li>
+  <li><a href="https://docs.claude.com/en/docs/agents-and-tools/tool-use/overview">Claude tool use</a>: the loop in <code>src/agent/run.ts</code> follows this.</li>
+  <li><a href="https://www.wemakedevs.org/hackathons/falkordb">Graph Hacks: Context for AI Agents</a>: tracks and submission rules.</li>
+</ul>
+<h3>Food traceability and recalls</h3>
+<ul>
+  <li><a href="https://www.fda.gov/food/food-safety-modernization-act-fsma/fsma-final-rule-requirements-additional-traceability-records-certain-foods">FDA FSMA 204 Food Traceability Rule</a>: CTEs, KDEs, the Food Traceability List, the sortable spreadsheet template, compliance date July 20, 2028.</li>
+  <li><a href="https://www.fda.gov/food/hfp-constituent-updates/fda-proposes-extend-compliance-date-food-traceability-rule-and-issues-new-faqs-and-other-resources">FDA constituent update on the compliance date extension</a> and FAQs.</li>
+  <li><a href="https://www.ecfr.gov/current/title-21/chapter-I/subchapter-A/part-7">21 CFR Part 7</a>: recall definitions, Class I, II, III, depth of recall.</li>
+  <li><a href="https://www.fda.gov/food/compliance-enforcement-food/reportable-food-registry-industry">FDA Reportable Food Registry</a>: the 24-hour reporting duty.</li>
+  <li><a href="https://open.fda.gov/apis/food/enforcement/">openFDA food enforcement API</a>: real recall reports, reasons and classes.</li>
+  <li><a href="https://www.fda.gov/food/outbreaks-foodborne-illness/outbreak-investigation-e-coli-o121h19-organic-carrots-november-2024">FDA outbreak investigation, organic carrots, Nov 2024</a> and the <a href="https://www.cdc.gov/ecoli/outbreaks/e-coli-o121.html">CDC page</a>: 48 illnesses, 19 states, one death; traceback identified a common supplier. The hook for the video.</li>
+  <li><a href="https://wwwn.cdc.gov/norsdashboard/">CDC NORS dashboard</a>: how outbreak reports are structured.</li>
+  <li><a href="https://www.gs1.org/standards/epcis">GS1 EPCIS</a>: the industry event standard (commission, transform, ship) that maps to our edges for real-record ingestion.</li>
+</ul>
+
+<footer>Recall Tracer · plan of Oct 17, 2026, written against commit a6fef2c · all firms, stores, lots and cases in the product are fictional · built with AI coding help, disclosed in the README.</footer>
+</main>
+</div>
+
+<!--claude-mermaid-runtime-begin:3477-->
+<style>.mermaid-diagram{margin-block:4px}.mermaid-diagram svg{display:block;margin:0 auto;max-width:100%;height:auto}</style>
+<script src="/_runtime/mermaid-11.16.1.min.js"></script>
+<script>(function(){
+var CFG={"palettes":{"light":{"surface":"#f4efe4","text":"#42392e","line":"#8a7f6d","border":"#7a6c52","bg":"#fffdf8"},"dark":{"surface":"#262b34","text":"#f2f3f5","line":"#a8adb8","border":"#9aa4b8","bg":"#1f232b"}}};
+if(typeof mermaid==='undefined')return;
+var pres=Array.prototype.slice.call(document.querySelectorAll('pre.mermaid')).filter(function(p){if(p.hasAttribute('data-claude-mermaid-claimed'))return false;p.setAttribute('data-claude-mermaid-claimed','1');return true;});
+if(!pres.length)return;
+var mq=window.matchMedia?window.matchMedia('(prefers-color-scheme: dark)'):null;
+var root=document.documentElement;
+var items=pres.map(function(pre){
+var mount=document.createElement('div');mount.className='mermaid-diagram';
+return {pre:pre,mount:mount,src:pre.textContent||''};
+});
+var seq=0;
+var renderGen=0;
+var lastKey='';
+function pageBg(fallback){
+var els=[document.body,document.documentElement];
+for(var i=0;i<els.length;i++){
+var c=els[i]&&getComputedStyle(els[i]).backgroundColor;
+if(c&&c!=='transparent'&&c!=='rgba(0, 0, 0, 0)')return c;
+}
+return fallback;
+}
+function render(){
+var theme=root.getAttribute('data-theme');
+var dark=theme==='dark'||(!!(mq&&mq.matches)&&theme!=='light');
+var pal=dark?CFG.palettes.dark:CFG.palettes.light;
+var bg=pageBg(pal.bg);
+var key=(dark?'d':'l')+'|'+bg;
+if(key===lastKey)return;
+lastKey=key;
+var gen=++renderGen;
+var font=getComputedStyle(document.body).fontFamily||'sans-serif';
+var nat={useMaxWidth:false};
+mermaid.initialize({
+startOnLoad:false,securityLevel:'strict',theme:'base',
+flowchart:nat,sequence:nat,er:nat,state:nat,class:nat,pie:nat,
+gantt:nat,journey:nat,timeline:nat,gitGraph:nat,mindmap:nat,xyChart:nat,
+quadrantChart:nat,sankey:nat,c4:nat,requirement:nat,block:nat,
+packet:nat,kanban:nat,architecture:nat,radar:nat,
+themeVariables:{background:bg,mainBkg:pal.surface,primaryColor:pal.surface,
+primaryTextColor:pal.text,lineColor:pal.line,primaryBorderColor:pal.border,
+nodeBorder:pal.border,clusterBorder:pal.border,edgeLabelBackground:bg,
+clusterBkg:'rgba(127,127,127,0.07)',titleColor:pal.text,
+darkMode:dark,rowOdd:bg,rowEven:'rgba(127,127,127,0.07)',
+attributeBackgroundColorOdd:bg,attributeBackgroundColorEven:'rgba(127,127,127,0.07)',
+fontSize:'16px',fontFamily:font},
+themeCSS:'.node rect, .node circle, .node polygon, .node path, .cluster rect { stroke-width: 2px; }'
+});
+items.forEach(function(it){
+var id='claude-mermaid-'+seq++;
+mermaid.render(id,it.src).then(function(r){
+if(gen!==renderGen)return;
+var prev=it.pre.previousElementSibling;
+if(prev&&prev.className==='mermaid-diagram'&&prev!==it.mount)return;
+it.mount.innerHTML=r.svg;
+if(!it.mount.parentNode)it.pre.parentNode.insertBefore(it.mount,it.pre);
+it.pre.style.display='none';
+},function(){
+var scratch=document.getElementById(id);
+if(scratch)scratch.parentNode.removeChild(scratch);
+scratch=document.getElementById('d'+id);
+if(scratch)scratch.parentNode.removeChild(scratch);
+if(gen!==renderGen)return;
+if(it.mount.parentNode)it.mount.parentNode.removeChild(it.mount);
+it.pre.style.display='';
+});
+});
+}
+render();
+if(mq&&mq.addEventListener)mq.addEventListener('change',render);
+if(typeof MutationObserver!=='undefined')new MutationObserver(render).observe(root,{attributes:true,attributeFilter:['data-theme']});
+})();</script>
+<!--claude-mermaid-runtime-end-->
+
+</body></html>

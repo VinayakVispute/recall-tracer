@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { query } from '../graph/db.js';
 import { AFFECTED_SHIPMENTS, STORES, LOT_EXISTS, INCIDENT_DELETE, INCIDENT_CREATE, INCIDENT_CONFIRM, CLUSTER_CASES, CLUSTER_DETAIL, COUNT_NODES, COUNT_EDGES, GRAPH_LABELS } from '../graph/queries.js';
-import { traceForward, coverageGaps, unaffectedStores, traceBackward, readHold, readNotices, writeNotices, incidentId, RECALL_CLASSES, RECALL_DEPTHS } from '../tools/index.js';
+import { traceForward, coverageGaps, unaffectedStores, traceBackward, readHold, readNotices, clearNotices, approveNotices, incidentId, RECALL_CLASSES, RECALL_DEPTHS } from '../tools/index.js';
 import { createAgentUIStreamResponse, type UIMessage } from 'ai';
 import { getRecallAgent, runAgent, runOutbreak } from '../agent/ai-agent.js';
 import type { RecallResult, TraceEvent } from '../agent/run.js';
@@ -19,7 +19,7 @@ import { recordSources } from '../data/sources.js';
 import { registerTools } from '../mcp/tools.js';
 
 const LOT_RE = /^L-\d{1,6}$/;
-const LAST = process.env.NOTICES_FILE ? 'out/test-last-recall.json' : 'out/last-recall.json';
+const LAST = process.env.RECALL_GRAPH ? 'out/test-last-recall.json' : 'out/last-recall.json';
 
 export const app = new Hono();
 
@@ -59,15 +59,13 @@ async function checkLot(lot?: string): Promise<[number, string] | null> {
   return n ? null : [404, `No lot ${lot} in the traceability records. Check the code on the supplier's alert.`];
 }
 /** A new trace supersedes earlier drafts for the same lot, so stale notices never show as this run's. */
-function clearDrafts(lot: string) {
-  writeNotices(readNotices().filter((n) => n.lot !== lot));
-}
+const clearDrafts = clearNotices;
 /** Opens (or reopens) the incident in the graph: the supplier's hazard and the time the notice was logged. */
 export async function openIncident(lot: string, hazard?: string) {
   const reported_at = new Date().toISOString();
   await query(INCIDENT_DELETE, { lot });
   await query(INCIDENT_CREATE, { lot, id: incidentId(lot), hazard: (hazard ?? '').trim().slice(0, 200) || 'Contamination, type not stated on the notice', reported_at });
-  clearDrafts(lot);
+  await clearDrafts(lot);
 }
 function save(result: RecallResult) {
   mkdirSync('out', { recursive: true });
@@ -353,15 +351,12 @@ app.get('/graph/:lot', async (c) => {
   });
 });
 
-app.get('/notices', (c) => c.json(readNotices()));
+app.get('/notices', async (c) => c.json(await readNotices()));
 
 app.post('/notices/approve', async (c) => {
   const { stores } = await c.req.json<{ stores?: string[] }>();
   if (!Array.isArray(stores)) return c.json({ error: 'stores must be an array' }, 400);
-  const pick = new Set(stores);
-  const notices = readNotices().map((n) => (pick.has(n.store) ? { ...n, status: 'approved' as const } : n));
-  writeNotices(notices); // approval is a status change only; nothing is sent
-  return c.json({ approved: notices.filter((n) => pick.has(n.store)).length });
+  return c.json({ approved: await approveNotices(stores) }); // a status change on the Notice nodes; nothing is sent
 });
 
 const COLUMNS = [

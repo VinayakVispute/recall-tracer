@@ -1,7 +1,6 @@
 import { z } from 'zod';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { query } from '../graph/db.js';
-import { TRACE_FORWARD, COVERAGE_GAPS, SKU_RECIPIENTS, STORES, TRACE_BACKWARD, RAW_ON_HAND, FINISHED_ON_HAND, HOLD_RAW, HOLD_FINISHED, INCIDENT_CLASSIFY, FIND_COMMON_SOURCE, SAME_SOURCE_LOTS, CLUSTER_CASES, CASES_EXIST, CASE_PATH, INCIDENT_SCOPED, CHOKEPOINTS, LOT_INFO, MEMORY_READ, MEMORY_CLEAR, MEMORY_WRITE } from '../graph/queries.js';
+import { TRACE_FORWARD, COVERAGE_GAPS, SKU_RECIPIENTS, STORES, TRACE_BACKWARD, RAW_ON_HAND, FINISHED_ON_HAND, HOLD_RAW, HOLD_FINISHED, INCIDENT_CLASSIFY, FIND_COMMON_SOURCE, SAME_SOURCE_LOTS, CLUSTER_CASES, CASES_EXIST, CASE_PATH, INCIDENT_SCOPED, CHOKEPOINTS, LOT_INFO, MEMORY_READ, MEMORY_CLEAR, MEMORY_WRITE, NOTICES_READ, NOTICES_WRITE, NOTICES_CLEAR, NOTICES_APPROVE } from '../graph/queries.js';
 import type { Candidate, OutbreakResult } from '../contracts.js';
 
 // --- Schemas (shared by the MCP server) ------------------------------------
@@ -252,37 +251,32 @@ export async function recordLessons({ lot, lessons }: { lot: string; lessons: { 
   return { lot, saved, unknown: [...new Set(lessons.map((l) => l.about).filter((id) => !known.has(id)))] };
 }
 
-export const NOTICES_FILE = process.env.NOTICES_FILE ?? 'out/notices.json'; // tests use their own file
 export type Notice = { lot: string; store: string; name: string; city: string; reason: string; status: 'pending_approval' | 'approved'; drafted_at: string; text: string };
 
-export function readNotices(): Notice[] {
-  try { return JSON.parse(readFileSync(NOTICES_FILE, 'utf8')); } catch { return []; }
-}
-export function writeNotices(notices: Notice[]) {
-  mkdirSync('out', { recursive: true });
-  writeFileSync(NOTICES_FILE, JSON.stringify(notices, null, 2));
+/** Every draft in the graph, with the store it is for. */
+export const readNotices = () => query<Notice>(NOTICES_READ);
+export const clearNotices = (lot: string) => query(NOTICES_CLEAR, { lot });
+/** Marks the stores' notices approved. A status change on the Notice node only; nothing is sent. */
+export async function approveNotices(stores: string[]) {
+  const [{ n }] = await query<{ n: number }>(NOTICES_APPROVE, { stores });
+  return n;
 }
 
-/** Saves drafts only. Never sends anything. */
+/** Saves drafts as Notice nodes, one per store, replacing the lot's earlier drafts. Never sends anything. */
 export async function draftRecallNotice({ lot, notices }: { lot: string; notices: { store: string; reason: string }[] }) {
   const info = await query<{ id: string; name: string; city: string; region: string }>(STORES, { ids: notices.map((n) => n.store) });
   const byId = new Map(info.map((s) => [s.id, s]));
-  const drafts: Notice[] = notices.map(({ store, reason }) => {
+  const at = new Date().toISOString();
+  const rows = notices.flatMap(({ store, reason }) => {
     const s = byId.get(store);
-    return {
-      lot, store, reason,
-      name: s?.name ?? store,
-      city: s ? `${s.city}, ${s.region}` : '',
-      status: 'pending_approval',
-      drafted_at: new Date().toISOString(),
-      text: `RECALL NOTICE: ${s?.name ?? store}${s ? ` (${s.city}, ${s.region})` : ''}\n` +
-        `Ingredient lot ${lot} is contaminated. Remove the products below from sale and hold them for collection.\n` +
-        `Reason: ${reason}`,
-    };
+    return s ? [{ store, reason, text: `RECALL NOTICE: ${s.name} (${s.city}, ${s.region})\n` +
+      `Ingredient lot ${lot} is contaminated. Remove the products below from sale and hold them for collection.\n` +
+      `Reason: ${reason}` }] : [];
   });
-  // Replace earlier drafts for the same lot so reruns don't pile up.
-  writeNotices([...readNotices().filter((n) => n.lot !== lot), ...drafts]);
-  return { lot, drafted: drafts.length, status: 'pending_approval', file: NOTICES_FILE };
+  await clearNotices(lot);
+  const [{ n }] = rows.length ? await query<{ n: number }>(NOTICES_WRITE, { lot, notices: rows, at }) : [{ n: 0 }];
+  const unknown = notices.map((x) => x.store).filter((id) => !byId.has(id));
+  return { lot, drafted: n, status: 'pending_approval', unknown };
 }
 
 export const tools = {

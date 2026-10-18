@@ -1,4 +1,4 @@
 import { defineConfig } from 'vitest/config';
 
-// Keep test drafts out of the demo's out/notices.json; the MCP child inherits this env.
-export default defineConfig({ test: { env: { NOTICES_FILE: 'out/test-notices.json' } } });
+// Tests seed and write their own graph, so the demo graph (incidents, holds, memory, notices) is never touched. The MCP child inherits this env.
+export default defineConfig({ test: { env: { RECALL_GRAPH: 'recall_test' } } });

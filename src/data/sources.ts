@@ -29,7 +29,7 @@ type OutbreakFile = { outbreaks?: { sources?: string[] }[]; supplied?: { basis: 
 const outbreakFile = (): OutbreakFile => { try { return JSON.parse(readFileSync('data/real/outbreaks.json', 'utf8')) as OutbreakFile; } catch { return {}; } };
 
 export async function recordSources(): Promise<RecordSources> {
-  const g = await graph('recall');
+  const g = await graph();
   const q = async <T>(cypher: string) => ((await g.query<T>(cypher)).data ?? []) as T[];
   const [nodes, edges, clusters] = await Promise.all([
     q<Count>('MATCH (n) RETURN labels(n)[0] AS kind, count(n) AS n'),

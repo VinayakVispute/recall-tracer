@@ -4,6 +4,18 @@ When a supplier reports a contaminated ingredient lot, most food companies can't
 
 Built for [Graph Hacks: Context for AI Agents](https://www.wemakedevs.org/hackathons/falkordb), Track 01 (agents that act on connected data) and Track 02 (agent memory and coordination).
 
+**Live:** https://recall-tracer.onrender.com (free tier: the first load can take a minute to wake up)
+
+## Five minutes for judges
+
+1. Open the [recorded run of lot L-204](https://recall-tracer.onrender.com/incident/L-204?replay=1). It replays a real agent run with its real timing: 11 graph tools, 9 turns, each step with its Cypher and FalkorDB's own execution time. Drag the timeline or click a step.
+2. Click any store in the table or the record network. The evidence drawer shows the chain of records that decided it, or the backward trace that cleared it.
+3. Open the [supplier notice](https://recall-tracer.onrender.com/notice), enter `L-204`, pick Listeria and press **Open incident** for a live run (about 50 s; capped per visitor). The agent asks you about the two stores with missing lot codes.
+4. Open [Find the source](https://recall-tracer.onrender.com/outbreak) and press **Find the source**: the outbreak agent ranks ingredient lots by the illness cases they explain, and leaves a lesson the incident agent reads on its next run (Track 02).
+5. [History](https://recall-tracer.onrender.com/history) lists every incident and what it saved for the next one.
+
+Everything on screen comes from FalkorDB; the model never decides which store is affected. Code map: Cypher in [`src/graph/queries.ts`](src/graph/queries.ts), tool handlers in [`src/tools/index.ts`](src/tools/index.ts), the agent in [`src/agent/`](src/agent/), the MCP server in [`src/mcp/`](src/mcp/).
+
 ## How we meet the brief
 
 **Track 01: Agents that act on connected data.**
@@ -15,7 +27,7 @@ Built for [Graph Hacks: Context for AI Agents](https://www.wemakedevs.org/hackat
 | Tool selection through MCP | 13 tools on our own MCP server (stdio and Streamable HTTP at `/mcp`). Each agent gets the subset it needs: the outbreak agent only 2 read-only tools | `src/mcp/server.ts`, `makeOutbreakAgent` / `makeIncidentAgent` in [`src/agent/ai-agent.ts`](src/agent/ai-agent.ts) | The live trace shows each tool call with its input and Cypher |
 | Actions based on what the graph shows | Writes the incident and the proposed class, marks 93 kg and 2,652 units held, widens the recall to 2 stores with missing lot codes, drafts 33 notices for approval | `place_hold`, `minimal_recall`, `draft_recall_notice` | 33 of 71 stores, 2,256 units instead of 7,672 |
 | Explainable results | Every store has the record path that proves its decision. The investigation log shows each step's Cypher and FalkorDB time. The final JSON is built from tool output, not retyped by the model | Evidence drawer, investigation log, `toResult` in `src/agent/run.ts` | Replay any step at `/incident/L-204#step-6` |
-| The agent plans its own path | No fixed script: the prompt gives a goal and a set of checks, and the agent picks the next one from what the last returned, writing one sentence on why before each call. When there are stores with no lot code it stops and asks the coordinator (`ask_coordinator`: pull or flag, with buttons in the trace; no reply in 90 s or no one watching means the default, pull) | `src/agent/prompt.md`, `src/agent/questions.ts` | Recorded runs in `demo/`: L-204 (gaps, coordinator asked), L-205 (memory flags repeat gap stores, checked early), L-143 (one batch, so no chokepoint ranking; no gaps, so no question), L-108 (never used: hold only, scope of zero). Links on `/incident` |
+| The agent plans its own path | A guided plan, not a script: the prompt gives a goal and a set of checks with the rule for each, and the agent picks the next one from what the last returned, writing one sentence on why before each call. When there are stores with no lot code it stops and asks the coordinator (`ask_coordinator`: pull or flag, with buttons in the trace; no reply in 90 s or no one watching means the default, pull) | `src/agent/prompt.md`, `src/agent/questions.ts` | Recorded runs in `demo/`: L-204 (gaps, coordinator asked), L-205 (memory flags repeat gap stores, checked early), L-143 (one batch, so no chokepoint ranking; no gaps, so no question), L-108 (never used: hold only, scope of zero). Links on `/incident` |
 
 **Track 02: Agent memory and coordination.**
 
@@ -52,7 +64,7 @@ Next.js app (web/) ──rewrites──> Hono API ──> agent (Claude) ──M
 - **The graph is the audit trail.** The incident, the hazard, the proposed and confirmed class, and the hold on inventory are all written to FalkorDB with timestamps.
 - **Tools go through MCP.** The agent starts the project's own MCP server (`src/mcp/server.ts`) as a stdio child process, lists its tools and hands them to Claude. The same tools are also served over Streamable HTTP at `/mcp` on the API port (Vercel's `mcp-handler`), so any MCP client can call them. Both transports share one tool registration. The stdio server works in Claude Code or Claude Desktop (`.mcp.json` is included).
 - **Gap detection is the agent's decision.** `minimal_recall` takes `add_gap_stores`. The agent adds gap stores (policy: missing product is worse than pulling a few extra units); `false` only flags them.
-- **Humans approve.** Notices are written to `out/notices.json` as `pending_approval`. Approving changes their status; nothing is ever sent.
+- **Humans approve.** Notices are `Notice` nodes in the graph with status `pending_approval`, each linked to its store. Approving changes the node's status; nothing is ever sent.
 
 ## Graph model
 
@@ -70,6 +82,7 @@ Graph name `recall`. All ids are strings and dates are ISO strings.
 | `Store` | `id`, `name`, `city`, `region` |
 | `Incident` | `id`, `lot`, `hazard`, `reported_at`, proposed `class`, `depth`, `rationale`, `classified_at`, `confirmed_class`, `confirmed_depth`, `confirmed_at` |
 | `Memory` | `lot` (the incident lot or outbreak cluster that wrote it), `fact`, `at` |
+| `Notice` | `lot`, `store`, `reason`, `status` (`pending_approval` or `approved`), `drafted_at`, `text` |
 
 | Edge | Properties | Meaning |
 |---|---|---|
@@ -79,13 +92,14 @@ Graph name `recall`. All ids are strings and dates are ISO strings.
 | `(ProductLot)-[:HELD_AT]->(Site or DC)` | `units`, `held_for`, `held_at` | Unshipped product (units made = shipped + held) |
 | `(Incident)-[:CONCERNS]->(Lot)` | | The open incident for a lot |
 | `(Memory)-[:ABOUT]->(Supplier, Store, Batch, Site or DC)` | | What a lesson is about |
+| `(Notice)-[:TO]->(Store)` | | The store a draft notice is for |
 | `(Batch)-[:REWORKED_INTO]->(Batch)` | `qty_kg` | Leftovers reused in a later batch |
 | `(Batch)-[:PRODUCED]->(ProductLot)` | `units` | Batch split into product lots |
 | `(ProductLot)-[:OF]->(Product)` | | Which SKU |
 | `(ProductLot)-[:SHIPPED_TO]->(Store)` | `units`, `shipped_at` | Shipment with the lot code recorded |
 | `(Product)-[:SHIPPED_UNTRACKED]->(Store)` | `units`, `shipped_at` | Shipment where the lot code wasn't recorded (a gap) |
 
-There are indexes on `Lot.code`, `Batch.id`, `ProductLot.id`, `Product.sku`, `Store.id`, `Supplier.id`, `Site.id`, `DC.id` and `Incident.lot`. Edges only point forward in time, so the graph has no cycles and bounded variable-length matches are safe.
+There are indexes on `Lot.code`, `Batch.id`, `ProductLot.id`, `Product.sku`, `Store.id`, `Supplier.id`, `Site.id`, `DC.id`, `Incident.lot` and `Notice.lot`. Edges only point forward in time, so the graph has no cycles and bounded variable-length matches are safe.
 
 ## The dashboard
 
@@ -208,10 +222,13 @@ RETURN labels(x)[0] AS kind, x.id AS about, m.fact AS fact
 
 **`find_common_source(cluster)`** and **`case_path(lot, cases)`** are the outbreak agent's tools. They rank ingredient lots by how many illness cases they explain, and return each case's path from the lot to the store where the food was bought.
 
-**`draft_recall_notice(lot, notices[{store, reason}])`** looks up the store details and saves one draft per store with status `pending_approval`. It never sends anything.
+**`draft_recall_notice(lot, notices[{store, reason}])`** writes one `Notice` node per store with status `pending_approval`, linked to the store, replacing the lot's earlier drafts. It never sends anything. `POST /notices/approve` sets the status to `approved` on the same nodes, so the graph holds the whole approval trail.
 
 ```cypher
-MATCH (st:Store) WHERE st.id IN $ids RETURN st.id AS id, st.name AS name, st.city AS city, st.region AS region
+UNWIND $notices AS x
+MATCH (st:Store {id: x.store})
+CREATE (n:Notice {lot: $lot, store: x.store, reason: x.reason, status: 'pending_approval', drafted_at: $at, text: x.text})-[:TO]->(st)
+RETURN count(n) AS n
 ```
 
 **FDA export** (`GET /export/L-204.csv`) has one row per affected shipment, plus one row per gap shipment with an empty lot code. Columns follow the Shipping tab of the FDA's [sortable spreadsheet template](https://www.fda.gov/food/food-safety-modernization-act-fsma/fsma-final-rule-requirements-additional-traceability-records-certain-foods).
@@ -248,7 +265,7 @@ docker run -d --name falkordb -p 6380:6379 -p 3001:3000 falkordb/falkordb:latest
 bun install
 cp .env.example .env          # add ANTHROPIC_API_KEY; FALKORDB_PORT=6380
 bun run generate --seed 42 --reset
-bun run test                    # 40 tests, no API calls; E2E=1 bun run test adds one live agent run
+bun run test                    # 45 tests on their own graph (recall_test), no API calls; E2E=1 bun run test adds one live agent run
 bun run dev                     # API on :8787, Next.js app on http://localhost:3000 (opens at /outbreak; /notice, /incident (asks for the lot), /history, agent chat at /agent; the API is proxied under /api)
 ```
 
@@ -314,7 +331,7 @@ This project was built with AI coding help (Claude Code, Claude Opus 5.5) during
 ## Limits
 
 - Synthetic data only; there's no real company data.
-- No login. Notices are never sent; approval only changes their status.
+- No login. Notices are never sent; approval only changes the status on the `Notice` node.
 - No dilution or risk scoring: any path from the bad lot counts as affected.
 - Units to pull are units delivered, not units still on the shelf; there is no sales data.
 - The recall class is the firm's assessment. In the US the FDA assigns the final classification.

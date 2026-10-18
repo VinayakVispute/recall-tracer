@@ -1,11 +1,10 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { rmSync } from 'node:fs';
 import { build, load } from '../src/data/generate.js';
 import { close } from '../src/graph/db.js';
-import { scopeRecall, schemas, traceForward, coverageGaps, unaffectedStores, minimalRecall, draftRecallNotice, readNotices, NOTICES_FILE, traceBackward, placeHold, readHold, proposeClassification, findCommonSource, casePath, rankChokepoints, recallMemory, recordLessons } from '../src/tools/index.js';
+import { scopeRecall, schemas, traceForward, coverageGaps, unaffectedStores, minimalRecall, draftRecallNotice, readNotices, traceBackward, placeHold, readHold, proposeClassification, findCommonSource, casePath, rankChokepoints, recallMemory, recordLessons } from '../src/tools/index.js';
 import { incidentStatus, listIncidents, summarizeIncident } from '../src/tools/incident.js';
 import { parseCases, formatCases, ingestCases } from '../src/data/cases.js';
-import { writeFileSync } from 'node:fs';
+import { rmSync, writeFileSync } from 'node:fs';
 import { query, measure } from '../src/graph/db.js';
 import { incidentReport } from '../src/tools/incident.js';
 import expected from '../data/expected.json';
@@ -154,10 +153,9 @@ describe('tools on L-204', () => {
   });
 
   it('draft_recall_notice: 33 drafts, all pending_approval', async () => {
-    rmSync(NOTICES_FILE, { force: true });
     const m = await minimalRecall({ lot: LOT });
     await draftRecallNotice({ lot: LOT, notices: m.recall_stores.map((r) => ({ store: r.store, reason: 'test' })) });
-    const n = readNotices();
+    const n = await readNotices();
     expect(n).toHaveLength(33);
     expect(n.every((x) => x.status === 'pending_approval')).toBe(true);
   });
@@ -216,7 +214,7 @@ describe('API', () => {
     expect(at('minimal_recall')).toBeLessThan(at('trace_backward'));
     expect(at('trace_backward')).toBeLessThan(at('draft_recall_notice'));
     expect(r.tool_calls.every((c: any) => c.summary && (c.name === 'ask_coordinator' || c.cypher.length))).toBe(true);
-    expect(readNotices().filter((n) => n.lot === LOT)).toHaveLength(33);
+    expect((await readNotices()).filter((n) => n.lot === LOT)).toHaveLength(33);
   }, 90_000);
 });
 

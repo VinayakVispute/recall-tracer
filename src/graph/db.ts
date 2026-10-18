@@ -5,7 +5,8 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 
 let db: Promise<FalkorDB> | undefined;
 
-export async function graph(name = 'recall'): Promise<Graph> {
+/** The app graph. Tests set RECALL_GRAPH so they never touch the demo graph. */
+export async function graph(name = process.env.RECALL_GRAPH ?? 'recall'): Promise<Graph> {
   db ??= FalkorDB.connect({
     // Unset locally; FalkorDB Cloud needs them.
     username: process.env.FALKORDB_USERNAME || undefined,

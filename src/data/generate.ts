@@ -274,6 +274,6 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const counts = await load(data, values.reset);
   mkdirSync('data', { recursive: true });
   writeFileSync('data/expected.json', JSON.stringify(data.expected, null, 2) + '\n');
-  console.log(`Loaded graph "recall": ${counts.nodes} nodes, ${counts.edges} edges (expected ${data.expected.nodes}/${data.expected.edges})`);
+  console.log(`Loaded graph "${process.env.RECALL_GRAPH ?? 'recall'}": ${counts.nodes} nodes, ${counts.edges} edges (expected ${data.expected.nodes}/${data.expected.edges})`);
   await close();
 }
