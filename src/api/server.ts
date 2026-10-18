@@ -14,6 +14,7 @@ import type { RecallResult, TraceEvent } from '../agent/run.js';
 import { incidentReport, incidentStatus, listIncidents, supplierIncidents } from '../tools/incident.js';
 import { ingestCases, CASE_ID } from '../data/cases.js';
 import { realOutbreaks, realGraph, runDemoQueries } from '../data/real.js';
+import { recordSources } from '../data/sources.js';
 import { registerTools } from '../mcp/tools.js';
 
 const LOT_RE = /^L-\d{1,6}$/;
@@ -226,6 +227,9 @@ app.post('/incident/:lot/confirm', async (c) => {
 });
 
 /** The shell's graph line: graph size, and FalkorDB's own average time per query over the last run. No Claude call. */
+/** The Records page: where each set of records came from, how many, and when loaded. Read-only, no Claude call. */
+app.get('/records', async (c) => c.json(await recordSources()));
+
 app.get('/stats', async (c) => {
   const [[{ n: nodes }], [{ n: edges }]] = await Promise.all([query<{ n: number }>(COUNT_NODES), query<{ n: number }>(COUNT_EDGES)]);
   let last_run: { lot: string; queries: number; db_ms: number; avg_db_ms: number } | null = null;

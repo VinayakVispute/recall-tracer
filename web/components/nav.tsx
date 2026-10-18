@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { HistoryIcon, MessageSquareIcon, SearchIcon, SirenIcon, TruckIcon } from "lucide-react";
+import { DatabaseIcon, HistoryIcon, MessageSquareIcon, SearchIcon, SirenIcon, TruckIcon } from "lucide-react";
 import type { IncidentSummary } from "@server/tools/incident";
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarInset,
@@ -20,6 +20,7 @@ const STEPS = [
 ];
 const MORE = [
   { href: "/history", label: "History", icon: HistoryIcon },
+  { href: "/records", label: "Records", icon: DatabaseIcon },
   { href: "/agent", label: "Ask the agent", icon: MessageSquareIcon },
 ];
 // Pages reachable by address but not listed (the real-data page used in the pitch).
