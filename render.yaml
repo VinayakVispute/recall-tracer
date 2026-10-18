@@ -1,4 +1,4 @@
-# Render Blueprint: one Docker web service (page + API). Point FALKORDB_* at FalkorDB Cloud; the graph is reseeded on every deploy.
+# Render Blueprint: one Docker web service (page + API). Point FALKORDB_* at FalkorDB Cloud; the graph is seeded only when empty. Mount a disk at /app/out to keep notices and recordings.
 services:
   - type: web
     name: recall-tracer
