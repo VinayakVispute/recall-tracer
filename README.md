@@ -255,7 +255,7 @@ Enter `L-204`, pick the hazard and press **Open incident**. FalkorDB Browser on 
 
 To use the tools from Claude Code in this folder, the included `.mcp.json` registers the `recall-tracer` MCP server over stdio.
 
-The same 13 tools are also served over Streamable HTTP at `http://localhost:8787/mcp` (on a deployment, `<deployed URL>/mcp`). The API must be running (`bun run dev` or `bun run start`). Point an HTTP MCP client at it:
+The same 13 tools are also served over Streamable HTTP at `http://localhost:8787/mcp` (on a deployment, `<deployed URL>/api/mcp`). The API must be running (`bun run dev` or `bun run start`). Point an HTTP MCP client at it:
 
 ```json
 { "recall-tracer": { "url": "http://localhost:8787/mcp" } }
