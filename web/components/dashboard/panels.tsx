@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import type { Incident, IncidentReport } from "@server/tools/incident"
 import { JUDGEMENT, chokepointOf, fmtMs, graphTime, recordName, toolTotals, type Step } from "@/lib/trace"
 import type { Notice } from "@server/tools/index"
+import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -212,6 +213,7 @@ export const TITLE: Record<string, string> = {
   recall_memory: "Past incidents",
   rank_chokepoints: "Biggest spread point",
   record_lessons: "Lessons saved",
+  ask_coordinator: "Question for you",
 }
 const DOING: Record<string, string> = {
   propose_classification: "Recording the proposed class and depth",
@@ -226,6 +228,7 @@ const DOING: Record<string, string> = {
   recall_memory: "Reading what earlier incidents learned about this supplier and these stores",
   rank_chokepoints: "Finding the record most of the spread passed through",
   record_lessons: "Writing lessons into the graph for the next incident",
+  ask_coordinator: "Waiting for your answer",
 }
 
 /** Big inputs (33 notices, 60 product lots) are condensed so the log stays readable. */
@@ -234,11 +237,15 @@ function brief(input: unknown) {
   return Object.entries(input).map(([k, v]) => `${k}: ${Array.isArray(v) ? `${v.length} items` : JSON.stringify(v)}`).join(", ")
 }
 
-export function AgentTrace({ steps, running, meta, summary, error, current, replaying, onRetry, empty = "Open an incident to start. Each step appears here as it happens." }: {
+type Ask = { question: string; options: { value: string; label: string }[]; default: string }
+
+export function AgentTrace({ steps, running, meta, summary, error, current, replaying, onRetry, onAnswer, empty = "Open an incident to start. Each step appears here as it happens." }: {
   steps: Step[]; running: boolean; error?: string; summary?: string; empty?: string;
   meta?: { model: string; ms: number; turns: number; input_tokens: number; output_tokens: number };
   /** Id of the tool call at the replay playhead; highlighted and scrolled into view. */
   current?: string; replaying?: boolean; onRetry?: () => void;
+  /** Answers the agent's open ask_coordinator question during a live run. */
+  onAnswer?: (choice: string) => void;
 }) {
   const [open, setOpen] = useState<number>()
   const box = useRef<HTMLDivElement>(null)
@@ -281,15 +288,21 @@ export function AgentTrace({ steps, running, meta, summary, error, current, repl
                   <div className="flex items-baseline justify-between gap-2">
                     <b className="text-sm">{TITLE[s.name] ?? s.name}</b>
                     {JUDGEMENT.has(s.name) && s.call
-                      ? <Badge variant="outline" className="border-chart-4 text-chart-4">Agent judgement</Badge>
+                      ? <Badge variant="outline" className="border-chart-4 text-chart-4">{s.name === "ask_coordinator" ? "Human in the loop" : "Agent judgement"}</Badge>
                       : <span className="font-mono text-xs whitespace-nowrap text-muted-foreground tabular-nums" title={s.call && graphTime(s.call).db ? "FalkorDB's own execution time for this step's queries" : "MCP tool call, including its FalkorDB queries"}>{s.call ? `${graphTime(s.call).db ? "FalkorDB" : "graph"} ${fmtMs(graphTime(s.call).ms)}` : "…"}</span>}
                   </div>
+                  {s.why && <p className="text-sm"><span className="font-medium">Why: </span>{s.why}</p>}
+                  {s.name === "ask_coordinator" && (s.input as Ask | undefined)?.question && <p className="text-sm font-medium">{(s.input as Ask).question}</p>}
+                  {s.name === "ask_coordinator" && s.running && running && onAnswer && (
+                    <div className="flex flex-wrap gap-2">
+                      {((s.input as Ask).options ?? []).map((o) => (
+                        <Button key={o.value} size="sm" variant={o.value === (s.input as Ask).default ? "default" : "outline"} onClick={() => onAnswer(o.value)}>{o.label}</Button>
+                      ))}
+                    </div>
+                  )}
                   <p className="text-sm text-muted-foreground">{s.running ? DOING[s.name] ?? "Querying the graph" : s.name === "rank_chokepoints" && spread ? `${recordName(spread.id)[0].toUpperCase()}${recordName(spread.id).slice(1)} carried the lot to the most stores: ${spread.stores} downstream.` : s.call?.summary}</p>
                   {s.name === "rank_chokepoints" && s.call && !s.call.error && <Badge variant="outline" className="self-start">Graph algorithm: betweenness centrality</Badge>}
                   {s.call?.error && <Badge variant="destructive">Failed</Badge>}
-                  {s.name === "minimal_recall" && s.call && (
-                    <p className="text-sm"><b>Policy applied:</b> stores whose deliveries had no lot code are {(s.input as { add_gap_stores?: boolean } | undefined)?.add_gap_stores === false ? "flagged for the coordinator" : "pulled too"}, because the records can&apos;t clear them. A recall that misses contaminated product is worse than one that pulls a few extra units.</p>
-                  )}
                   {s.name === "propose_classification" && s.call && (
                     <p className="text-sm"><b>A proposal.</b> The coordinator confirms or changes it in the assessment card above. Notices can&apos;t be approved before that.</p>
                   )}
@@ -328,6 +341,47 @@ export function AgentTrace({ steps, running, meta, summary, error, current, repl
           </>
         )}
         {meta && <p className="text-xs text-muted-foreground tabular-nums">{meta.model}, {meta.turns} turns, {(meta.ms / 1000).toFixed(1)} s, {fmt(meta.input_tokens + meta.output_tokens)} tokens</p>}
+      </CardContent>
+    </Card>
+  )
+}
+
+/** What the agent read from earlier incidents and what it left for the next one: the graph is its memory. */
+export function MemoryPanel({ steps, lot }: { steps: Step[]; lot: string }) {
+  const read = steps.find((s) => s.kind === "tool" && s.name === "recall_memory" && s.call && !s.call.error)
+  const wrote = steps.find((s) => s.kind === "tool" && s.name === "record_lessons" && s.call && !s.call.error)
+  if (read?.kind !== "tool") return null
+  const used = read.call?.lessons
+  const saved = wrote?.kind === "tool" ? (wrote.input as { lessons?: { about: string; fact: string }[] })?.lessons : undefined
+  const from = (id: string) => (id.startsWith("OB-") ? "/outbreak" : `/incident/${id}`)
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Agent memory</CardTitle>
+        <CardDescription>Lessons live in the graph as Memory nodes linked to the supplier, store or batch they are about, so every incident and agent can read them.</CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3 text-sm">
+        <div className="flex flex-col gap-2">
+          <h3 className="font-medium">Read from earlier incidents</h3>
+          {!used ? <Muted>{read.call?.summary}</Muted> : !used.length ? <Muted>Nothing known yet about this supplier or these stores. This incident starts from scratch.</Muted> : (
+            <ul className="flex flex-col gap-2">
+              {used.map((l, i) => (
+                <li key={i} className="rounded-md border p-2">
+                  <p>{l.fact}</p>
+                  <Sub>About {l.about} ({l.kind.toLowerCase()}) · from <Link href={from(l.from_lot)} className="underline">{l.from_lot}</Link></Sub>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        {saved?.length ? (
+          <div className="flex flex-col gap-2">
+            <h3 className="font-medium">Saved for the next incident</h3>
+            <ul className="flex flex-col gap-2">
+              {saved.map((l, i) => <li key={i} className="rounded-md border border-dashed p-2"><p>{l.fact}</p><Sub>About {l.about} · from {lot}</Sub></li>)}
+            </ul>
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   )

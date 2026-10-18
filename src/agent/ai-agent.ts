@@ -10,6 +10,7 @@ import { CLUSTER_CASES, INCIDENT_GET, LOT_INFO } from '../graph/queries.js';
 import { toResult, toToolCall, type McpOutput, type Recall, type RecallResult, type TraceEvent } from './run.js';
 import type { OutbreakEvent, OutbreakResult } from '../contracts.js';
 import { recordLessons } from '../tools/index.js';
+import { ask } from './questions.js';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const MODEL = 'claude-opus-5-5';
@@ -55,6 +56,18 @@ const search_fda_recalls = tool({
       })),
     };
   },
+});
+
+/** The one tool that is not a graph query: a question the coordinator answers in the investigation log. */
+const ask_coordinator = tool({
+  description: 'Ask the recall coordinator to decide something the graph cannot, and wait for the answer. Use it for the decision on stores with missing lot codes. Returns the choice and who made it; if nobody answers, the default applies.',
+  inputSchema: z.object({
+    lot: z.string(),
+    question: z.string().max(300).describe('One plain sentence with the facts, e.g. "2 stores got Garden Vegetable Stew with no lot code. Pull it there too?"'),
+    options: z.array(z.object({ value: z.string(), label: z.string().max(60) })).min(2).max(3),
+    default: z.string().describe('The value that applies if nobody answers: the policy choice'),
+  }),
+  execute: ({ lot, options, default: fallback }) => ask(lot, options.map((o) => o.value), fallback),
 });
 
 let mcp: ReturnType<typeof createMCPClient> | undefined;
@@ -110,16 +123,16 @@ export function makeOutbreakAgent(model: LanguageModel, tools: ToolSet) {
   });
 }
 
-/** The incident page's recall run: every MCP tool, no FDA search, no approval gate, the system prompt in prompt.md. */
+/** The incident page's recall run: every MCP tool plus ask_coordinator, no FDA search, the system prompt in prompt.md. */
 export function makeIncidentAgent(model: LanguageModel, tools: ToolSet) {
   return new ToolLoopAgent({
     model,
     instructions: readFileSync(new URL('./prompt.md', import.meta.url), 'utf8'),
-    tools,
+    tools: { ...tools, ask_coordinator },
     stopWhen: isStepCount(18),
     providerOptions: { anthropic: {
       thinking: { type: 'adaptive', display: 'updates' }, // short progress notes between tool calls, for the trace
-      effort: 'low', // fixed tool sequence; low effort keeps the run well under 60 s
+      effort: 'low', // the tools do the heavy lifting; low effort keeps the run well under 60 s
       fallbacks: 'default',
     } },
   });

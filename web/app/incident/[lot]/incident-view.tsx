@@ -12,7 +12,7 @@ import { ScopeTable, type ScopeFilter } from "@/components/dashboard/scope-table
 import { NetworkGraph } from "@/components/dashboard/record-network";
 import { Play } from "lucide-react";
 import {
-  AgentTrace, Evidence, Notices, Assessment, ScopeStory, PublicNotice,
+  AgentTrace, Evidence, Notices, Assessment, ScopeStory, PublicNotice, MemoryPanel,
   fmt, shortDate, shortTime,
 } from "@/components/dashboard/panels";
 import { ReplayBar, useReplay } from "@/components/dashboard/replay";
@@ -182,13 +182,15 @@ export function IncidentView({ lot, hazard, autostart, playback, initial }: { lo
     const s = steps.findLast((x) => x.kind === "tool" && x.name === name && x.call?.error);
     return s?.kind === "tool" ? s.call?.summary : undefined;
   };
-  // One stage per agent step, plus Approved.
-  const stages: [label: string, ok: boolean, error?: string][] = ([
-    ["Past incidents", "recall_memory"], ["Hazard class", "propose_classification"], ["Hold", "place_hold"], ["Trace", "trace_forward"],
-    ["Spread point", "rank_chokepoints"], ["Missing lot codes", "coverage_gaps"], ["Scope", "minimal_recall"], ["Cleared", "trace_backward"],
-    ["Notices drafted", "draft_recall_notice"], ["Lessons saved", "record_lessons"],
-  ] as const).map(([label, tool]) => [label, done(tool), done(tool) ? undefined : failed(tool)]);
-  stages.push([notices.length ? `Approved ${approved}/${notices.length}` : "Approved", notices.length > 0 && approved === notices.length && (!replaying || !!shown)]);
+  // The agent's path: the steps in the order it took them, then (once it has finished) the ones it decided to skip.
+  const finished = replaying ? !!shown : !running && !!result;
+  const taken = [...new Set(steps.flatMap((x) => (x.kind === "tool" && STAGE[x.name] ? [x.name] : [])))];
+  const skipped = finished ? Object.keys(STAGE).filter((t) => !taken.includes(t)) : [];
+  const stages: [label: string, state: "done" | "running" | "failed" | "skipped", error?: string][] = [
+    ...taken.map((t) => [STAGE[t], failed(t) && !done(t) ? "failed" : done(t) ? "done" : "running", done(t) ? undefined : failed(t)] as [string, "done" | "running" | "failed", string?]),
+    ...skipped.map((t) => [STAGE[t], "skipped"] as [string, "skipped"]),
+  ];
+  const allApproved = notices.length > 0 && approved === notices.length && (!replaying || !!shown);
   const active = running || (replaying && replay.playing);
   const store = showReport?.stores.find((s) => s.id === selected);
   const depth = incident?.confirmed_depth ?? incident?.depth;
@@ -232,16 +234,24 @@ export function IncidentView({ lot, hazard, autostart, playback, initial }: { lo
             {incident && <p className="text-sm"><b className="text-destructive">Hazard</b> {incident.hazard}. <span className="text-muted-foreground">Logged {shortDate(incident.reported_at)}, {shortTime(incident.reported_at)}.{incident.confirmed_at && <> Class {incident.confirmed_class}, {incident.confirmed_depth} level, confirmed {shortDate(incident.confirmed_at)}, {shortTime(incident.confirmed_at)}.</>}</span></p>}
           </div>
           {incident && <Clock since={incident.reported_at} until={incident.scoped_at} />}
-          <ol className="flex w-full flex-wrap gap-2" aria-label="Recall progress">
-            {stages.map(([label, ok, error], i) => (
-              <li key={i}>
-                <Badge variant={ok ? "default" : error ? "destructive" : "outline"} title={error}
-                  className={cn(!ok && !error && active && (i === 0 || stages[i - 1][1]) && "animate-pulse border-primary")}>
-                  <span aria-hidden="true">{ok ? "✓" : error ? "✕" : "○"}</span>{label}{error && <span className="sr-only">: failed, {error}</span>}
-                </Badge>
-              </li>
-            ))}
-          </ol>
+          <div className="flex w-full flex-col gap-1.5">
+            <p className="text-xs text-muted-foreground">{finished ? "The agent's path: the steps it chose, in order. Crossed out: steps it decided this lot didn't need." : "The agent's path: each step it chooses appears as it happens."}</p>
+            <ol className="flex flex-wrap items-center gap-1.5" aria-label="The agent's path">
+              {stages.map(([label, state, error], i) => (
+                <li key={label} className="flex items-center gap-1.5">
+                  {i > 0 && <span aria-hidden="true" className="text-muted-foreground">{state === "skipped" && stages[i - 1][1] !== "skipped" ? "·" : state === "skipped" ? "" : "→"}</span>}
+                  <Badge variant={state === "done" ? "default" : state === "failed" ? "destructive" : "outline"}
+                    title={error ?? (state === "skipped" ? "The agent decided this lot didn't need this step" : undefined)}
+                    className={cn(state === "running" && "animate-pulse border-primary", state === "skipped" && "text-muted-foreground line-through")}>
+                    <span aria-hidden="true">{state === "done" ? "✓" : state === "failed" ? "✕" : state === "skipped" ? "–" : "○"}</span>{label}
+                    {state === "skipped" && <span className="sr-only">: skipped</span>}{error && <span className="sr-only">: failed, {error}</span>}
+                  </Badge>
+                </li>
+              ))}
+              {active && <li className="flex items-center gap-1.5"><span aria-hidden="true" className="text-muted-foreground">→</span><Badge variant="outline" className="animate-pulse border-primary">deciding the next step…</Badge></li>}
+              {notices.length > 0 && <li className="ml-2"><Badge variant={allApproved ? "default" : "outline"}>{allApproved ? "✓" : "○"} Approved {approved}/{notices.length}</Badge></li>}
+            </ol>
+          </div>
         </CardContent>
       </Card>
 
@@ -316,7 +326,9 @@ export function IncidentView({ lot, hazard, autostart, playback, initial }: { lo
           )}
         </main>
         <div className="flex min-w-0 flex-col gap-4">
-          <AgentTrace steps={steps} running={running} replaying={replaying} current={currentId} error={running || events.length ? error : undefined} onRetry={run} summary={shown?.summary} meta={shown?.meta} />
+          <AgentTrace steps={steps} running={running} replaying={replaying} current={currentId} error={running || events.length ? error : undefined} onRetry={run} summary={shown?.summary} meta={shown?.meta}
+            onAnswer={(choice) => api(`/incident/${lot}/answer`, { choice }).catch((e) => setError((e as Error).message))} />
+          <MemoryPanel steps={steps} lot={lot} />
           {shown && <Notices lot={shown.lot} notices={notices} canApprove={canApprove} onApprove={approve} onPick={setSelected} />}
         </div>
       </div>
@@ -351,6 +363,13 @@ function Legend({ items, note, children }: { items: [string, string][]; note: st
     </p>
   );
 }
+
+/** Badge label per agent step, for the agent's path. */
+const STAGE: Record<string, string> = {
+  recall_memory: "Past incidents", propose_classification: "Hazard class", place_hold: "Hold", trace_forward: "Trace",
+  rank_chokepoints: "Spread point", coverage_gaps: "Missing lot codes", ask_coordinator: "Asked you", minimal_recall: "Scope",
+  trace_backward: "Cleared", draft_recall_notice: "Notices drafted", record_lessons: "Lessons saved",
+};
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
 /** Time since the supplier's notice, stopped when the agent decides the scope. The FDA report is due 24 h after the notice. */
@@ -398,7 +417,7 @@ function Kpis({ r, hold, lot, gaps, onGaps, onShow, canPreview }: {
   r?: IncidentReport; hold?: IncidentReport["hold"]; lot: string; gaps: Gaps; onGaps: (m: Gaps) => void; onShow: (f: ScopeFilter) => void; canPreview: boolean;
 }) {
   const c = r?.counts;
-  const saved = c ? 1 - c.units_to_pull / c.blanket_units : 0;
+  const saved = c?.blanket_units ? 1 - c.units_to_pull / c.blanket_units : 0;
   const wait = <span data-slot="skeleton" className="inline-block h-8 w-16 animate-pulse rounded-md bg-muted" />;
   const show = (f: ScopeFilter) => (c ? () => onShow(f) : undefined);
   return (
