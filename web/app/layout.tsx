@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { GraphLine, GraphLineFallback } from "@/components/graph-line";
 import { Nav } from "@/components/nav";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { Toaster } from "@/components/toast";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -34,7 +35,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       className={`dark ${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col"><TooltipProvider><Nav graphLine={<Suspense fallback={<GraphLineFallback />}><GraphLine /></Suspense>}>{children}</Nav></TooltipProvider></body>
+      <body className="min-h-full flex flex-col"><TooltipProvider><Nav graphLine={<Suspense fallback={<GraphLineFallback />}><GraphLine /></Suspense>}>{children}</Nav><Toaster /></TooltipProvider></body>
     </html>
   );
 }

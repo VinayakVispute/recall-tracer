@@ -2,13 +2,14 @@
 
 import { useMemo, useState } from "react"
 import type { IncidentReport } from "@server/tools/incident"
-import { ArrowDown, ArrowUp, ArrowUpDown, CircleCheck, FileQuestion, OctagonAlert, Search, SearchX } from "lucide-react"
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, ChevronRight, CircleCheck, FileQuestion, OctagonAlert, Rows3, Search, SearchX } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Toggle } from "@/components/ui/toggle"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 
 type Store = IncidentReport["stores"][number]
@@ -53,6 +54,9 @@ export function ScopeTable({ r, focus, onPick, filter: outer, onFilter, region, 
   const setFilter = onFilter ?? setOwn
   const cols = notices ? 6 : 5
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: "decision", dir: 1 })
+  // Cleared stores are the long tail (38 of 71 on L-204): folded by default in the grouped view, one click to open.
+  const [showCleared, setShowCleared] = useState(false)
+  const [compact, setCompact] = useState(false)
 
   const counts = useMemo(() => {
     const c = { all: r.stores.length, recall: 0, gap: 0, safe: 0 }
@@ -88,12 +92,16 @@ export function ScopeTable({ r, focus, onPick, filter: outer, onFilter, region, 
   }
 
   const grouped = sort.key === "decision"
+  // Folding only applies to the grouped, unfiltered view; a filter or search for cleared stores shows them all.
+  const fold = grouped && filter === "all" && !q.trim() && !showCleared
+  const visible = fold ? rows.filter((s) => s.status !== "safe" || s.id === focus) : rows
   const shownUnits = rows.reduce((n, s) => n + s.units_at_risk, 0)
   let prev: Status | null = null
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+      {/* Search and filters stay under the top bar while the table scrolls past. */}
+      <div className="sticky top-(--header-h) z-10 -mx-1 flex flex-col gap-2 bg-card/95 px-1 py-2 backdrop-blur sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <InputGroup className="sm:max-w-xs">
           <InputGroupAddon><Search aria-hidden /></InputGroupAddon>
           <InputGroupInput value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search store, city or state" aria-label="Search stores" />
@@ -113,6 +121,9 @@ export function ScopeTable({ r, focus, onPick, filter: outer, onFilter, region, 
             <ToggleGroupItem key={st} value={st}>{META[st].label} {counts[st]}</ToggleGroupItem>
           ))}
         </ToggleGroup>
+        <Toggle size="sm" variant="outline" pressed={compact} onPressedChange={setCompact} aria-label="Compact rows" title="Compact rows: hide paths and cities">
+          <Rows3 aria-hidden />Compact
+        </Toggle>
         {region && onClearRegion && <Button size="sm" variant="secondary" onClick={onClearRegion} aria-label={`Show all states, not only ${region}`}>{region} ✕</Button>}
       </div>
 
@@ -136,13 +147,14 @@ export function ScopeTable({ r, focus, onPick, filter: outer, onFilter, region, 
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map((s) => {
+            {visible.map((s) => {
               const m = META[s.status]
               const w = why(s, r.lot.code)
               const header = grouped && prev !== s.status
               prev = s.status
               return (
-                <GroupedRow key={s.id} cols={cols} header={header ? { status: s.status, n: rows.filter((x) => x.status === s.status).length } : null}>
+                <GroupedRow key={s.id} cols={cols} header={header ? { status: s.status, n: rows.filter((x) => x.status === s.status).length } : null}
+                  fold={header && s.status === "safe" && grouped && filter === "all" && !q.trim() ? { open: showCleared, toggle: () => setShowCleared((v) => !v) } : undefined}>
                   <TableRow
                     tabIndex={onPick ? 0 : undefined}
                     data-state={focus === s.id ? "selected" : undefined}
@@ -151,9 +163,9 @@ export function ScopeTable({ r, focus, onPick, filter: outer, onFilter, region, 
                     onKeyDown={(e) => { if (onPick && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onPick(s.id) } }}
                     className={cn(onPick && "cursor-pointer focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none", focus === s.id && "bg-muted")}
                   >
-                    <TableCell className="font-medium">
+                    <TableCell className={cn("font-medium", compact && "py-1.5")}>
                       {s.name}
-                      <span className="block text-xs font-normal text-muted-foreground">{s.city}</span>
+                      {!compact && <span className="block text-xs font-normal text-muted-foreground">{s.city}</span>}
                     </TableCell>
                     <TableCell>{s.region}</TableCell>
                     <TableCell>
@@ -163,9 +175,9 @@ export function ScopeTable({ r, focus, onPick, filter: outer, onFilter, region, 
                       </Badge>
                     </TableCell>
                     <TableCell className={cn("text-right tabular-nums", s.units_at_risk ? m.text : "text-muted-foreground")}>{s.units_at_risk ? fmt(s.units_at_risk) : "0"}</TableCell>
-                    <TableCell className="min-w-64 whitespace-normal text-xs text-muted-foreground">
-                      {w.text}
-                      {"path" in w && w.path ? (
+                    <TableCell className={cn("min-w-64 whitespace-normal text-xs text-muted-foreground", compact && "py-1.5")}>
+                      <span className={cn(compact && "line-clamp-1")}>{w.text}</span>
+                      {!compact && "path" in w && w.path ? (
                         <span className="mt-1 flex flex-wrap items-center gap-1.5">
                           <Badge variant="outline" className="h-auto border-chart-3/60 font-mono text-[11px] whitespace-normal text-chart-3">{w.path}</Badge>
                           {w.extra ? <span>+{w.extra} more {w.extra === 1 ? "path" : "paths"}</span> : null}
@@ -177,6 +189,9 @@ export function ScopeTable({ r, focus, onPick, filter: outer, onFilter, region, 
                 </GroupedRow>
               )
             })}
+            {fold && rows.some((s) => s.status === "safe") && !visible.some((s) => s.status === "safe") && (
+              <GroupedRow cols={cols} header={{ status: "safe", n: rows.filter((x) => x.status === "safe").length }} fold={{ open: false, toggle: () => setShowCleared(true) }}>{null}</GroupedRow>
+            )}
           </TableBody>
           <TableFooter>
             <TableRow>
@@ -191,15 +206,21 @@ export function ScopeTable({ r, focus, onPick, filter: outer, onFilter, region, 
   )
 }
 
-/** Emits a decision header row before the first row of each group when `header` is set. */
-function GroupedRow({ header, cols, children }: { header: { status: Status; n: number } | null; cols: number; children: React.ReactNode }) {
+/** Emits a decision header row before the first row of each group when `header` is set; `fold` makes it open and close the group. */
+function GroupedRow({ header, cols, fold, children }: { header: { status: Status; n: number } | null; cols: number; fold?: { open: boolean; toggle: () => void }; children: React.ReactNode }) {
   if (!header) return <>{children}</>
   const m = META[header.status]
+  const label = <span className="inline-flex items-center gap-1.5"><m.Icon className="size-3.5" aria-hidden />{m.label} · {header.n} {header.n === 1 ? "store" : "stores"}</span>
+  const Chevron = fold?.open ? ChevronDown : ChevronRight
   return (
     <>
       <TableRow className="bg-muted/40 hover:bg-muted/40">
         <TableCell colSpan={cols} className={cn("py-1.5 text-xs font-semibold", m.text)}>
-          <span className="inline-flex items-center gap-1.5"><m.Icon className="size-3.5" aria-hidden />{m.label} · {header.n} {header.n === 1 ? "store" : "stores"}</span>
+          {fold ? (
+            <button type="button" onClick={fold.toggle} aria-expanded={fold.open} className="inline-flex items-center gap-2 rounded-sm hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
+              <Chevron className="size-3.5" aria-hidden />{label}<span className="font-normal text-muted-foreground">{fold.open ? "Hide" : "Show"}</span>
+            </button>
+          ) : label}
         </TableCell>
       </TableRow>
       {children}

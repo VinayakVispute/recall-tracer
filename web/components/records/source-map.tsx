@@ -134,7 +134,7 @@ export function SourceMap({ s }: { s: RecordSources }) {
       </ToggleGroup>
       <div className="h-110 overflow-hidden rounded-md border bg-muted/30" role="img"
         aria-label={which === "fda" ? "openFDA reports become recall records linked to firms, hazards and states; the CDC investigation becomes an outbreak linked to its firm and states." : "Traceability records become suppliers, ingredient lots, batches, product lots and stores; illness reports become cases; the agent writes incidents and lessons."}>
-        <ReactFlow key={which} nodes={flow.nodes} edges={flow.edges} nodeTypes={nodeTypes} colorMode="system" fitView fitViewOptions={{ padding: 0.08 }}
+        <ReactFlow key={which} nodes={flow.nodes} edges={flow.edges} nodeTypes={nodeTypes} colorMode="dark" fitView fitViewOptions={{ padding: 0.08 }}
           nodesDraggable={false} nodesConnectable={false} elementsSelectable={false} zoomOnScroll={false} preventScrolling={false} panOnDrag minZoom={0.3}
           proOptions={{ hideAttribution: true }}>
           <Background gap={20} size={1} />

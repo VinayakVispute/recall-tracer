@@ -11,6 +11,8 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { toast } from "@/components/toast"
 import { Empty, EmptyDescription } from "@/components/ui/empty"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -196,7 +198,7 @@ export function PublicNotice({ r }: { r: Report }) {
     "Consumers should not eat the product and may return it for a refund.",
   ].join("\n")
   const copy = async () => {
-    try { await navigator.clipboard.writeText(text); setCopied("ok") } catch { setCopied("fail") }
+    try { await navigator.clipboard.writeText(text); setCopied("ok"); toast("Notice text copied.") } catch { setCopied("fail"); toast("Couldn't copy. Select the text and copy it instead.", "error") }
     setTimeout(() => setCopied(""), 2500)
   }
   return (
@@ -305,7 +307,7 @@ export function AgentTrace({ steps, running, meta, summary, error, current, repl
           {running ? <Badge>Running</Badge> : replaying ? <Badge variant="outline">Replay</Badge> : null}
           {totals.calls > 0 && <span className="text-xs text-muted-foreground tabular-nums" title={totals.db ? "FalkorDB's own execution time, summed over every query the tools ran" : "Each tool is an MCP call that runs its Cypher on FalkorDB"}>{totals.db ? `${totals.queries} queries, ${fmtMs(totals.ms)} in FalkorDB` : `${totals.calls} graph tools, ${fmtMs(totals.ms)}`}</span>}
         </CardAction>
-        <CardDescription>Every step the agent took, in order, with the graph query behind it. This is the audit trail.</CardDescription>
+        <CardDescription>Every step the agent took, in order. Open a step for its reasoning and query.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         {!steps.length && !running && !replaying && (
@@ -329,7 +331,6 @@ export function AgentTrace({ steps, running, meta, summary, error, current, repl
                       ? <Badge variant="outline" className="border-chart-4 text-chart-4">{s.name === "ask_coordinator" ? "Human in the loop" : "Agent judgement"}</Badge>
                       : <span className="font-mono text-xs whitespace-nowrap text-muted-foreground tabular-nums" title={s.call && graphTime(s.call).db ? "FalkorDB's own execution time for this step's queries" : "MCP tool call, including its FalkorDB queries"}>{s.call ? `${graphTime(s.call).db ? "FalkorDB" : "graph"} ${fmtMs(graphTime(s.call).ms)}` : "…"}</span>}
                   </div>
-                  {s.why && <p className="text-sm"><span className="font-medium">Why: </span>{s.why}</p>}
                   {s.name === "ask_coordinator" && (s.input as Ask | undefined)?.question && <p className="text-sm font-medium">{(s.input as Ask).question}</p>}
                   {s.name === "ask_coordinator" && s.running && running && onAnswer && (
                     <div className="flex flex-wrap gap-2">
@@ -338,21 +339,25 @@ export function AgentTrace({ steps, running, meta, summary, error, current, repl
                       ))}
                     </div>
                   )}
-                  <p className="text-sm text-muted-foreground">{s.running ? DOING[s.name] ?? "Querying the graph" : s.name === "rank_chokepoints" && spread ? `${recordName(spread.id)[0].toUpperCase()}${recordName(spread.id).slice(1)} carried the lot to the most stores: ${spread.stores} downstream.` : s.call?.summary}</p>
-                  {s.name === "rank_chokepoints" && s.call && !s.call.error && <Badge variant="outline" className="self-start">Graph algorithm: betweenness centrality</Badge>}
+                  {/* One line of result; the reasoning and the query are one click away. The step being worked or replayed opens itself. */}
+                  <p className={cn("text-sm text-muted-foreground", !(open === i || current === s.id) && "line-clamp-2")}>{s.running ? DOING[s.name] ?? "Querying the graph" : s.name === "rank_chokepoints" && spread ? `${recordName(spread.id)[0].toUpperCase()}${recordName(spread.id).slice(1)} carried the lot to the most stores: ${spread.stores} downstream.` : s.call?.summary}</p>
                   {s.call?.error && <Badge variant="destructive">Failed</Badge>}
-                  {s.name === "propose_classification" && s.call && (
-                    <p className="text-sm"><b>A proposal.</b> The coordinator confirms or changes it in the assessment card above. Notices can&apos;t be approved before that.</p>
-                  )}
-                  {s.call && (
-                    <Collapsible open={open === i} onOpenChange={(o) => setOpen(o ? i : undefined)}>
-                      <CollapsibleTrigger render={<Button variant="link" size="xs" className="px-0" />}>
-                        {open === i ? "Hide the query" : "Show the query"}
+                  {(s.call || s.why) && (
+                    <Collapsible open={open === i || current === s.id || (!!s.running && running)} onOpenChange={(o) => setOpen(o ? i : undefined)}>
+                      <CollapsibleTrigger render={<Button variant="link" size="xs" className="px-0 text-muted-foreground" />}>
+                        {open === i ? "Hide details" : "Details"}
                       </CollapsibleTrigger>
                       <CollapsibleContent className="flex flex-col gap-2 pt-1">
-                        <p className="font-mono text-xs break-words"><b>Tool</b> {s.name} · <b>Input</b> {brief(s.input)}</p>
-                        <p className="text-xs text-muted-foreground">{graphTime(s.call).db ? `${s.call.queries} ${s.call.queries === 1 ? "query" : "queries"}, ${fmtMs(s.call.db_ms)} in FalkorDB, ${s.call.ms} ms for the whole MCP call.` : `${s.call.ms} ms for the MCP call.`}</p>
-                        {(s.call.cypher ?? []).map((q, j) => <pre key={j} className="overflow-x-auto rounded-md bg-muted p-2 font-mono text-xs">{q.trim()}</pre>)}
+                        {s.why && <p className="text-sm"><span className="font-medium">Why: </span>{s.why}</p>}
+                        {s.name === "rank_chokepoints" && s.call && !s.call.error && <Badge variant="outline" className="self-start">Graph algorithm: betweenness centrality</Badge>}
+                        {s.name === "propose_classification" && s.call && (
+                          <p className="text-sm"><b>A proposal.</b> The coordinator confirms or changes it in the assessment card above. Notices can&apos;t be approved before that.</p>
+                        )}
+                        {s.call && <>
+                          <p className="font-mono text-xs break-words"><b>Tool</b> {s.name} · <b>Input</b> {brief(s.input)}</p>
+                          <p className="text-xs text-muted-foreground">{graphTime(s.call).db ? `${s.call.queries} ${s.call.queries === 1 ? "query" : "queries"}, ${fmtMs(s.call.db_ms)} in FalkorDB, ${s.call.ms} ms for the whole MCP call.` : `${s.call.ms} ms for the MCP call.`}</p>
+                          {(s.call.cypher ?? []).map((q, j) => <pre key={j} className="overflow-x-auto rounded-md bg-muted p-2 font-mono text-xs">{q.trim()}</pre>)}
+                        </>}
                       </CollapsibleContent>
                     </Collapsible>
                   )}
@@ -558,7 +563,20 @@ export function Notices({ lot, notices, canApprove, onApprove, onPick }: { lot: 
           ))}
         </ul>
         <div className="flex flex-wrap gap-2">
-          <Button disabled={!pending.length || !canApprove} onClick={() => onApprove(pending.map((n) => n.store))}>{pending.length ? `Approve all ${pending.length}` : "All approved"}</Button>
+          {/* Approving many at once asks first; a single store or one state is quick enough to undo by eye. */}
+          <Dialog>
+            <DialogTrigger render={<Button disabled={!pending.length || !canApprove} />}>{pending.length ? `Approve all ${pending.length}` : "All approved"}</DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Approve {pending.length} store notices?</DialogTitle>
+                <DialogDescription>Each notice is marked ready for the distribution team, for every store in {byState.filter(([, l]) => l.some((n) => n.status !== "approved")).map(([st]) => st).join(", ")}. Nothing is sent from here.</DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <DialogClose render={<Button variant="outline" />}>Cancel</DialogClose>
+                <DialogClose render={<Button onClick={() => onApprove(pending.map((n) => n.store))} />}>Approve {pending.length}</DialogClose>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
           <Button variant="outline" nativeButton={false} render={<a href={`/api/export/${lot}.csv`} download />}>FDA shipping CSV</Button>
         </div>
         <Muted className="text-xs">{canApprove ? "Approving marks a notice ready for the distribution team. Nothing is sent from here." : "Confirm the class and depth in the assessment card before approving notices."}</Muted>

@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Background, Controls, Handle, Panel, Position, ReactFlow, type Edge, type Node, type NodeProps, type ReactFlowInstance } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { CheckIcon, MailIcon } from "lucide-react";
+import { CheckIcon, MailIcon, Maximize2Icon, Minimize2Icon } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/utils";
 
@@ -32,6 +33,14 @@ const EDGE: Record<string, { color: string; dash?: string }> = {
   affected: { color: "var(--destructive)" }, untracked: { color: "var(--chart-1)", dash: "5 4" },
   clean: { color: "var(--border)" }, held: { color: "var(--chart-2)", dash: "2 3" }, origin: { color: "var(--chart-3)" },
 };
+// Record types the legend chips can hide, so the coordinator can look at one part of the picture at a time.
+const GROUPS: { key: string; label: string; kinds: string[]; color: string }[] = [
+  { key: "lots", label: "Batches & lots", kinds: ["batch", "product-lot"], color: "var(--destructive)" },
+  { key: "holds", label: "Holds", kinds: ["site", "dc"], color: "var(--chart-2)" },
+  { key: "pull", label: "Pull", kinds: ["store-affected"], color: "var(--destructive)" },
+  { key: "gap", label: "No lot code", kinds: ["store-gap", "product"], color: "var(--chart-1)" },
+  { key: "clear", label: "Cleared", kinds: ["store-safe", "lot-clean", "product-lot-clean"], color: "var(--muted-foreground)" },
+];
 const HOP_MS = 650;
 const W = 180, H = 58, GAP = 12, COL = 250;
 
@@ -126,6 +135,8 @@ export function NetworkGraph({ lot, stages, animating, focus, spread, onPick }: 
   const [marks, setMarks] = useState<Map<string, Mark>>(new Map());
   const [all, setAll] = useState(false);
   const [picked, setPicked] = useState<string>();
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
+  const [full, setFull] = useState(false);
   const flow = useRef<ReactFlowInstance<Node, Edge>>(null);
   const revealed = useRef(new Set<string>());
   const timers = useRef<number[]>([]);
@@ -167,12 +178,14 @@ export function NetworkGraph({ lot, stages, animating, focus, spread, onPick }: 
   const { nodes, edges } = useMemo(() => {
     if (!els) return { nodes: [], edges: [] };
     const { pos, titles } = layout(els, all);
-    const live = els.edges.map((e) => e.data).filter((e) => marks.has(e.id) && pos.has(e.source) && pos.has(e.target));
+    const off = new Set(GROUPS.filter((g) => hidden.has(g.key)).flatMap((g) => g.kinds));
+    const kindOf = new Map(els.nodes.map((n) => [n.data.id, n.data.kind]));
+    const live = els.edges.map((e) => e.data).filter((e) => marks.has(e.id) && pos.has(e.source) && pos.has(e.target) && !off.has(kindOf.get(e.source) ?? "") && !off.has(kindOf.get(e.target) ?? ""));
     const near = picked ? lineage(picked, live) : null;
     const nodes: Node[] = [
       ...titles.map((t) => ({ id: t.id, type: "title", position: { x: t.x, y: t.y }, data: { text: t.text }, selectable: false, hidden: !marks.size })),
       ...els.nodes.filter((n) => pos.has(n.data.id)).map((n) => ({
-        id: n.data.id, type: "record", position: pos.get(n.data.id)!, hidden: !marks.has(n.data.id),
+        id: n.data.id, type: "record", position: pos.get(n.data.id)!, hidden: !marks.has(n.data.id) || off.has(n.data.kind),
         data: { ...n.data, mark: marks.get(n.data.id) ?? "", dim: !!near && !near.has(n.data.id), picked: picked === n.data.id, spread: n.data.id === spread },
       })),
     ];
@@ -186,19 +199,45 @@ export function NetworkGraph({ lot, stages, animating, focus, spread, onPick }: 
       },
     }));
     return { nodes, edges };
-  }, [els, all, marks, picked, animating, spread]);
+  }, [els, all, marks, picked, animating, spread, hidden]);
 
   // Keep the whole picture in frame as it grows or the view changes.
   const shown = nodes.filter((n) => !n.hidden).length;
-  useEffect(() => { const t = window.setTimeout(() => flow.current?.fitView({ duration: 400, padding: { top: "56px", right: "16px", bottom: "16px", left: "16px" } }), 50); return () => clearTimeout(t); }, [shown, all]);
+  useEffect(() => { const t = window.setTimeout(() => flow.current?.fitView({ duration: 400, padding: { top: "56px", right: "16px", bottom: "16px", left: "16px" } }), 50); return () => clearTimeout(t); }, [shown, all, full]);
+
+  // Keyboard: arrows step through the visible records column by column, Enter opens a store, Escape clears or leaves full screen.
+  const order = nodes.filter((n) => n.type === "record" && !n.hidden).sort((a, b) => a.position.x - b.position.x || a.position.y - b.position.y);
+  const step = (dir: 1 | -1) => {
+    if (!order.length) return;
+    const i = order.findIndex((n) => n.id === picked);
+    const next = order[(i < 0 ? (dir === 1 ? 0 : order.length - 1) : (i + dir + order.length) % order.length)];
+    setPicked(next.id);
+    const z = flow.current?.getZoom() ?? 1;
+    flow.current?.setCenter(next.position.x + W / 2, next.position.y + H / 2, { zoom: Math.max(z, 0.7), duration: 250 });
+  };
+  const onKey = (e: React.KeyboardEvent) => {
+    if (e.key === "ArrowRight" || e.key === "ArrowDown") { e.preventDefault(); step(1); }
+    else if (e.key === "ArrowLeft" || e.key === "ArrowUp") { e.preventDefault(); step(-1); }
+    else if (e.key === "Enter" && picked?.startsWith("ST-")) { e.preventDefault(); onPick(picked); }
+    else if (e.key === "Escape") { if (full) setFull(false); else setPicked(undefined); }
+  };
+  useEffect(() => {
+    if (!full) return;
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setFull(false); };
+    window.addEventListener("keydown", esc);
+    return () => window.removeEventListener("keydown", esc);
+  }, [full]);
 
   const pickedRec = picked ? els?.nodes.find((n) => n.data.id === picked)?.data : undefined;
   const downstream = pickedRec && els ? [...lineage(pickedRec.id, els.edges.map((e) => e.data).filter((e) => marks.has(e.id)))].filter((id) => id.startsWith("ST-") && id !== pickedRec.id).length : 0;
 
   return (
-    <div className="h-140 overflow-hidden rounded-md border bg-muted/30">
+    <div tabIndex={0} onKeyDown={onKey} aria-label="Record network. Arrow keys move between records, Enter opens a store, Escape clears."
+      className={cn("overflow-hidden border bg-muted/30 outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+        full ? "fixed inset-3 z-50 rounded-2xl bg-background shadow-2xl" : "h-140 rounded-md")}>
+      <span className="sr-only" aria-live="polite">{pickedRec ? `${KIND[pickedRec.kind]?.word ?? ""}: ${pickedRec.label ?? pickedRec.id}` : ""}</span>
       <ReactFlow
-        nodes={nodes} edges={edges} nodeTypes={nodeTypes} colorMode="system"
+        nodes={nodes} edges={edges} nodeTypes={nodeTypes} colorMode="dark"
         onInit={(i) => { flow.current = i; }}
         onNodeClick={(_, n) => {
           if (n.type !== "record") return;
@@ -212,11 +251,26 @@ export function NetworkGraph({ lot, stages, animating, focus, spread, onPick }: 
       >
         <Background gap={20} size={1} />
         <Controls showInteractive={false} position="bottom-left" />
-        <Panel position="top-left">
+        <Panel position="top-left" className="flex flex-wrap items-center gap-2">
           <ToggleGroup value={[all ? "all" : "path"]} onValueChange={(v) => v[0] && setAll(v[0] === "all")} variant="outline" size="sm" className="bg-background">
             <ToggleGroupItem value="path">Recall path</ToggleGroupItem>
             <ToggleGroupItem value="all">All records</ToggleGroupItem>
           </ToggleGroup>
+          {/* Legend that filters: click a type to hide or show it. */}
+          <div className="flex flex-wrap gap-1" role="group" aria-label="Show or hide record types">
+            {GROUPS.map((g) => (
+              <button key={g.key} type="button" aria-pressed={!hidden.has(g.key)}
+                onClick={() => setHidden((h) => { const n = new Set(h); if (n.has(g.key)) n.delete(g.key); else n.add(g.key); return n; })}
+                className={cn("inline-flex h-7 items-center gap-1.5 rounded-full border bg-background px-2.5 text-xs transition-opacity focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none", hidden.has(g.key) && "line-through opacity-50")}>
+                <span className="size-2 rounded-full" style={{ background: g.color }} aria-hidden="true" />{g.label}
+              </button>
+            ))}
+          </div>
+        </Panel>
+        <Panel position="top-right">
+          <Button size="icon-sm" variant="outline" className="bg-background" onClick={() => setFull((f) => !f)} aria-label={full ? "Exit full screen" : "Full screen"} title={full ? "Exit full screen (Esc)" : "Full screen"}>
+            {full ? <Minimize2Icon /> : <Maximize2Icon />}
+          </Button>
         </Panel>
         <Panel position="bottom-right" className="max-w-60 rounded-md border bg-background px-3 py-2 text-xs shadow-xs">
           {pickedRec ? (

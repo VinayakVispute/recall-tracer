@@ -5,11 +5,12 @@ import type { IncidentSummary } from "@server/tools/incident";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Empty, EmptyDescription } from "@/components/ui/empty";
+import { StartHere } from "@/components/start-here";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { api, apiOrNull, ApiError, LOT_RE } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 export const metadata = { title: "Incidents", description: "Open a recall incident by lot code, or watch a recorded agent run trace lot L-204 to 33 of 71 stores." };
 
@@ -55,10 +56,10 @@ export default async function Page({ searchParams }: PageProps<"/incident">) {
             </Field>
             <Button type="submit">Show incident</Button>
           </Form>
-          <FieldDescription id="lot-msg" className={error ? "mt-2 text-destructive" : "mt-2"} role={error ? "alert" : undefined}>
+          <FieldDescription id="lot-msg" className={cn("mt-3 nth-last-2:mt-3", error && "text-destructive")} role={error ? "alert" : undefined}>
             {error || <>To start a new incident, use the <Link href="/notice" className="underline">supplier notice</Link>.</>}
           </FieldDescription>
-          <p className="mt-3 text-sm text-muted-foreground">
+          <p className="mt-5 text-sm text-muted-foreground">
             Watch the agent take a different path on each lot:{" "}
             {REPLAYS.map(([l, what], i) => <span key={l}>{i > 0 && " · "}<Link href={`/incident/${l}?replay=1`} className="underline"><span className="font-mono">{l}</span> {what}</Link></span>)}
           </p>
@@ -88,11 +89,10 @@ export default async function Page({ searchParams }: PageProps<"/incident">) {
                 </TableBody>
               </Table>
             ) : (
-              <Empty>
-                <EmptyDescription>
-                  No incidents yet. Start from an <Link href="/outbreak" className="underline">outbreak</Link> or a <Link href="/notice" className="underline">supplier notice</Link>.
-                </EmptyDescription>
-              </Empty>
+              <div className="flex flex-col gap-3">
+                <p className="text-sm text-muted-foreground">No incidents yet. Start from an <Link href="/outbreak" className="underline">outbreak</Link> or a <Link href="/notice" className="underline">supplier notice</Link>, or:</p>
+                <StartHere />
+              </div>
             )}
         </CardContent>
       </Card>
