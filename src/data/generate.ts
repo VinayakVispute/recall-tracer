@@ -269,11 +269,18 @@ export async function load(data: ReturnType<typeof build>, reset = true) {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const { values } = parseArgs({ options: { seed: { type: 'string', default: '42' }, reset: { type: 'boolean', default: false } } });
-  const data = build(Number(values.seed));
-  const counts = await load(data, values.reset);
-  mkdirSync('data', { recursive: true });
-  writeFileSync('data/expected.json', JSON.stringify(data.expected, null, 2) + '\n');
-  console.log(`Loaded graph "recall": ${counts.nodes} nodes, ${counts.edges} edges (expected ${data.expected.nodes}/${data.expected.edges})`);
+  const { values } = parseArgs({ options: {
+    seed: { type: 'string', default: '42' }, reset: { type: 'boolean', default: false },
+    'if-empty': { type: 'boolean', default: false }, // container start: keep incidents, confirmations and lessons across restarts
+  } });
+  const [{ n: existing }] = values['if-empty'] ? await query<{ n: number }>(COUNT_NODES) : [{ n: 0 }];
+  if (existing) console.log(`Graph "recall" already has ${existing} nodes; not reseeding`);
+  else {
+    const data = build(Number(values.seed));
+    const counts = await load(data, values.reset);
+    mkdirSync('data', { recursive: true });
+    writeFileSync('data/expected.json', JSON.stringify(data.expected, null, 2) + '\n');
+    console.log(`Loaded graph "recall": ${counts.nodes} nodes, ${counts.edges} edges (expected ${data.expected.nodes}/${data.expected.edges})`);
+  }
   await close();
 }

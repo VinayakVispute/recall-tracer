@@ -119,7 +119,7 @@ bun run dev</code></pre>
 })</code></pre>
       Check the option names against the <code>falkordb</code> client docs before relying on this. This file is in your lane ("auth fields only").</li>
     <li><b>Make the Dockerfile API-only.</b> It still runs <code>RUN bun run build</code>, which builds <code>web/</code>, and its comment says it serves the page too. It doesn't any more: the web app is Next.js on Vercel. Root <code>bun install</code> does not install <code>web/</code> dependencies (no workspaces), so that step will likely fail. Remove it and fix the comment.</li>
-    <li><b>Host the API container</b> anywhere that runs Docker and allows long responses (Fly.io, Railway, Render, a VM). Set <code>ANTHROPIC_API_KEY</code> and the <code>FALKORDB_*</code> vars. On start it seeds the graph (<code>generate --seed 42 --reset</code>) and serves on <code>$PORT</code>. <b>Add <code>bun run real</code> to the start command</b> after <code>generate</code>, so <code>GET /real/outbreaks</code> has data. It reads committed JSON and needs no network.</li>
+    <li><b>Host the API container</b> anywhere that runs Docker and allows long responses (Fly.io, Railway, Render, a VM). Set <code>ANTHROPIC_API_KEY</code> and the <code>FALKORDB_*</code> vars. On start it seeds the graph if it is empty (<code>generate --seed 42 --if-empty</code>) and serves on <code>$PORT</code>. <b>Add <code>bun run real</code> to the start command</b> after <code>generate</code>, so <code>GET /real/outbreaks</code> has data. It reads committed JSON and needs no network.</li>
     <li><b>Create the Vercel project with root <code>web/</code></b> and set <code>RECALL_API</code> to the API's public URL.</li>
     <li><b>Done when</b> (from the plan): the public URL opens the dashboard, replay works with no key, and a live run works with the team key.</li>
   </ol>
@@ -160,7 +160,7 @@ es.addEventListener('done', (m) =&gt; { show(JSON.parse(m.data).outbreak); es.cl
   <h2 id="gotchas">7. Gotchas</h2>
   <ul>
     <li><b>Long streams through Vercel.</b> A live run takes 20 to 30 seconds. Streaming through the Vercel rewrite may hit a time limit or get buffered (a guess, not tested). Test one live <code>/recall/stream</code> on the deployed URL early. <code>compress: false</code> in <code>next.config.ts</code> is there on purpose: gzip makes SSE arrive in one chunk at the end.</li>
-    <li><b>Every restart wipes the graph.</b> The container seeds with <code>--reset</code> on boot, so incidents, ingested cases and live recordings in <code>out/</code> are lost. The demo recording in <code>demo/</code> stays.</li>
+    <li><b>Restarts keep the graph.</b> The container seeds with <code>--if-empty</code> on boot, so incidents, ingested cases and lessons stay. Files in <code>out/</code> (notices, live recordings) need a persistent disk at <code>/app/out</code>; Render has one. To start over, run <code>bun run generate --seed 42 --reset</code> in the Render shell.</li>
     <li><b>Page 7 is empty on a fresh deploy</b> until someone runs a recall.</li>
     <li><b><code>/outbreak</code> needs the Claude key.</b> Without it, use the fixture or replay for the demo.</li>
     <li><b>One transient error seen once.</b> <code>/outbreak/stream</code> ended once with "Failed to process successful response". It didn't repeat in two reruns. Keep replay as the demo backup.</li>
