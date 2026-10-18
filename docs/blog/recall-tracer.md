@@ -171,6 +171,8 @@ The real-records page asks the same questions of the public CDC and openFDA data
 
 ![Real records: the Clover Hill Dairy outbreak as a graph, with Illinois flagged as a gap](07-real-records.png)
 
+Two more things on the incident page. "Replay the trace" plays the recorded run back with the original timing, at 0.5×, 1× or 2×, and the record network shows only what the agent had reached at the playhead. Below the log, the Agent memory panel shows what the agent read from earlier incidents and what it saved for the next one, as the Memory nodes in the graph.
+
 There's also an outbreak page that walks illness cases back to a shared lot, and a chat over the same tools that shows Approve and Deny buttons before it drafts notices.
 
 ---
