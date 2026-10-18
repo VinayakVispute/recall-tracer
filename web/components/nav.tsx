@@ -12,9 +12,9 @@ import {
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-// The order a coordinator works in. Finding the source is optional: most recalls start from a supplier's notice.
+// The order a coordinator works in. Most recalls start at step 2, from a supplier's notice.
 const STEPS = [
-  { href: "/outbreak", label: "Find the source", hint: "optional", icon: SearchIcon, lead: "Start from illness reports: the agent walks each case back to the ingredient lot they share." },
+  { href: "/outbreak", label: "Find the source", icon: SearchIcon, lead: "Start from illness reports: the agent walks each case back to the ingredient lot they share." },
   { href: "/notice", label: "Supplier notice", icon: SirenIcon, lead: "Enter the lot and hazard from the supplier's alert to open the incident and start the 24-hour clock." },
   { href: "/incident", label: "Incident", icon: TruckIcon, lead: "Which stores pull, which are cleared, and the notices to approve. Every number comes from the graph." },
 ];
@@ -105,7 +105,6 @@ export function Nav({ graphLine, children }: { graphLine: React.ReactNode; child
                     <SidebarMenuButton isActive={i === step} tooltip={`${i + 1}. ${s.label}`} render={<Link href={hrefOf(s.href)} />}>
                       <s.icon />
                       <span>{i + 1}. {s.label}</span>
-                      {s.hint && <span className="ml-auto text-xs text-muted-foreground">{s.hint}</span>}
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 ))}
