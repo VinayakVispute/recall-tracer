@@ -45,14 +45,14 @@ function fdaSpec(s: RecordSources): Spec {
   const n = s.graphs.fda.nodes, e = s.graphs.fda.edges, p = s.public;
   return {
     nodes: [
-      { id: "src-fda", x: 0, y: 0, tone: "source", title: "openFDA food enforcement API", sub: `api.fda.gov · reports since ${day(p?.recalls_since ?? null)}, fetched ${day(p?.fetched ?? null)}`, href: "https://open.fda.gov/apis/food/enforcement/" },
-      { id: "src-cdc", x: 0, y: 190, tone: "source", title: "CDC outbreak investigation", sub: `Cases by state and the linked firm, checked ${day(p?.outbreaks_checked ?? null)}`, href: p?.cdc_sources[0] },
-      { id: "src-notice", x: 0, y: 330, tone: "source", title: "CDC and FDA recall notices", sub: `${p?.inferred_links ?? 0} supplier links, inferred from notices naming the same product and week` },
-      { id: "Firm", x: 330, y: 150, tone: "record", title: "Firm", count: n.Firm, sub: "The company that filed the recall" },
-      { id: "Recall", x: 620, y: 0, tone: "record", title: "Recall report", count: n.Recall, sub: "Class, reason, product, distribution" },
-      { id: "Hazard", x: 930, y: -60, tone: "record", title: "Hazard", count: n.Hazard, sub: "Read from the reason text" },
-      { id: "State", x: 930, y: 150, tone: "record", title: "State", count: n.State, sub: "Read from the distribution text" },
-      { id: "Outbreak", x: 620, y: 260, tone: "gap", title: "Outbreak", count: n.Outbreak, sub: "Cases, hospitalisations, deaths" },
+      { id: "src-fda", x: 0, y: 0, tone: "source", title: "openFDA food enforcement API", sub: `Reports since ${day(p?.recalls_since ?? null)}`, href: "https://open.fda.gov/apis/food/enforcement/" },
+      { id: "src-cdc", x: 0, y: 190, tone: "source", title: "CDC outbreak investigation", sub: "Cases by state", href: p?.cdc_sources[0] },
+      { id: "src-notice", x: 0, y: 330, tone: "source", title: "CDC and FDA recall notices", sub: `${p?.inferred_links ?? 0} inferred supplier links` },
+      { id: "Firm", x: 330, y: 150, tone: "record", title: "Firm", count: n.Firm },
+      { id: "Recall", x: 620, y: 0, tone: "record", title: "Recall report", count: n.Recall },
+      { id: "Hazard", x: 930, y: -60, tone: "record", title: "Hazard", count: n.Hazard },
+      { id: "State", x: 930, y: 150, tone: "record", title: "State", count: n.State },
+      { id: "Outbreak", x: 620, y: 260, tone: "gap", title: "Outbreak", count: n.Outbreak },
     ],
     edges: [
       { from: "src-fda", to: "Recall", label: "each report", source: true },
@@ -69,23 +69,23 @@ function fdaSpec(s: RecordSources): Spec {
 
 /** The company graph: traceability records, illness reports and what the agent writes, in the FSMA 204 chain. */
 function companySpec(s: RecordSources): Spec {
-  const n = s.graphs.recall.nodes, e = s.graphs.recall.edges, t = s.traceability;
+  const n = s.graphs.recall.nodes, e = s.graphs.recall.edges;
   return {
     nodes: [
-      { id: "src-fsma", x: -40, y: 40, tone: "source", title: "Traceability records", sub: `Receiving, transformation, shipping (FSMA 204)${t.seed !== null ? ` · generated demo records, seed ${t.seed}` : ""}` },
-      { id: "src-cases", x: -40, y: 360, tone: "source", title: "Illness reports", sub: "Pasted from the health department" },
-      { id: "src-agent", x: -40, y: -170, tone: "source", title: "The agent", sub: "During each incident" },
+      { id: "src-fsma", x: -40, y: 40, tone: "source", title: "Traceability records", sub: "FSMA 204 format" },
+      { id: "src-cases", x: -40, y: 360, tone: "source", title: "Illness reports" },
+      { id: "src-agent", x: -40, y: -170, tone: "source", title: "The agent" },
       { id: "Supplier", x: 280, y: 40, tone: "record", title: "Supplier", count: n.Supplier },
       { id: "Lot", x: 560, y: 40, tone: "record", title: "Ingredient lot", count: n.Lot, sub: "Receiving" },
-      { id: "Batch", x: 840, y: 40, tone: "record", title: "Batch", count: n.Batch, sub: `Transformation · ${fmt(e.REWORKED_INTO ?? 0)} reworked into later batches` },
-      { id: "ProductLot", x: 1120, y: 40, tone: "record", title: "Product lot", count: n.ProductLot, sub: "Traceability lot code" },
+      { id: "Batch", x: 840, y: 40, tone: "record", title: "Batch", count: n.Batch, sub: "Transformation" },
+      { id: "ProductLot", x: 1120, y: 40, tone: "record", title: "Product lot", count: n.ProductLot },
       { id: "Store", x: 1400, y: 40, tone: "record", title: "Store", count: n.Store, sub: "Shipping" },
-      { id: "Product", x: 1120, y: 210, tone: "gap", title: "Product", count: n.Product, sub: "Deliveries with no lot code point here" },
-      { id: "Stock", x: 840, y: 210, tone: "record", title: "Plant or DC", count: (n.Site ?? 0) + (n.DC ?? 0), sub: "Stock a hold can stop" },
+      { id: "Product", x: 1120, y: 210, tone: "gap", title: "Product", count: n.Product },
+      { id: "Stock", x: 840, y: 210, tone: "record", title: "Plant or DC", count: (n.Site ?? 0) + (n.DC ?? 0) },
       { id: "Cluster", x: 840, y: 360, tone: "record", title: "Outbreak cluster", count: n.Cluster },
-      { id: "Case", x: 1120, y: 360, tone: "record", title: "Case", count: n.Case, sub: "One sick person" },
-      { id: "Incident", x: 560, y: -170, tone: "agent", title: "Incident", count: n.Incident ?? 0, sub: "Hazard, class, hold, scope" },
-      { id: "Memory", x: 280, y: -170, tone: "agent", title: "Lesson", count: n.Memory ?? 0, sub: "For the next incident" },
+      { id: "Case", x: 1120, y: 360, tone: "record", title: "Case", count: n.Case },
+      { id: "Incident", x: 560, y: -170, tone: "agent", title: "Incident", count: n.Incident ?? 0 },
+      { id: "Memory", x: 280, y: -170, tone: "agent", title: "Lesson", count: n.Memory ?? 0 },
     ],
     edges: [
       { from: "src-fsma", to: "Supplier", label: "loads", source: true },
@@ -139,9 +139,8 @@ export function SourceMap({ s }: { s: RecordSources }) {
         </ReactFlow>
       </div>
       <p className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-        <span><i className="mr-1.5 inline-block h-0 w-5 border-t border-dashed border-muted-foreground align-middle" />where records come from</span>
-        <span><i className="mr-1.5 inline-block h-0 w-5 border-t-2 border-foreground align-middle" />how they link, with how many links</span>
-        <span>The number on each box is how many of that record are loaded now.</span>
+        <span><i className="mr-1.5 inline-block h-0 w-5 border-t border-dashed border-muted-foreground align-middle" />source</span>
+        <span><i className="mr-1.5 inline-block h-0 w-5 border-t-2 border-foreground align-middle" />link, with how many</span>
       </p>
     </div>
   );
