@@ -168,8 +168,8 @@ export function CaseReportCard() {
       onDragOver={(e) => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)}
       onDrop={(e) => { e.preventDefault(); setOver(false); check(e.dataTransfer.files[0]); }}>
       <CardHeader>
-        <CardTitle>Public case report</CardTitle>
-        <CardDescription>A CDC or health department report gives the states with cases and the illness dates. Drop it here to search the real FDA recalls for a lot they share.</CardDescription>
+        <CardTitle>CDC case report</CardTitle>
+        <CardDescription>CDC publishes the states with cases and the illness dates, not stores. Drop the report here to search the real FDA recalls for a lot code they share.</CardDescription>
         <CardAction className="hidden flex-wrap items-center gap-2 sm:flex">{actions}</CardAction>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">

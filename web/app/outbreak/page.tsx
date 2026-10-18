@@ -1,24 +1,53 @@
+import Link from "next/link";
 import { apiOrNull, ApiError } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import { CaseReportCard } from "./case-report";
 import { OutbreakView, type ClusterDetail } from "./outbreak-view";
 import { PasteCases } from "./paste-cases";
-import { RealWorld } from "./real-world";
 
 export const metadata = { title: "Find the source" };
 
 // The seeded cluster. Kept here: a constant imported from a "use client" module is a client reference on the server, not a string.
 const EXAMPLE_CLUSTER = "OB-2026-10";
 
-/**
- * Page 1. The cluster lives in the URL; its cases are read on the server so the table is in the first paint.
+/** The two kinds of illness report, named by what they contain, since that decides which records can be searched. */
+const TABS = [
+  { key: "store", title: "Store-level reports", sub: "Each case has a store and purchase date. Searches your company's lot records." },
+  { key: "public", title: "State-level reports", sub: "States and illness dates, as CDC publishes them. Searches public FDA recalls." },
+] as const;
 
- * Without one the example cluster loads; the Case reports card opens another cluster by id or pastes new reports.
+function ReportTabs({ tab, cluster }: { tab: "store" | "public"; cluster: string | null }) {
+  return (
+    <nav aria-label="Illness reports" className="grid gap-2 sm:grid-cols-2">
+      {TABS.map((t) => (
+        <Link key={t.key} href={t.key === "public" ? "/outbreak?report=public" : cluster ? `/outbreak?cluster=${encodeURIComponent(cluster)}` : "/outbreak"}
+          aria-current={tab === t.key ? "page" : undefined}
+          className={cn("flex flex-col gap-0.5 rounded-lg border px-3 py-2 text-left transition-colors",
+            tab === t.key ? "border-foreground/40 bg-card shadow-xs" : "border-transparent bg-muted/50 text-muted-foreground hover:bg-muted")}>
+          <span className={cn("text-sm font-medium", tab === t.key && "text-foreground")}>{t.title}</span>
+          <span className="text-xs text-muted-foreground">{t.sub}</span>
+        </Link>
+      ))}
+    </nav>
+  );
+}
+
+/**
+ * Page 1. Two tabs, by what the illness reports contain. Store-level: the cluster lives in the URL and its cases are read
+ * on the server, so the table is in the first paint. State-level (?report=public): a CDC report checked against public recalls.
  */
 export default async function Page({ searchParams }: PageProps<"/outbreak">) {
   const sp = await searchParams;
-  // No cluster in the URL: the seeded example, so the page is one click from "Find the source".
-  const id = (typeof sp.cluster === "string" && sp.cluster.trim()) || EXAMPLE_CLUSTER;
+  const tab = sp.report === "public" ? "public" : "store";
+  const asked = typeof sp.cluster === "string" && sp.cluster.trim() ? sp.cluster.trim() : null;
+  const top = <div className="mx-auto w-full max-w-[1500px] px-4 pt-4"><ReportTabs tab={tab} cluster={asked} /></div>;
 
+  if (tab === "public") {
+    return <>{top}<div className="mx-auto w-full max-w-[1500px] p-4"><CaseReportCard /></div></>;
+  }
+
+  // No cluster in the URL: the seeded example, so the page is one click from "Find the source".
+  const id = asked ?? EXAMPLE_CLUSTER;
   let cluster: ClusterDetail | null = null, error = "";
   try {
     cluster = await apiOrNull<ClusterDetail>(`/clusters/${encodeURIComponent(id)}`);
@@ -27,10 +56,10 @@ export default async function Page({ searchParams }: PageProps<"/outbreak">) {
   }
   return (
     <>
+      {top}
       <div className="mx-auto w-full max-w-[1500px] p-4"><PasteCases id={id} example={EXAMPLE_CLUSTER} /></div>
       {/* A new cluster, or new cases in it, gets a fresh view: no result or selection carries over. */}
       <OutbreakView key={`${id}:${cluster?.cases.length ?? 0}`} id={id} cluster={cluster} loadError={error} />
-      <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-4 px-4 pb-4"><CaseReportCard /><RealWorld /></div>
     </>
   );
 }

@@ -189,7 +189,7 @@ RETURN f.name, r.id, r.initiated, r.distribution ORDER BY r.initiated</pre>
 <pre>outbreak,pathogen,state,onset_from,onset_to,source
 OB-SPROUTS-2026-08,"STEC E. coli + Salmonella Agona",FL,2026-05-31,2026-09-07,https://www.cdc.gov/ecoli/outbreaks/alfalfa-sprouts-08-26/index.html
 … one row per state: FL IN IA KS MI MN NH NY NC ND OR PA SC SD WA WI</pre>
-<p>On the outbreak page, the <b>Public case report</b> card, about a second after the upload and with no agent call:</p>
+<p>On Find the source, the <b>State-level reports</b> tab (<code>/outbreak?report=public</code>), about a second after the upload and with no agent call:</p>
 <ol>
   <li><b>The haystack.</b> 83 recalls from 28 firms name these pathogens since the first illness. Six firms' recalls reach all 16 case states, so where a recall went can't single out a source.</li>
   <li><b>The lot.</b> 10 lot codes in their records; one, SAL2-24JB, is named by three different firms. The chain draws: case report, lot, and the three recalls.</li>
@@ -208,7 +208,7 @@ OB-SPROUTS-2026-08,"STEC E. coli + Salmonella Agona",FL,2026-05-31,2026-09-07,ht
 <tr><td><span class="tag lot">Built</span></td><td>Lot codes as graph nodes</td><td>The real-data loader reads lot codes from each recall's code text and links <code>(Recall)-[:NAMES_LOT]-&gt;(LotCode)</code>. Bare numbers like "Lot 222" are skipped, so firms' own run numbers don't join unrelated recalls.</td><td>Dev D</td></tr>
 <tr><td><span class="tag lot">Built</span></td><td>FDA notices not in openFDA</td><td>Berlin Seeds' notice is in <code>data/real/outbreaks.json</code> under <code>notices</code>, loaded as a recall with its source link.</td><td>Dev D</td></tr>
 <tr><td><span class="tag lot">Built</span></td><td>Case-report check</td><td><code>POST /real/case-report</code>: matching recalls, shared lot codes, and which case states each recall reached, in date order. Tested: lot SAL2-24JB, 6 then 10, none left.</td><td>Dev D</td></tr>
-<tr><td><span class="tag lot">Built</span></td><td>Upload on the outbreak page</td><td>The Public case report card: drop or choose a CSV, then the result above. The Records page's source map shows the new lot-code records.</td><td>Dev D</td></tr>
+<tr><td><span class="tag lot">Built</span></td><td>Upload on the outbreak page</td><td>Find the source now has two tabs named by what the reports contain: Store-level (the company's cases) and State-level (CDC's report). Drop or choose a CSV on the State-level tab, then the result above. The old "same question on real data" panel is gone from this page. The Records page's source map shows the new lot-code records.</td><td>Dev D</td></tr>
 <tr><td><span class="tag p1">Left</span></td><td>Refresh openFDA</td><td>Run <code>bun run real --fetch</code> the morning of recording. If Berlin's recall has reached openFDA, remove its entry from <code>notices</code>.</td><td>Dev A</td></tr>
 <tr><td><span class="tag p1">Left</span></td><td>Chat agent question</td><td>A read-only tool over the public graph, so "which companies recalled lot SAL2-24JB?" is answered from our records.</td><td>Dev B</td></tr>
 <tr><td><span class="tag p1">Left</span></td><td>Update the deck</td><td>New opening slides from this page; replace the Clover Hill cold open.</td><td>Dev D</td></tr>
