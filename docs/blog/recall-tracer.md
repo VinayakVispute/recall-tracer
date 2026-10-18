@@ -2,7 +2,7 @@
 
 *When a supplier reports a contaminated lot, which stores have to pull it? We built an AI agent that answers that from a FalkorDB graph of batches, rework and deliveries. On our demo lot it pulls 33 of 71 stores, shows the records behind every one, asks a human when the records run out, and remembers what it learned for next time.*
 
-Built for Graph Hacks: Context for AI Agents (FalkorDB), Track 01: Agents That Act on Connected Data. Try it with no setup: [recall-tracer.onrender.com](https://recall-tracer.onrender.com), press "Watch a recall".
+[Live demo](https://recall-tracer.onrender.com) (press "Watch a recall", no setup) · [Code](https://github.com/VinayakVispute/recall-tracer) · Built for Graph Hacks (WeMakeDevs × FalkorDB), Track 01: Agents That Act on Connected Data.
 
 **The short version**
 
@@ -207,11 +207,23 @@ On a public deployment, live agent runs are capped per visitor and per day so a 
 
 ---
 
+## What we learned
+
+1. **Decide early who decides.** "The graph decides, the model doesn't" settled a dozen arguments before they started. Every time the model was tempted to type a number, the rule said no, and the result is one an auditor can check.
+2. **A goal beats a checklist.** The numbered-steps prompt ran the same checks on every lot. The goal prompt skipped the chokepoint ranking on L-143 and asked no question, because the graph gave it no reason to. That is the difference between a workflow and an agent.
+3. **Memory has to change the plan, not the summary.** The L-205 run was the first time we saw a lesson from an earlier incident change what the agent did next. Until then memory was decoration.
+4. **Graph algorithms are tools, and tools need tests.** Betweenness sampled nodes at random, so the top chokepoint changed between runs. A fixed seed and one test fixed it. Anything the agent calls needs to answer the same way twice.
+5. **Missing data is data.** Making "delivered with no lot code" an edge turned the hardest question in a recall into a one-line query, and gave the agent a reason to ask a human.
+
+---
+
 ## Where this goes
 
 The hard part of a recall isn't the trace, it's the records. The graph model already matches FSMA 204's key data elements, so the next step is real data from an ERP or warehouse export instead of our generator. After that: more kinds of hazards, each with its own classification rules and notice wording, and sending notices for real once a human approves them.
 
 Until then, open the demo, run `L-204`, and watch the agent decide who gets pulled.
+
+If you build agents that take real actions, how do you decide what the model is allowed to decide? We'd like to hear where you drew the line. And if this was useful, a star on the [repo](https://github.com/VinayakVispute/recall-tracer) helps.
 
 ---
 
