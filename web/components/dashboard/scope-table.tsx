@@ -93,23 +93,6 @@ export function ScopeTable({ r, focus, onPick, filter: outer, onFilter, region, 
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="grid grid-cols-3 gap-2">
-        {ORDER.map((st) => {
-          const { Icon, label, text } = META[st]
-          const units = r.stores.filter((s) => s.status === st).reduce((n, s) => n + s.units_at_risk, 0)
-          return (
-            <div key={st} className="flex flex-col gap-0.5 rounded-lg border p-2.5 sm:p-3">
-              <span className={cn("flex items-center gap-1.5 text-xs font-medium", text)}>
-                <Icon className="size-3.5 shrink-0" aria-hidden />
-                {label}
-              </span>
-              <span className="text-xl font-semibold tabular-nums">{counts[st]} <span className="text-xs font-normal text-muted-foreground">stores</span></span>
-              <span className="text-xs text-muted-foreground tabular-nums">{st === "safe" ? "no units to pull" : `${fmt(units)} units to pull`}</span>
-            </div>
-          )
-        })}
-      </div>
-
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <InputGroup className="sm:max-w-xs">
           <InputGroupAddon><Search aria-hidden /></InputGroupAddon>

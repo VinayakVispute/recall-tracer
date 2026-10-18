@@ -10,7 +10,7 @@ import { UnitsFlow } from "@/components/dashboard/units-flow";
 import { StateBars, Exposure } from "@/components/dashboard/state-exposure";
 import { ScopeTable, type ScopeFilter } from "@/components/dashboard/scope-table";
 import { NetworkGraph } from "@/components/dashboard/record-network";
-import { Play } from "lucide-react";
+import { ArrowUpRight, Play } from "lucide-react";
 import {
   AgentTrace, Evidence, Notices, Assessment, ScopeStory, PublicNotice, MemoryPanel,
   fmt, shortDate, shortTime,
@@ -57,6 +57,7 @@ export function IncidentView({ lot, hazard, autostart, playback, initial }: { lo
   const [storeFilter, setStoreFilter] = useState<ScopeFilter>("all");
   const [gaps, setGaps] = useState<Gaps>(initial.run?.add_gap_stores === false ? "flag" : "add");
   const [view, setView] = useState<View>("scope");
+  const [showPath, setShowPath] = useState(false);
   const [rec, setRec] = useState<Recording>();
   const [lastLive, setLastLive] = useState<Recording>();
   const es = useRef<EventSource>(null);
@@ -194,9 +195,6 @@ export function IncidentView({ lot, hazard, autostart, playback, initial }: { lo
   const active = running || (replaying && replay.playing);
   const store = showReport?.stores.find((s) => s.id === selected);
   const depth = incident?.confirmed_depth ?? incident?.depth;
-  // Same moment the clock stops at: the first scope decision (finished_at for runs from before scoped_at existed).
-  const scopedAt = incident?.scoped_at ?? result?.finished_at;
-  const scopedAfter = scopedAt && incident?.reported_at ? Math.floor((Date.parse(scopedAt) - Date.parse(incident.reported_at)) / 1000) : undefined;
 
   // A lot with no incident yet: one clear next step, not empty tiles. Hold figures here would be stock on hand, not a hold.
   if (!incident && !result && !running && !replaying && !playback && !events.length) {
@@ -217,25 +215,36 @@ export function IncidentView({ lot, hazard, autostart, playback, initial }: { lo
     );
   }
   return (
-    <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-4 p-4">
+    <div className="mx-auto flex w-full max-w-none flex-col gap-4 p-4">
       <Card>
-        <CardContent className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex min-w-0 flex-1 basis-72 flex-col gap-1">
-            <h2 className="flex flex-wrap items-center gap-2 text-xl font-semibold">
-              {report || status?.incident ? <>Lot {lot}{report ? `, ${report.lot.ingredient}` : ""}</> : running ? `Opening incident for ${lot}` : `No incident open on ${lot}`}
-              {replaying && <Badge variant="outline">Replay</Badge>}
-              {!replaying && !running && (incident || result) && <Button size="sm" variant="outline" className="ml-auto" onClick={() => startReplay()}>Replay the trace</Button>}
-            </h2>
-            {report && <p className="text-sm text-muted-foreground">
-              {fmt(report.lot.received_kg)} kg from {report.lot.supplier} ({report.lot.supplier_id}), received {shortDate(report.lot.received_at)}.
-              {incident && <> Incident {incident.id}.</>}
-              {scopedAfter !== undefined && !replaying && <> Scope decided {scopedAfter >= 60 ? `${Math.floor(scopedAfter / 60)} min ${scopedAfter % 60} s` : `${scopedAfter} s`} after the notice was logged.</>}
-            </p>}
-            {incident && <p className="text-sm"><b className="text-destructive">Hazard</b> {incident.hazard}. <span className="text-muted-foreground">Logged {shortDate(incident.reported_at)}, {shortTime(incident.reported_at)}.{incident.confirmed_at && <> Class {incident.confirmed_class}, {incident.confirmed_depth} level, confirmed {shortDate(incident.confirmed_at)}, {shortTime(incident.confirmed_at)}.</>}</span></p>}
+        <CardContent className="flex flex-col gap-3">
+          <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+            <div className="flex min-w-0 flex-1 basis-72 flex-col gap-1">
+              <h2 className="flex flex-wrap items-center gap-2 text-xl font-semibold">
+                {report || status?.incident ? <>Lot {lot}{report ? `, ${report.lot.ingredient}` : ""}</> : running ? `Opening incident for ${lot}` : `No incident open on ${lot}`}
+                {incident && <Badge variant="destructive" title={`Logged ${shortDate(incident.reported_at)}, ${shortTime(incident.reported_at)}`}>{incident.hazard}</Badge>}
+                {replaying && <Badge variant="outline">Replay</Badge>}
+              </h2>
+              {/* One line of facts; the rest is on hover so the page leads with the decision. */}
+              {report && <p className="text-sm text-muted-foreground" title={incident ? `Incident ${incident.id}. Logged ${shortDate(incident.reported_at)}, ${shortTime(incident.reported_at)}.` : undefined}>
+                {fmt(report.lot.received_kg)} kg from {report.lot.supplier} · received {shortDate(report.lot.received_at)}
+                {incident?.confirmed_at && <> · Class {incident.confirmed_class} confirmed</>}
+              </p>}
+            </div>
+            <div className="flex items-center gap-4">
+              {incident && <Clock since={incident.reported_at} until={incident.scoped_at} />}
+              {!replaying && !running && (incident || result) && <Button size="sm" variant="outline" className="rounded-full" onClick={() => startReplay()}><Play className="size-3 fill-current" />Replay</Button>}
+            </div>
           </div>
-          {incident && <Clock since={incident.reported_at} until={incident.scoped_at} />}
-          <div className="flex w-full flex-col gap-1.5">
-            <p className="text-xs text-muted-foreground">{finished ? "The agent's path: the steps it chose, in order. Crossed out: steps it decided this lot didn't need." : "The agent's path: each step it chooses appears as it happens."}</p>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-foreground/7 pt-3 text-sm">
+            <span className="text-muted-foreground">Agent&apos;s path</span>
+            <b className="font-medium tabular-nums">{stages.filter(([, s]) => s === "done").length} steps done{skipped.length ? `, ${skipped.length} skipped` : ""}</b>
+            {stages.some(([, s]) => s === "failed") && <Badge variant="destructive">a step failed</Badge>}
+            {notices.length > 0 && <Badge variant={allApproved ? "default" : "outline"}>{allApproved ? "✓" : "○"} Approved {approved}/{notices.length}</Badge>}
+            {!active && stages.length > 0 && <Button size="xs" variant="link" className="px-0 text-muted-foreground" aria-expanded={showPath} onClick={() => setShowPath(!showPath)}>{showPath ? "Hide steps" : "Show steps"}</Button>}
+          </div>
+          {(active || showPath) && <div className="flex w-full flex-col gap-1.5">
+            <p className="text-xs text-muted-foreground">{finished ? "The steps it chose, in order. Crossed out: steps it decided this lot didn't need." : "Each step it chooses appears as it happens."}</p>
             <ol className="flex flex-wrap items-center gap-1.5" aria-label="The agent's path">
               {stages.map(([label, state, error], i) => (
                 <li key={label} className="flex items-center gap-1.5">
@@ -249,9 +258,8 @@ export function IncidentView({ lot, hazard, autostart, playback, initial }: { lo
                 </li>
               ))}
               {active && <li className="flex items-center gap-1.5"><span aria-hidden="true" className="text-muted-foreground">→</span><Badge variant="outline" className="animate-pulse border-primary">deciding the next step…</Badge></li>}
-              {notices.length > 0 && <li className="ml-2"><Badge variant={allApproved ? "default" : "outline"}>{allApproved ? "✓" : "○"} Approved {approved}/{notices.length}</Badge></li>}
             </ol>
-          </div>
+          </div>}
         </CardContent>
       </Card>
 
@@ -268,10 +276,10 @@ export function IncidentView({ lot, hazard, autostart, playback, initial }: { lo
                 <CardTitle>{showReport ? "What left the plant" : replaying ? "Replay of the trace" : "Live trace"}</CardTitle>
                 <CardAction>
                   <Tabs value={view} onValueChange={(v) => setView(v as View)}>
-                    <TabsList>
-                      <TabsTrigger value="scope" disabled={!showReport}>Scope table</TabsTrigger>
-                      <TabsTrigger value="flow" disabled={!showReport}>Units flow</TabsTrigger>
-                      <TabsTrigger value="network">Record network</TabsTrigger>
+                    <TabsList className="h-9 rounded-full bg-muted/60 p-1 ring-1 ring-foreground/10">
+                      <TabsTrigger value="scope" disabled={!showReport} className="rounded-full px-3">Scope table</TabsTrigger>
+                      <TabsTrigger value="flow" disabled={!showReport} className="rounded-full px-3">Units flow</TabsTrigger>
+                      <TabsTrigger value="network" className="rounded-full px-3">Record network</TabsTrigger>
                     </TabsList>
                   </Tabs>
                 </CardAction>
@@ -301,16 +309,17 @@ export function IncidentView({ lot, hazard, autostart, playback, initial }: { lo
               </CardContent>
             </Card>
             {showReport && <>
-              <div className="grid gap-4 lg:grid-cols-2">
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
                 <Card>
                   <CardHeader><CardTitle>Where it went</CardTitle><CardDescription>Stores by state. Click a state to filter the store table</CardDescription></CardHeader>
                   <CardContent><StateBars r={showReport} active={stateFilter} onPick={(st) => { setStateFilter(st); if (st) { setView("scope"); document.getElementById("scope")?.scrollIntoView({ behavior: "smooth", block: "start" }); } }} /></CardContent>
                 </Card>
-                <Card>
-                  <CardHeader><CardTitle>Exposure</CardTitle></CardHeader>
-                  <CardContent><Exposure r={showReport} /></CardContent>
-                </Card>
+                <AvoidedGauge r={showReport} />
               </div>
+              <Card>
+                <CardHeader><CardTitle>Exposure</CardTitle></CardHeader>
+                <CardContent><Exposure r={showReport} /></CardContent>
+              </Card>
               {depth === "consumer" && <PublicNotice r={showReport} />}
             </>}
           </> : (
@@ -385,33 +394,65 @@ function Clock({ since, until }: { since: string; until: string | null }) {
   const h = Math.floor(a / 3.6e6), m = Math.floor((a % 3.6e6) / 6e4), s = Math.floor((a % 6e4) / 1000);
   return (
     <div className="flex flex-col gap-0.5">
-      <p className="text-xs text-muted-foreground">{until ? "Scope decided after the notice" : "Since the notice · running"}</p>
+      <p className="text-xs text-muted-foreground">{until ? "Scope decided in" : "Since the notice"}</p>
       <p className={cn("font-mono text-2xl font-semibold tabular-nums", !until && now > start + 86_400_000 && "text-destructive")}>{h}:{pad2(m)}:{pad2(s)}</p>
-      <p className="text-xs text-muted-foreground">FDA Reportable Food Registry report due {shortDate(due)}, {shortTime(due)}</p>
+      <p className="text-xs text-muted-foreground"><span title="FDA Reportable Food Registry: report due 24 hours after the notice">FDA report due {shortDate(due)}, {shortTime(due)}</span></p>
     </div>
   );
 }
 
-function Kpi({ label, foot, tone, onClick, action, children }: { label: string; foot: string; tone?: string; onClick?: () => void; action?: React.ReactNode; children: React.ReactNode }) {
+/** A headline figure: label and (when it opens the store table) a round arrow button on top, the number at the bottom with a small coloured qualifier. */
+function Kpi({ label, foot, detail, accent, onClick, action, children }: { label: string; foot: string; detail?: string; accent?: React.ReactNode; onClick?: () => void; action?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <Card size="sm" className={cn("border-t-2", tone ?? "border-t-border", onClick && "transition-colors hover:bg-muted/40")}>
-      <CardContent className="flex flex-col gap-1">
-        {onClick
-          ? <button type="button" onClick={onClick} className="flex flex-col gap-1 rounded-md text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50" title="Show these stores in the table">
-              <span className="text-sm text-muted-foreground">{label} <span aria-hidden="true">→</span></span>
-              <span className="flex items-baseline gap-1.5 text-3xl font-semibold tabular-nums">{children}</span>
-            </button>
-          : <>
-              <p className="text-sm text-muted-foreground">{label}</p>
-              <div className="flex items-baseline gap-1.5 text-3xl font-semibold tabular-nums">{children}</div>
-            </>}
-        <p className="text-xs text-muted-foreground">{foot}</p>
-        {action}
+    <Card size="sm" title={detail} className={cn("group/kpi relative", onClick && "transition-colors hover:bg-muted/30")}>
+      {/* The whole tile is the button; the action link inside sits above it. */}
+      {onClick && <button type="button" onClick={onClick} className="absolute inset-0 z-0 rounded-2xl outline-none focus-visible:ring-3 focus-visible:ring-ring/50" aria-label={`${label}: show these stores in the table`} />}
+      <CardContent className="pointer-events-none relative flex h-full flex-col">
+        <div className="flex items-start justify-between gap-2">
+          <p className="text-[0.95rem] text-foreground/90">{label}</p>
+          {onClick && <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-full bg-muted/60 text-muted-foreground ring-1 ring-foreground/10 transition-colors group-hover/kpi:text-foreground"><ArrowUpRight className="size-4" /></span>}
+        </div>
+        <div className="mt-auto flex flex-wrap items-baseline gap-x-2 pt-5">
+          <span className="text-4xl font-medium tracking-tight tabular-nums">{children}</span>
+          {accent}
+        </div>
+        <p className="mt-1.5 truncate text-xs text-muted-foreground">{foot}</p>
+        {action && <div className="pointer-events-auto relative z-10">{action}</div>}
       </CardContent>
     </Card>
   );
 }
-const Of = ({ children }: { children: React.ReactNode }) => <span className="text-sm font-normal text-muted-foreground">{children}</span>;
+const Accent = ({ tone = "text-muted-foreground", children }: { tone?: string; children: React.ReactNode }) => <span className={cn("text-sm font-medium", tone)}>{children}</span>;
+
+/** Share of a blanket recall's units that targeting avoids, as a ring of ticks lit from blue to green. */
+function AvoidedGauge({ r }: { r: IncidentReport }) {
+  const c = r.counts;
+  const p = c.blanket_units ? 1 - c.units_to_pull / c.blanket_units : 0;
+  const N = 46, cx = 150, cy = 150, R = 132, len = 30;
+  const ticks = Array.from({ length: N }, (_, i) => {
+    const t = i / (N - 1), a = Math.PI - t * Math.PI, lit = t <= p;
+    const [x1, y1, x2, y2] = [cx + (R - len) * Math.cos(a), cy - (R - len) * Math.sin(a), cx + R * Math.cos(a), cy - R * Math.sin(a)];
+    return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} strokeWidth={lit ? 5.5 : 4} strokeLinecap="round"
+      stroke={lit ? `color-mix(in oklch, var(--chart-1) ${Math.round((1 - t / Math.max(p, 0.01)) * 100)}%, var(--chart-2))` : "var(--muted)"} />;
+  });
+  return (
+    <Card>
+      <CardHeader><CardTitle>Recall avoided</CardTitle><CardDescription>Units a blanket recall would pull that the records clear</CardDescription></CardHeader>
+      <CardContent className="flex flex-col items-center">
+        <div className="relative w-full max-w-72">
+          <svg viewBox="0 0 300 160" className="w-full" role="img" aria-label={`${Math.round(p * 100)}% of a blanket recall's units avoided`}>
+            <path d={`M ${cx - R - 10} ${cy} A ${R + 10} ${R + 10} 0 0 1 ${cx + R + 10} ${cy}`} fill="none" stroke="var(--border)" strokeWidth={1} />
+            {ticks}
+          </svg>
+          <div className="absolute inset-x-0 bottom-1 flex flex-col items-center">
+            <p className="text-5xl font-medium tracking-tight tabular-nums">{Math.round(p * 100)}<span className="text-2xl">%</span></p>
+          </div>
+        </div>
+        <p className="mt-2 text-center text-xs text-muted-foreground">{fmt(c.units_to_pull)} units to pull instead of {fmt(c.blanket_units)}</p>
+      </CardContent>
+    </Card>
+  );
+}
 
 function Kpis({ r, hold, lot, gaps, onGaps, onShow, canPreview }: {
   r?: IncidentReport; hold?: IncidentReport["hold"]; lot: string; gaps: Gaps; onGaps: (m: Gaps) => void; onShow: (f: ScopeFilter) => void; canPreview: boolean;
@@ -422,30 +463,35 @@ function Kpis({ r, hold, lot, gaps, onGaps, onShow, canPreview }: {
   const show = (f: ScopeFilter) => (c ? () => onShow(f) : undefined);
   return (
     <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5" aria-label="Key figures">
-      <Kpi tone="border-t-destructive" label="Stores to pull" onClick={show("recall")}
-        foot={c ? `${c.blanket} stores stocked the ${r!.skus.length} affected products. The records clear ${c.safe} of them; a blanket recall would hit all ${c.blanket}.` : "Tracing deliveries store by store."}>
-        {c ? <>{c.targeted}<Of>of {c.blanket}</Of></> : wait}
+      <Kpi label="Stores to pull" onClick={show("recall")} accent={c && <Accent tone="text-destructive">of {c.blanket}</Accent>}
+        foot={c ? `Blanket recall: all ${c.blanket}` : "Tracing deliveries…"}
+        detail={c ? `${c.blanket} stores stocked the ${r?.skus.length} affected products. The records clear ${c.safe} of them; a blanket recall would hit all ${c.blanket}.` : undefined}>
+        {c ? c.targeted : wait}
       </Kpi>
-      <Kpi label="Units to pull"
-        foot={c ? `A blanket recall of these products would pull ${fmt(c.blanket_units)}. Targeting saves ${Math.round(saved * 100)}%.` : "Counted from delivery records."}>
+      <Kpi label="Units to pull" accent={c && <Accent tone="text-chart-2">↓ {Math.round(saved * 100)}%</Accent>}
+        foot={c ? `Blanket recall: ${fmt(c.blanket_units)}` : "Counting deliveries…"}
+        detail={c ? `A blanket recall of these products would pull ${fmt(c.blanket_units)}. Targeting saves ${Math.round(saved * 100)}%.` : undefined}>
         {c ? fmt(c.units_to_pull) : wait}
       </Kpi>
-      <Kpi tone="border-t-chart-2" label="Held before it left"
-        foot={hold ? `Unshipped product at ${hold.totals.locations} plants and DCs, plus ${hold.totals.raw_kg} kg of unused ${lot}. On hold until QA releases it.` : "Placing the hold."}>
-        {hold ? <>{fmt(hold.totals.units)}<Of>units</Of></> : wait}
+      <Kpi label="Held before it left" accent={hold && <Accent tone="text-chart-2">units</Accent>}
+        foot={hold ? `At ${hold.totals.locations} sites, plus ${hold.totals.raw_kg} kg raw` : "Placing the hold…"}
+        detail={hold ? `Unshipped product at ${hold.totals.locations} plants and DCs, plus ${hold.totals.raw_kg} kg of unused ${lot}. On hold until QA releases it.` : undefined}>
+        {hold ? fmt(hold.totals.units) : wait}
       </Kpi>
-      <Kpi tone="border-t-chart-1" label="Pull, no lot code" onClick={show("gap")}
-        foot={r ? `Got ${[...new Set(r.stores.flatMap((s) => s.untracked.map((u) => u.product)))].join(", ") || "affected product"} with no lot code on the delivery record. ${gaps === "add" ? "Pulled to be safe." : "Flag-only preview: not counted in the recall above."}` : "Checking delivery records."}
+      <Kpi label="Pull, no lot code" onClick={show("gap")} accent={c && <Accent tone="text-chart-1">stores</Accent>}
+        foot={r ? (gaps === "add" ? "Pulled to be safe" : "Flag-only preview") : "Checking records…"}
+        detail={r ? `Got ${[...new Set(r.stores.flatMap((s) => s.untracked.map((u) => u.product)))].join(", ") || "affected product"} with no lot code on the delivery record. ${gaps === "add" ? "Pulled to be safe." : "Flag-only preview: not counted in the recall above."}` : undefined}
         action={c && c.gaps > 0 && canPreview ? (
           <Button size="xs" variant="link" className="self-start px-0" onClick={() => onGaps(gaps === "add" ? "flag" : "add")}>
             {gaps === "add" ? "Preview: flag, don't pull" : "Back to the agent's decision"}
           </Button>
         ) : undefined}>
-        {c ? <>{c.gaps}<Of>stores</Of></> : wait}
+        {c ? c.gaps : wait}
       </Kpi>
-      <Kpi tone="border-t-muted-foreground" label="Cleared" onClick={show("safe")}
-        foot={`Every lot they received was traced back to its ingredients. None contains ${lot}.`}>
-        {c ? <>{c.safe}<Of>stores</Of></> : wait}
+      <Kpi label="Cleared" onClick={show("safe")} accent={c && <Accent>stores</Accent>}
+        foot={`Proven free of ${lot}`}
+        detail={`Every lot they received was traced back to its ingredients. None contains ${lot}.`}>
+        {c ? c.safe : wait}
       </Kpi>
     </section>
   );

@@ -1,19 +1,23 @@
 "use client";
 
 import { useState } from 'react';
-import { Bar, BarChart, Cell, CartesianGrid, ReferenceArea, ReferenceLine, XAxis, YAxis } from 'recharts';
+import { ReferenceArea, ReferenceLine } from 'recharts';
 import type { IncidentReport } from '@server/tools/incident';
-import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart';
+import { EvilBarChart } from '@/components/evilcharts/charts/recharts-bar-chart';
+import type { ChartConfig } from '@/components/evilcharts/ui/recharts-chart';
+import { ChartTooltip, ChartTooltipContent } from '@/components/evilcharts/ui/recharts-tooltip';
 import { cn } from '@/lib/utils';
 
 const fmt = (n: number) => n.toLocaleString();
 const shortDate = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 const DAY = 864e5;
+/** Evil Charts colours are per theme; the app's theme tokens already switch with it, so both themes use the token. */
+const color = (token: string) => ({ light: [`var(${token})`], dark: [`var(${token})`] });
 
 const stateConfig = {
-  pull: { label: 'Pull', color: 'var(--destructive)' },
-  gap: { label: 'No lot code', color: 'var(--chart-1)' },
-  safe: { label: 'Cleared', color: 'var(--muted-foreground)' },
+  pull: { label: 'Pull', colors: color('--destructive') },
+  gap: { label: 'No lot code', colors: color('--chart-1') },
+  safe: { label: 'Cleared', colors: color('--muted-foreground') },
 } satisfies ChartConfig;
 
 export function StateBars({ r, active, onPick }: { r: IncidentReport; active?: string; onPick: (state?: string) => void }) {
@@ -29,13 +33,16 @@ export function StateBars({ r, active, onPick }: { r: IncidentReport; active?: s
   const toggle = (st: string) => onPick(active === st ? undefined : st);
 
   return (
-    <ChartContainer config={stateConfig} className="aspect-auto w-full" style={{ height: data.length * 34 + 56 }}>
-      <BarChart data={data} layout="vertical" margin={{ left: 0, right: 8, top: 0, bottom: 0 }} barCategoryGap={6}>
-        <CartesianGrid horizontal={false} />
-        <XAxis type="number" allowDecimals={false} tickLine={false} axisLine={false} />
-        <YAxis
-          type="category" dataKey="state" width={36} tickLine={false} axisLine={false}
+    <div style={{ height: data.length * 38 + 64 }}>
+      <EvilBarChart data={data} config={stateConfig} layout="horizontal" stackType="stacked" barRadius={4} barCategoryGap={8} animationType="left-to-right"
+        className="aspect-auto h-full w-full"
+        chartProps={{ margin: { left: 0, right: 8, top: 0, bottom: 0 }, className: 'cursor-pointer', onClick: (s) => { if (s?.activeLabel) toggle(String(s.activeLabel)); } }}>
+        <EvilBarChart.Grid />
+        <EvilBarChart.XAxis allowDecimals={false} />
+        <EvilBarChart.YAxis
+          dataKey="state" width={44}
           tick={({ x, y, payload }) => (
+            // A real control per state, so the filter works from the keyboard too.
             <g
               transform={`translate(${x},${y})`} role="button" tabIndex={0} className="cursor-pointer outline-none"
               aria-pressed={active === payload.value} aria-label={`Filter stores to ${payload.value}`}
@@ -46,29 +53,26 @@ export function StateBars({ r, active, onPick }: { r: IncidentReport; active?: s
             </g>
           )}
         />
-        <ChartTooltip
-          cursor={{ fill: 'var(--muted)', opacity: 0.5 }}
-          content={<ChartTooltipContent hideIndicator={false} formatter={(value, name, item) => (
+        <ChartTooltip cursor={{ fill: 'var(--muted)', opacity: 0.4 }} content={
+          <ChartTooltipContent variant="frosted-glass" formatter={(value, name, item) => (
             <div className="flex flex-1 items-center justify-between gap-4 leading-none">
               <span className="text-muted-foreground">{stateConfig[name as keyof typeof stateConfig]?.label}</span>
               <span className="font-mono font-medium tabular-nums">{value} stores, {fmt(item.payload[`${name}U`])} units</span>
             </div>
-          )} />}
-        />
-        <ChartLegend content={<ChartLegendContent />} />
-        {(['pull', 'gap', 'safe'] as const).map((k) => (
-          <Bar key={k} dataKey={k} stackId="a" fill={`var(--color-${k})`} className="cursor-pointer" onClick={(d) => toggle((d as unknown as { state: string }).state)}>
-            {data.map((d) => <Cell key={d.state} fillOpacity={active && active !== d.state ? 0.3 : 1} />)}
-          </Bar>
-        ))}
-      </BarChart>
-    </ChartContainer>
+          )} />
+        } />
+        <EvilBarChart.Legend variant="rounded-square" align="left" verticalAlign="bottom" />
+        <EvilBarChart.Bar dataKey="pull" variant="hatched" glowing />
+        <EvilBarChart.Bar dataKey="gap" variant="hatched" />
+        <EvilBarChart.Bar dataKey="safe" variant="hatched" />
+      </EvilBarChart>
+    </div>
   );
 }
 
 const expConfig = {
-  pull: { label: 'Contains the bad lot', color: 'var(--destructive)' },
-  gap: { label: 'No lot code', color: 'var(--chart-1)' },
+  pull: { label: 'Contains the bad lot', colors: color('--destructive') },
+  gap: { label: 'No lot code', colors: color('--chart-1') },
 } satisfies ChartConfig;
 
 export function Exposure({ r }: { r: IncidentReport }) {
@@ -117,20 +121,23 @@ export function Exposure({ r }: { r: IncidentReport }) {
           </div>
         ))}
       </dl>
-      <ChartContainer config={expConfig} className="aspect-auto h-52 w-full" role="img" aria-label={`Units delivered per day, ${shortDate(first)} to ${shortDate(last)}, with the shelf window and best-by date marked`}>
-        <BarChart data={data} margin={{ left: 0, right: 8, top: 18, bottom: 0 }}>
-          <CartesianGrid vertical={false} />
-          <ReferenceArea x1={first} x2={shelfEnd} fill="var(--muted)" fillOpacity={0.5} ifOverflow="visible" label={{ value: 'On shelves', position: 'insideTopLeft', fontSize: 11, fill: 'var(--muted-foreground)' }} />
+      <div className="h-60" role="img" aria-label={`Units delivered per day, ${shortDate(first)} to ${shortDate(last)}, with the shelf window and best-by date marked`}>
+        <EvilBarChart data={data} config={expConfig} stackType="stacked" barRadius={4} className="aspect-auto h-full w-full"
+          chartProps={{ margin: { left: 0, right: 8, top: 18, bottom: 0 } }}>
+          <ReferenceArea x1={first} x2={shelfEnd} fill="var(--muted)" fillOpacity={0.35} ifOverflow="visible" label={{ value: 'On shelves', position: 'insideTopLeft', fontSize: 11, fill: 'var(--muted-foreground)' }} />
           {bb[0] >= first && bb[0] <= lastDay && <ReferenceLine x={bb[0]} stroke="var(--chart-2)" strokeDasharray="4 3" label={{ value: 'Best-by', position: 'insideTopRight', fontSize: 11, fill: 'var(--chart-2)' }} />}
           {today > first && today <= lastDay && <ReferenceLine x={today} stroke="var(--foreground)" strokeDasharray="2 3" label={{ value: 'Today', position: 'top', fontSize: 11, fill: 'var(--foreground)' }} />}
-          <XAxis dataKey="date" tickLine={false} axisLine={false} tickFormatter={shortDate} minTickGap={16} />
-          <YAxis width={36} tickLine={false} axisLine={false} allowDecimals={false} />
-          <ChartTooltip content={<ChartTooltipContent labelFormatter={(_, p) => shortDate(p[0].payload.date)} />} />
-          <ChartLegend content={<ChartLegendContent />} />
-          <Bar dataKey="pull" stackId="a" fill="var(--color-pull)" radius={[0, 0, 0, 0]} />
-          <Bar dataKey="gap" stackId="a" fill="var(--color-gap)" radius={[2, 2, 0, 0]} />
-        </BarChart>
-      </ChartContainer>
+          <EvilBarChart.Grid />
+          <EvilBarChart.XAxis dataKey="date" tickFormatter={shortDate} minTickGap={16} />
+          <EvilBarChart.YAxis width={36} allowDecimals={false} />
+          <ChartTooltip cursor={{ fill: 'var(--muted)', opacity: 0.4 }} content={
+            <ChartTooltipContent variant="frosted-glass" labelFormatter={(_, p) => `${shortDate(p[0].payload.date)} · units delivered`} />
+          } />
+          <EvilBarChart.Legend variant="rounded-square" align="left" verticalAlign="bottom" />
+          <EvilBarChart.Bar dataKey="pull" variant="gradient" glowing />
+          <EvilBarChart.Bar dataKey="gap" variant="gradient" />
+        </EvilBarChart>
+      </div>
     </div>
   );
 }

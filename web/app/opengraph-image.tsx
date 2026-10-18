@@ -21,7 +21,15 @@ export default function Image() {
         <div style={{ display: "flex", justifyContent: "space-between" }}>
           <div style={{ display: "flex", flexDirection: "column", maxWidth: 640 }}>
             <div style={{ display: "flex", fontSize: 26, color: "#a3a3a3", letterSpacing: 2, textTransform: "uppercase" }}>Food recall agent · FalkorDB</div>
-            <div style={{ display: "flex", fontSize: 84, fontWeight: 700, marginTop: 12 }}>Recall Tracer</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 24, fontSize: 84, fontWeight: 700, marginTop: 12 }}>
+              {/* The mark from app/icon.svg, on a slightly lighter tile so it reads against the background. */}
+              <svg width="96" height="96" viewBox="0 0 32 32" aria-hidden="true">
+                <rect width="32" height="32" rx="7" fill="#1c1c1c" />
+                <path d="M10 25 V7 H16.5 A5 5 0 0 1 16.5 17 H10 M15.5 17 L21.5 23.5" fill="none" stroke="#fafafa" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                <circle cx="22.5" cy="24.5" r="3" fill="#f87171" />
+              </svg>
+              Recall Tracer
+            </div>
             <div style={{ display: "flex", fontSize: 32, color: "#d4d4d4", marginTop: 16, lineHeight: 1.3 }}>
               Traces a contaminated lot to every store, and proves the rest are clean.
             </div>
