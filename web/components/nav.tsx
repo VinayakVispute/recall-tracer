@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { DatabaseIcon, HistoryIcon, MessageSquareIcon, SearchIcon, SirenIcon, TruckIcon } from "lucide-react";
+import { DatabaseIcon, HistoryIcon, PlayIcon, MessageSquareIcon, SearchIcon, SirenIcon, TruckIcon } from "lucide-react";
 import type { IncidentSummary } from "@server/tools/incident";
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarInset,
@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 
 // The order a coordinator works in. Most recalls start at step 2, from a supplier's notice.
 const STEPS = [
-  { href: "/outbreak", label: "Find the source", icon: SearchIcon, lead: "Start from illness reports: the agent walks each case back to the ingredient lot they share." },
+  { href: "/outbreak", label: "Find the source", icon: SearchIcon, lead: "Start from illness reports and find the lot behind them, in your records or in public recalls." },
   { href: "/notice", label: "Supplier notice", icon: SirenIcon, lead: "Enter the lot and hazard from the supplier's alert to open the incident and start the 24-hour clock." },
   { href: "/incident", label: "Incident", icon: TruckIcon, lead: "Which stores pull, which are cleared, and the notices to approve. Every number comes from the graph." },
 ];
@@ -136,6 +136,10 @@ export function Nav({ graphLine, children }: { graphLine: React.ReactNode; child
           {step >= 0
             ? <p><span className="font-semibold">Step {step + 1} of 3 · {STEPS[step].label}</span><span className="hidden text-muted-foreground md:inline">. {STEPS[step].lead}</span></p>
             : <p className="font-semibold">{MORE.find((m) => on(pathname, m.href))?.label ?? TITLES[pathname]}</p>}
+          {/* A plain link, so it starts the replay even from the incident page itself. No API key needed. */}
+          <a href="/incident/L-204?replay=1" className="ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+            <PlayIcon className="size-3.5 fill-current" aria-hidden="true" />Watch a recall<span className="hidden sm:inline">&nbsp;in 40 s</span>
+          </a>
         </header>
         {children}
       </SidebarInset>

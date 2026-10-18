@@ -14,6 +14,8 @@ import { api, apiOrNull, ApiError, LOT_RE } from "@/lib/api";
 export const metadata = { title: "Incidents" };
 
 const STATUS: Record<IncidentSummary["status"], string> = { open: "Tracing", scoped: "Scope decided", notices_approved: "Notices approved" };
+// Recorded runs in demo/, one per path the agent can take.
+const REPLAYS = [["L-204", "(gaps, you decide)"], ["L-205", "(memory flags repeat gaps)"], ["L-143", "(one batch, no gaps)"], ["L-108", "(never used: hold only)"]] as const;
 // The date part only, so a server in UTC and the coordinator agree on it.
 const day = (iso: string) => new Date(`${iso.slice(0, 10)}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 const UNREACHABLE = "Cannot reach the Recall Tracer API. Check that it is running.";
@@ -56,6 +58,10 @@ export default async function Page({ searchParams }: PageProps<"/incident">) {
           <FieldDescription id="lot-msg" className={error ? "mt-2 text-destructive" : "mt-2"} role={error ? "alert" : undefined}>
             {error || <>To start a new incident, use the <Link href="/notice" className="underline">supplier notice</Link>.</>}
           </FieldDescription>
+          <p className="mt-3 text-sm text-muted-foreground">
+            Watch the agent take a different path on each lot:{" "}
+            {REPLAYS.map(([l, what], i) => <span key={l}>{i > 0 && " · "}<Link href={`/incident/${l}?replay=1`} className="underline"><span className="font-mono">{l}</span> {what}</Link></span>)}
+          </p>
         </CardContent>
       </Card>
 
