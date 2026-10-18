@@ -1,5 +1,9 @@
 # Recall Tracer
 
+[![A recorded agent run on lot L-204: the record network lights up step by step while the investigation log fills in, ending at 33 of 71 stores to pull, 2,256 units instead of 7,672, and 38 stores cleared](docs/recall-tracer-replay.gif)](https://recall-tracer.onrender.com/incident/L-204?replay=1)
+
+**33 of 71 stores pulled instead of all 71. 2,256 units instead of 7,672. 38 stores cleared, each one proven by the records.** Above: a real agent run replayed at 2× speed. [Open the replay](https://recall-tracer.onrender.com/incident/L-204?replay=1).
+
 When a supplier reports a contaminated ingredient lot, most food companies can't say which stores got it, so they recall everything. Recall Tracer is an agent that works the incident the way a recall coordinator does, on a FalkorDB graph of lots, batches, rework, inventory and deliveries: it assesses the hazard, holds what hasn't left the plant, follows the lot to every store with the path that proves it, clears the stores whose records are clean, widens the recall where records are missing, and drafts notices for a human to confirm and approve.
 
 Built for [Graph Hacks: Context for AI Agents](https://www.wemakedevs.org/hackathons/falkordb), Track 01 (agents that act on connected data) and Track 02 (agent memory and coordination).
