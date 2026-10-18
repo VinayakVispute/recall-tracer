@@ -8,7 +8,7 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { query } from '../graph/db.js';
 import { AFFECTED_SHIPMENTS, STORES, LOT_EXISTS, INCIDENT_DELETE, INCIDENT_CREATE, INCIDENT_CONFIRM, CLUSTER_CASES, CLUSTER_DETAIL, COUNT_NODES, COUNT_EDGES, GRAPH_LABELS } from '../graph/queries.js';
 import { traceForward, coverageGaps, unaffectedStores, traceBackward, readHold, readNotices, writeNotices, incidentId, RECALL_CLASSES, RECALL_DEPTHS } from '../tools/index.js';
-import { createAgentUIStreamResponse } from 'ai';
+import { createAgentUIStreamResponse, type UIMessage } from 'ai';
 import { getRecallAgent, runAgent, runOutbreak } from '../agent/ai-agent.js';
 import type { RecallResult, TraceEvent } from '../agent/run.js';
 import { answer, listen, unlisten } from '../agent/questions.js';
@@ -29,6 +29,28 @@ app.onError((err, c) => {
   const message = code === 'ECONNREFUSED' ? 'Cannot reach FalkorDB. Is the database container running?' : err.message || 'Internal error';
   return c.json({ error: message }, 500);
 });
+
+/**
+ * Caps live agent runs, since every one spends Claude credits on a public URL: a few per visitor per hour and a total
+ * per day. Over the cap the route answers with a message pointing at the recorded run, which never calls Claude.
+ */
+const PER_IP_HOUR = Number(process.env.AGENT_RUNS_PER_IP_HOUR ?? 10);
+const PER_DAY = Number(process.env.AGENT_RUNS_PER_DAY ?? 100);
+export const LIMITED = 'Demo limit reached for live agent runs. Watch the recorded run instead: /incident/L-204?replay=1';
+const runs = new Map<string, number[]>();
+let today = '', todayCount = 0;
+// ponytail: in-memory, so it resets on restart and only covers one instance; the header can be spoofed, the daily cap can't.
+export function overLimit(c: Context) {
+  const ip = (c.req.header('x-forwarded-for') ?? '').split(',')[0].trim() || 'local';
+  const now = Date.now(), day = new Date(now).toISOString().slice(0, 10);
+  if (day !== today) { today = day; todayCount = 0; runs.clear(); }
+  const recent = (runs.get(ip) ?? []).filter((t) => now - t < 3_600_000);
+  if (recent.length >= PER_IP_HOUR || todayCount >= PER_DAY) return true;
+  runs.set(ip, [...recent, now]); todayCount++;
+  return false;
+}
+/** The limit as the stream's error event, so the page shows the message instead of "lost connection". */
+const limitedSSE = (c: Context) => streamSSE(c, (s) => s.writeSSE({ event: 'error', data: JSON.stringify({ type: 'error', message: LIMITED }) }));
 
 /** Validates the lot and checks it exists, so bad input never spends a Claude call. Returns an error message or null. */
 async function checkLot(lot?: string): Promise<[number, string] | null> {
@@ -56,6 +78,7 @@ app.post('/recall', async (c) => {
   const { lot, hazard } = await c.req.json<{ lot?: string; hazard?: string }>();
   const bad = await checkLot(lot);
   if (bad) return c.json({ error: bad[1] }, bad[0] as 400);
+  if (overLimit(c)) return c.json({ error: LIMITED }, 429);
   await openIncident(lot!, hazard);
   const result = await runAgent(lot!);
   save(result);
@@ -107,6 +130,7 @@ app.get('/recall/stream', async (c) => {
   const lot = c.req.query('lot');
   const bad = await checkLot(lot);
   if (bad) return c.json({ error: bad[1] }, bad[0] as 400);
+  if (overLimit(c)) return limitedSSE(c);
   return traceSSE(c, async (send) => {
     const t0 = Date.now(), events: Recording['events'] = [];
     await openIncident(lot!, c.req.query('hazard'));
@@ -173,6 +197,7 @@ app.post('/outbreak', async (c) => {
   const { cluster } = await c.req.json<{ cluster?: string }>();
   const bad = await checkCluster(cluster);
   if (bad) return c.json({ error: bad[1] }, bad[0] as 400);
+  if (overLimit(c)) return c.json({ error: LIMITED }, 429);
   return c.json(await runOutbreak(cluster!));
 });
 
@@ -181,6 +206,7 @@ app.get('/outbreak/stream', async (c) => {
   const cluster = c.req.query('cluster');
   const bad = await checkCluster(cluster);
   if (bad) return c.json({ error: bad[1] }, bad[0] as 400);
+  if (overLimit(c)) return limitedSSE(c);
   return traceSSE(c, async (send) => { await runOutbreak(cluster!, send); });
 });
 
@@ -370,10 +396,18 @@ app.get('/export/:file', async (c) => {
 const mcp = createMcpHandler(registerTools, { serverInfo: { name: 'recall-tracer', version: '0.1.0' } });
 app.all('/mcp', (c) => mcp(c.req.raw));
 
+const CHAT_MAX_MESSAGES = 10, CHAT_MAX_CHARS = 2000;
 /** Chat with the recall agent: useChat sends its UI messages here, and tool-approval replies come back the same way. */
 app.post('/chat', async (c) => {
-  const { messages } = await c.req.json();
-  return createAgentUIStreamResponse({ agent: await getRecallAgent(), uiMessages: messages, abortSignal: c.req.raw.signal });
+  const { messages } = await c.req.json<{ messages: UIMessage[] }>();
+  if (!Array.isArray(messages) || !messages.length) return c.text('No messages.', 400);
+  const text = (m: UIMessage) => m.parts.map((p) => (p.type === 'text' ? p.text : '')).join('');
+  if (messages.some((m) => m.role === 'user' && text(m).length > CHAT_MAX_CHARS)) return c.text(`Keep each message under ${CHAT_MAX_CHARS} characters.`, 413);
+  if (overLimit(c)) return c.text(LIMITED, 429);
+  // Only the recent turns go to Claude, starting at a user message, so a long chat can't grow the bill per reply.
+  const recent = messages.slice(-CHAT_MAX_MESSAGES);
+  const from = recent.findIndex((m) => m.role === 'user');
+  return createAgentUIStreamResponse({ agent: await getRecallAgent(), uiMessages: from < 0 ? recent : recent.slice(from), abortSignal: c.req.raw.signal });
 });
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

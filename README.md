@@ -237,7 +237,7 @@ cp .env.example .env            # add ANTHROPIC_API_KEY
 docker compose up --build       # FalkorDB + app; seeds the demo graph on start
 ```
 
-Open http://localhost:3000 (set `APP_PORT` to use another port). Without an API key the dashboards, the graph views and the recorded run at `/incident/L-204?replay=1` still work; only live agent runs need the key. The MCP endpoint is at `http://localhost:3000/api/mcp`. The same `Dockerfile` deploys to any container host. Point `FALKORDB_HOST`/`FALKORDB_PORT` at a FalkorDB instance (for example FalkorDB Cloud) and set `ANTHROPIC_API_KEY`.
+Open http://localhost:3000 (set `APP_PORT` to use another port). Without an API key the dashboards, the graph views and the recorded run at `/incident/L-204?replay=1` still work; only live agent runs need the key. Live agent runs (incident, outbreak, chat) are capped so a public URL can't run up the Claude bill: `AGENT_RUNS_PER_IP_HOUR` (default 10) per visitor and `AGENT_RUNS_PER_DAY` (default 100) in total; over the cap the page points to the recorded run. Chat sends only the last 10 messages, each under 2,000 characters. The MCP endpoint is at `http://localhost:3000/api/mcp`. The same `Dockerfile` deploys to any container host. Point `FALKORDB_HOST`/`FALKORDB_PORT` at a FalkorDB instance (for example FalkorDB Cloud) and set `ANTHROPIC_API_KEY`.
 
 ## Run it for development
 

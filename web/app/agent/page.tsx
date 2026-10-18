@@ -50,7 +50,7 @@ const SUGGESTIONS = [
 ];
 
 export default function Page() {
-  const { messages, sendMessage, status, stop, addToolApprovalResponse } =
+  const { messages, sendMessage, status, stop, error, addToolApprovalResponse } =
     useChat({
       transport: new DefaultChatTransport({ api: "/api/chat" }),
       sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
@@ -158,11 +158,12 @@ export default function Page() {
             ))}
           </Suggestions>
         )}
+        {error && <p className="text-sm text-destructive" role="alert">{error.message}</p>}
         <PromptInput onSubmit={({ text }) => {
           if (text.trim()) sendMessage({ text });
         }}>
           <PromptInputBody>
-            <PromptInputTextarea placeholder="Ask about a lot or an FDA recall" />
+            <PromptInputTextarea placeholder="Ask about a lot or an FDA recall" maxLength={2000} />
           </PromptInputBody>
           <PromptInputFooter className="justify-end">
             <PromptInputSubmit status={status} onStop={stop} />

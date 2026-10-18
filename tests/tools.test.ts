@@ -187,6 +187,16 @@ describe('API', () => {
     expect((await post('L-999')).status).toBe(404);
   });
 
+  it('caps live agent runs per visitor per hour; chat rejects long messages before any Claude call', async () => {
+    const { app, overLimit } = await import('../src/api/server.js');
+    const from = (ip: string) => ({ req: { header: () => ip } }) as never;
+    for (let i = 0; i < 10; i++) expect(overLimit(from('203.0.113.7'))).toBe(false);
+    expect(overLimit(from('203.0.113.7'))).toBe(true);
+    expect(overLimit(from('203.0.113.8'))).toBe(false);
+    const res = await app.request('/chat', { method: 'POST', body: JSON.stringify({ messages: [{ id: '1', role: 'user', parts: [{ type: 'text', text: 'x'.repeat(2001) }] }] }) });
+    expect(res.status).toBe(413);
+  });
+
   it.skipIf(!process.env.E2E)('end to end: POST /recall in under 60 s with matching counts', async () => {
     const { app } = await import('../src/api/server.js');
     const t0 = Date.now();
