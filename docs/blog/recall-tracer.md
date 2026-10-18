@@ -2,7 +2,7 @@
 
 *When a supplier reports a contaminated lot, which stores have to pull it? We built an AI agent that answers that from a FalkorDB graph of batches, rework and deliveries. On our demo lot it pulls 33 of 71 stores, shows the records behind every one, asks a human when the records run out, and remembers what it learned for next time.*
 
-[Live demo](https://recall-tracer.onrender.com) (press "Watch a recall", no setup) · [Code](https://github.com/VinayakVispute/recall-tracer) · Built for Graph Hacks (WeMakeDevs × FalkorDB), Track 01: Agents That Act on Connected Data.
+[Live demo](https://recall-tracer.onrender.com/outbreak) (press "Watch a recall", no setup) · [Code](https://github.com/VinayakVispute/recall-tracer) · Built for Graph Hacks (WeMakeDevs × FalkorDB), Track 01: Agents That Act on Connected Data.
 
 **The short version**
 
@@ -179,7 +179,7 @@ There's also an outbreak page that walks illness cases back to a shared lot, and
 
 This is a prototype. Northfield Foods and its plants, stores and lots are test data from a seeded generator. The outbreaks and recalls on the real-records page are real public records. Nothing is ever sent anywhere. Notices stay drafts until a human approves them, and even then they're only marked approved.
 
-**Watch a recorded run.** Open [recall-tracer.onrender.com](https://recall-tracer.onrender.com) and press "Watch a recall" in the top bar. It replays a real recorded run of L-204 with the original timing, about 50 seconds. The Incident page also links the runs for L-205, L-143 and L-108 so you can compare paths. No setup, no API key.
+**Watch a recorded run.** Open [recall-tracer.onrender.com/outbreak](https://recall-tracer.onrender.com/outbreak) and press "Watch a recall" in the top bar. It replays a real recorded run of L-204 with the original timing, about 50 seconds. The Incident page also links the runs for L-205, L-143 and L-108 so you can compare paths. No setup, no API key.
 
 **Run it yourself.** You need Docker and an Anthropic API key.
 
@@ -235,7 +235,7 @@ If you build agents that take real actions, how do you decide what the model is 
 
 ## Links and sources
 
-- Live demo: https://recall-tracer.onrender.com
+- Live demo: https://recall-tracer.onrender.com/outbreak
 - GitHub: https://github.com/VinayakVispute/recall-tracer
 - Demo video: (add URL)
 
