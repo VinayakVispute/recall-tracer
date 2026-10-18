@@ -9,6 +9,7 @@ import { CommandMenu } from "@/components/command-menu";
 import { Logo } from "@/components/logo";
 import { SiteFooter } from "@/components/site-footer";
 import { api } from "@/lib/api";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 // The order a coordinator works in. Most recalls start at step 2, from a supplier's notice.
@@ -85,11 +86,15 @@ export function Nav({ graphLine, children }: { graphLine: React.ReactNode; child
                 </li>
               ))}
               <li aria-hidden="true" className="mx-1.5 h-5 w-px shrink-0 bg-foreground/10" />
+              {/* The rest are icons only; the name shows as a tooltip on hover or focus and is read out by screen readers. */}
               {MORE.map((m) => (
                 <li key={m.href}>
-                  <Link href={m.href} title={m.label} aria-current={on(pathname, m.href) ? "page" : undefined} className={link(on(pathname, m.href))}>
-                    <m.icon className="size-4" aria-hidden="true" /><span className="sr-only xl:not-sr-only">{m.label}</span>
-                  </Link>
+                  <Tooltip>
+                    <TooltipTrigger render={<Link href={m.href} aria-label={m.label} aria-current={on(pathname, m.href) ? "page" : undefined} className={cn(link(on(pathname, m.href)), "px-2.5")} />}>
+                      <m.icon className="size-4" aria-hidden="true" />
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">{m.label}</TooltipContent>
+                  </Tooltip>
                 </li>
               ))}
             </ul>
@@ -110,7 +115,7 @@ export function Nav({ graphLine, children }: { graphLine: React.ReactNode; child
             {/* A plain link, so it starts the replay even from the incident page itself. No API key needed. */}
             <a href="/incident/L-204?replay=1" className={cn(pill, "bg-primary py-1.5 pr-1.5 pl-1.5 font-medium sm:pr-4 text-primary-foreground shadow-[0_0_24px_rgb(255_255_255/0.08)] hover:bg-primary/90")}>
               <span className="grid size-6 place-items-center rounded-full bg-primary-foreground text-primary" aria-hidden="true"><PlayIcon className="ml-px size-3 fill-current" /></span>
-              <span className="sr-only sm:not-sr-only">Watch a recall</span><span className="hidden text-primary-foreground/60 md:inline">&nbsp;· 40 s</span>
+              <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">Watch a recall</span><span className="hidden text-primary-foreground/60 md:inline">&nbsp;· 40 s</span>
             </a>
           </div>
         </div>
