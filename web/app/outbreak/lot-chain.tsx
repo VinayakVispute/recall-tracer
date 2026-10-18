@@ -66,7 +66,7 @@ export function LotChain({ report, chain }: { report: CaseReport; chain: Chain }
   return (
     <div className="h-80 overflow-hidden rounded-md border bg-muted/30" role="img"
       aria-label={`The uploaded case report leads to lot ${chain.lot}, named in recalls by ${chain.firms.join(", ")}.`}>
-      <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} colorMode="system" fitView fitViewOptions={{ padding: 0.08 }}
+      <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} colorMode="dark" fitView fitViewOptions={{ padding: 0.08 }}
         nodesDraggable={false} nodesConnectable={false} elementsSelectable={false} zoomOnScroll={false} preventScrolling={false} panOnDrag minZoom={0.3}
         proOptions={{ hideAttribution: true }}>
         <Background gap={20} size={1} />

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { DatabaseIcon, HistoryIcon, PlayIcon, MessageSquareIcon } from "lucide-react";
 import type { IncidentSummary } from "@server/tools/incident";
+import { CommandMenu } from "@/components/command-menu";
 import { Logo } from "@/components/logo";
 import { SiteFooter } from "@/components/site-footer";
 import { api } from "@/lib/api";
@@ -49,7 +50,7 @@ function useOpenIncident(pathname: string) {
   return inc;
 }
 
-const pill = "inline-flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50";
+const pill = "inline-flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm whitespace-nowrap transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50";
 
 /** The app shell: a top bar with the steps as pills. `graphLine` is a server component passed in by the layout, streamed under its own Suspense boundary. */
 export function Nav({ graphLine, children }: { graphLine: React.ReactNode; children: React.ReactNode }) {
@@ -94,6 +95,7 @@ export function Nav({ graphLine, children }: { graphLine: React.ReactNode; child
             </ul>
           </nav>
           <div className="flex shrink-0 items-center gap-2">
+            <CommandMenu />
             {inc && status && (
               <Link href={`/incident/${inc.lot}`} title={`${inc.hazard}. ${status.text}`}
                 className={cn(pill, "hidden bg-card/80 ring-1 ring-foreground/7 hover:bg-secondary 2xl:inline-flex", pathname === `/incident/${inc.lot}` && "ring-foreground/20")}>
@@ -106,9 +108,9 @@ export function Nav({ graphLine, children }: { graphLine: React.ReactNode; child
               </Link>
             )}
             {/* A plain link, so it starts the replay even from the incident page itself. No API key needed. */}
-            <a href="/incident/L-204?replay=1" className={cn(pill, "bg-primary py-1.5 pr-4 pl-1.5 font-medium text-primary-foreground shadow-[0_0_24px_rgb(255_255_255/0.08)] hover:bg-primary/90")}>
+            <a href="/incident/L-204?replay=1" className={cn(pill, "bg-primary py-1.5 pr-1.5 pl-1.5 font-medium sm:pr-4 text-primary-foreground shadow-[0_0_24px_rgb(255_255_255/0.08)] hover:bg-primary/90")}>
               <span className="grid size-6 place-items-center rounded-full bg-primary-foreground text-primary" aria-hidden="true"><PlayIcon className="ml-px size-3 fill-current" /></span>
-              Watch a recall<span className="hidden text-primary-foreground/60 sm:inline">&nbsp;· 40 s</span>
+              <span className="sr-only sm:not-sr-only">Watch a recall</span><span className="hidden text-primary-foreground/60 md:inline">&nbsp;· 40 s</span>
             </a>
           </div>
         </div>
@@ -118,7 +120,8 @@ export function Nav({ graphLine, children }: { graphLine: React.ReactNode; child
         </div>
       </header>
       {/* Striped columns down both sides of the page on wider screens; the content sits between them. */}
-      <div className="grid flex-1 md:grid-cols-[var(--rail-width)_minmax(0,1fr)_var(--rail-width)]">
+      {/* minmax(0,1fr) on phones too: a bare grid column would grow to its widest child and push pages off screen. */}
+      <div className="grid flex-1 grid-cols-[minmax(0,1fr)] md:grid-cols-[var(--rail-width)_minmax(0,1fr)_var(--rail-width)]">
         <div aria-hidden="true" className="rail hidden md:block" />
         <div className="flex min-w-0 flex-col">
           <div className="flex flex-1 flex-col">{children}</div>

@@ -5,7 +5,7 @@ import type { IncidentSummary } from "@server/tools/incident";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Empty, EmptyDescription } from "@/components/ui/empty";
+import { StartHere } from "@/components/start-here";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -89,11 +89,10 @@ export default async function Page({ searchParams }: PageProps<"/incident">) {
                 </TableBody>
               </Table>
             ) : (
-              <Empty>
-                <EmptyDescription>
-                  No incidents yet. Start from an <Link href="/outbreak" className="underline">outbreak</Link> or a <Link href="/notice" className="underline">supplier notice</Link>.
-                </EmptyDescription>
-              </Empty>
+              <div className="flex flex-col gap-3">
+                <p className="text-sm text-muted-foreground">No incidents yet. Start from an <Link href="/outbreak" className="underline">outbreak</Link> or a <Link href="/notice" className="underline">supplier notice</Link>, or:</p>
+                <StartHere />
+              </div>
             )}
         </CardContent>
       </Card>

@@ -18,9 +18,9 @@ const day = (iso: string) => new Date(`${iso.slice(0, 10)}T00:00:00Z`).toLocaleD
 function Source({ title, n, unit, line, warn, foot }: { title: string; n: number; unit: string; line: string; warn?: string; foot: React.ReactNode }) {
   return (
     <Card size="sm">
-      <CardHeader><CardTitle>{title}</CardTitle></CardHeader>
-      <CardContent className="flex flex-col gap-1">
-        <p className="flex items-baseline gap-1.5"><span className="text-3xl font-semibold tabular-nums">{fmt(n)}</span><span className="text-sm text-muted-foreground">{unit}</span></p>
+      <CardHeader><CardTitle className="text-[0.95rem] font-normal text-foreground/90">{title}</CardTitle></CardHeader>
+      <CardContent className="flex flex-1 flex-col gap-1">
+        <p className="mt-auto flex items-baseline gap-2 pt-2"><span className="text-4xl font-medium tracking-tight tabular-nums">{fmt(n)}</span><span className="text-sm font-medium text-muted-foreground">{unit}</span></p>
         <p className="text-xs text-muted-foreground">{line}</p>
         {warn && <p className="text-xs text-chart-1">{warn}</p>}
       </CardContent>

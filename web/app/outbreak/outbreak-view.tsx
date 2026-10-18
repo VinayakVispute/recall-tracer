@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { Candidate, OutbreakEvent, OutbreakResult } from "@server/contracts";
 import type { IncidentReport } from "@server/tools/incident";
 import { AgentTrace, shortDate, type Step } from "@/components/dashboard/panels";
+import { StatTile } from "@/components/stat-tile";
 import { EvilBarChart } from "@/components/evilcharts/charts/recharts-bar-chart";
 import type { ChartConfig } from "@/components/evilcharts/ui/recharts-chart";
 import { ChartTooltip, ChartTooltipContent } from "@/components/evilcharts/ui/recharts-tooltip";
@@ -74,8 +75,18 @@ export function OutbreakView({ id, cluster, loadError }: { id: string; cluster: 
   const explains = new Set(candidate?.explained ?? []);
   const states = new Set(cluster.cases.map((c) => c.region));
 
+  const onsets = cluster.cases.map((c) => c.onset).sort();
+  const unknown = cluster.cases.filter((c) => !c.sku).length;
   return (
     <div className="mx-auto flex w-full max-w-none flex-col gap-4 px-4 pb-4">
+      {/* The cluster at a glance, in the same tiles as the incident dashboard. */}
+      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Cluster figures">
+        <StatTile label="Cases" value={cluster.cases.length} unit={cluster.pathogen.split(" ")[0]} tone="text-destructive" foot={`Cluster ${cluster.id}, opened ${shortDate(cluster.opened_at)}`} />
+        <StatTile label="States" value={states.size} unit="states" foot={[...states].sort().join(", ")} />
+        <StatTile label="Stores" value={new Set(cluster.cases.map((c) => c.store)).size} unit="stores" foot="Where the sick people bought food" />
+        <StatTile label="Illness onsets" value={onsets.length ? shortDate(onsets[0]) : "—"} unit={onsets.length > 1 ? `to ${shortDate(onsets.at(-1) ?? "")}` : undefined}
+          foot={unknown ? `${unknown} ${unknown === 1 ? "case doesn't" : "cases don't"} name the product` : "Every case names the product"} />
+      </section>
       <Card>
         <CardHeader>
           <CardTitle>Linked cluster {cluster.id}</CardTitle>
