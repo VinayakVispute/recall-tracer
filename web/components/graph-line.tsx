@@ -13,7 +13,6 @@ export async function GraphLine() {
         <span>Connected to FalkorDB · {s.nodes.toLocaleString()} records</span>
         {/* The total, matching the investigation log; an API without db_ms yet falls back to the average. */}
         {s.last_run && <span>Last recall ({s.last_run.lot}): {s.last_run.queries} graph queries, {s.last_run.db_ms !== undefined ? `${ms(s.last_run.db_ms)} in FalkorDB` : `${s.last_run.avg_db_ms} ms each`}</span>}
-        <span>Demo company with synthetic records</span>
       </span>
     );
   } catch {
