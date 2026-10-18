@@ -237,6 +237,5 @@ If you build agents that take real actions, how do you decide what the model is 
 
 - Live demo: https://recall-tracer.onrender.com/outbreak
 - GitHub: https://github.com/VinayakVispute/recall-tracer
-- Demo video: (add URL)
 
 Sources for the real incidents: CDC and FDA outbreak investigations (alfalfa sprouts, 2026; Listeria in soft cheese, 2026), openFDA food enforcement reports (recalls H-1341-2026, H-1404-2026 and the California Dairies recalls H-0698 to H-0700-2026), and FDA recall notices. All figures as published, checked October 17 and 18, 2026.
