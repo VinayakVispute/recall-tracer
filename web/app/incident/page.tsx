@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { api, apiOrNull, ApiError, LOT_RE } from "@/lib/api";
 
-export const metadata = { title: "Incidents" };
+export const metadata = { title: "Incidents", description: "Open a recall incident by lot code, or watch a recorded agent run trace lot L-204 to 33 of 71 stores." };
 
 const STATUS: Record<IncidentSummary["status"], string> = { open: "Tracing", scoped: "Scope decided", notices_approved: "Notices approved" };
 // Recorded runs in demo/, one per path the agent can take.

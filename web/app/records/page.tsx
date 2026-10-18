@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { api, ApiError } from "@/lib/api";
 import { SourceMap } from "@/components/records/source-map";
 
-export const metadata = { title: "Records" };
+export const metadata = { title: "Records", description: "Where the graph's records come from: real openFDA recalls and CDC outbreak data, and a demo company's lots, batches, product lots and stores." };
 
 const fmt = (n: number) => n.toLocaleString("en-US");
 // Rendered on the server: say the time zone rather than guess the reader's.

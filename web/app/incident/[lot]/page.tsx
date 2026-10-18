@@ -8,7 +8,8 @@ import type { Initial, Status } from "./incident-view";
 
 export async function generateMetadata({ params }: PageProps<"/incident/[lot]">) {
   const { lot } = await params;
-  return { title: `Incident ${decodeURIComponent(lot)}` };
+  const code = decodeURIComponent(lot);
+  return { title: `Incident ${code}`, description: `Which stores pull lot ${code}, which are cleared and why: every decision traced through the FalkorDB graph, with the agent's steps and queries.` };
 }
 
 export default async function Page({ params, searchParams }: PageProps<"/incident/[lot]">) {

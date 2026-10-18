@@ -2,7 +2,7 @@ import type { IncidentReport, IncidentSummary } from "@server/tools/incident";
 import { api, apiOrNull, ApiError, LOT_RE } from "@/lib/api";
 import { NoticeForm, type Epi, type LotFacts } from "./notice-form";
 
-export const metadata = { title: "Supplier notice" };
+export const metadata = { title: "Supplier notice", description: "Enter the lot code and hazard from a supplier's notice to open an incident. The agent holds stock, traces the lot and scopes the recall." };
 
 const one = (v: string | string[] | undefined) => (typeof v === "string" ? v : undefined);
 

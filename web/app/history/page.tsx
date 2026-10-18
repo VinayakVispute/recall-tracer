@@ -6,7 +6,7 @@ import { Empty, EmptyDescription } from "@/components/ui/empty";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { api, ApiError } from "@/lib/api";
 
-export const metadata = { title: "History" };
+export const metadata = { title: "History", description: "Every recall incident, its scope and what the agent saved to memory for the next incident from the same supplier." };
 
 const STATUS: Record<IncidentSummary["status"], string> = { open: "Tracing", scoped: "Scope decided", notices_approved: "Notices approved" };
 // The date part only: a server in UTC and a coordinator elsewhere agree on it. (panels.tsx is a client module, so its helpers are not callable here.)

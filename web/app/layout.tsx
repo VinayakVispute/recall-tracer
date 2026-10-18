@@ -16,9 +16,16 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const description = "An AI agent that traces a contaminated food ingredient lot to every store on a FalkorDB graph, proves which stores are clear, and drafts the recall for the coordinator to approve.";
+
 export const metadata: Metadata = {
-  title: { template: "%s · Recall Tracer", default: "Recall Tracer" },
-  description: "Traces a contaminated ingredient lot to every store, proves which stores are clear, and drafts the recall for the coordinator to approve.",
+  metadataBase: new URL(process.env.SITE_URL ?? "https://recall-tracer.onrender.com"),
+  title: { template: "%s · Recall Tracer", default: "Recall Tracer: targeted food recalls on a FalkorDB graph" },
+  description,
+  applicationName: "Recall Tracer",
+  keywords: ["food recall", "traceability", "FSMA 204", "lot tracing", "FalkorDB", "graph database", "AI agent", "MCP"],
+  openGraph: { type: "website", siteName: "Recall Tracer", locale: "en_US" },
+  twitter: { card: "summary_large_image" },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

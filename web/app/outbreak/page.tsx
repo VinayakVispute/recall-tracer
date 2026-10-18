@@ -5,7 +5,7 @@ import { CaseReportCard } from "./case-report";
 import { OutbreakView, type ClusterDetail } from "./outbreak-view";
 import { PasteCases } from "./paste-cases";
 
-export const metadata = { title: "Find the source" };
+export const metadata = { title: "Find the source", description: "Upload illness cases and the agent walks each one back through the graph to the ingredient lot that explains them." };
 
 // The seeded cluster. Kept here: a constant imported from a "use client" module is a client reference on the server, not a string.
 const EXAMPLE_CLUSTER = "OB-2026-10";
