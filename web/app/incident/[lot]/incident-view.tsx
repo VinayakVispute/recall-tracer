@@ -26,6 +26,7 @@ import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import { INCIDENT_CHANGED } from "@/components/nav";
+import { toast } from "@/components/toast";
 
 /** Tells the shell the incident changed (opened, scoped, confirmed), so its open-incident card re-reads. */
 const announce = () => window.dispatchEvent(new Event(INCIDENT_CHANGED));
@@ -52,12 +53,15 @@ export function IncidentView({ lot, hazard, autostart, playback, initial }: { lo
   const [report, setReport] = useState<IncidentReport | undefined>(initial.report ?? undefined);
   const [status, setStatus] = useState<Status | undefined>(initial.status ?? undefined);
   const [notices, setNotices] = useState<Notice[]>(initial.notices);
-  const [selected, setSelected] = useState<string>();
-  const [stateFilter, setStateFilter] = useState<string>();
-  const [storeFilter, setStoreFilter] = useState<ScopeFilter>("all");
+  // The open store, the filters and the view live in the URL too, so a link opens exactly this view (?store=ST-013&filter=gap).
+  const [selected, setSelected] = useState<string | undefined>(() => urlParam("store"));
+  const [stateFilter, setStateFilter] = useState<string | undefined>(() => urlParam("state"));
+  const [storeFilter, setStoreFilter] = useState<ScopeFilter>(() => pick(urlParam("filter"), ["all", "recall", "gap", "safe"], "all"));
   const [gaps, setGaps] = useState<Gaps>(initial.run?.add_gap_stores === false ? "flag" : "add");
-  const [view, setView] = useState<View>("scope");
+  const [view, setView] = useState<View>(() => pick(urlParam("view"), ["scope", "flow", "network"], "scope"));
   const [showPath, setShowPath] = useState(false);
+  const [startedAt, setStartedAt] = useState<number>();
+  const now = useTicker(running);
   const [rec, setRec] = useState<Recording>();
   const [lastLive, setLastLive] = useState<Recording>();
   const es = useRef<EventSource>(null);
@@ -92,7 +96,7 @@ export function IncidentView({ lot, hazard, autostart, playback, initial }: { lo
     exitReplay();
     setError(""); setResult(undefined); setReport(undefined); setStatus(undefined); setEvents([]); setNotices([]); setSelected(undefined); setStateFilter(undefined); setStoreFilter("all"); setView("network");
     try { await api(`/incident/${lot}/status`); } catch (err) { setError((err as Error).message); return; } // validates the lot without spending a Claude call
-    setRunning(true);
+    setRunning(true); setStartedAt(Date.now());
     const source = new EventSource(`/api/recall/stream?lot=${encodeURIComponent(lot)}&hazard=${encodeURIComponent(hazard ?? "")}`);
     es.current = source;
     const t0 = Date.now();
@@ -142,16 +146,30 @@ export function IncidentView({ lot, hazard, autostart, playback, initial }: { lo
     else if (playback || wantsStep()) startReplay(); // the demo link, or a shared link to one step of the run
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Mirror the view into the URL without a navigation (after the mount effect above has dropped ?start and ?replay).
+  useEffect(() => {
+    const u = new URL(location.href);
+    const put = (k: string, v: string | undefined, def?: string) => { if (v && v !== def) u.searchParams.set(k, v); else u.searchParams.delete(k); };
+    put("store", selected); put("filter", storeFilter, "all"); put("state", stateFilter); put("view", view, "scope");
+    if (u.href !== location.href) history.replaceState(history.state, "", u);
+  }, [selected, storeFilter, stateFilter, view]);
+
   async function approve(stores: string[]) {
-    await api("/notices/approve", { stores });
-    await loadNotices(result?.lot ?? lot);
-    announce();
+    try {
+      await api("/notices/approve", { stores });
+      await loadNotices(result?.lot ?? lot);
+      announce();
+      toast(`${stores.length === 1 ? "1 notice" : `${stores.length} notices`} approved. Nothing has been sent.`);
+    } catch (e) { toast((e as Error).message, "error"); }
   }
   async function confirm(cls: string, depth: string) {
-    const s = await api<Status>(`/incident/${result?.lot ?? lot}/confirm`, { class: cls, depth });
-    setStatus(s);
-    setReport((r) => (r ? { ...r, incident: s.incident } : r));
-    announce();
+    try {
+      const s = await api<Status>(`/incident/${result?.lot ?? lot}/confirm`, { class: cls, depth });
+      setStatus(s);
+      setReport((r) => (r ? { ...r, incident: s.incident } : r));
+      announce();
+      toast(`Class ${cls}, ${depth}-level recall confirmed. Store notices can now be approved.`);
+    } catch (e) { toast((e as Error).message, "error"); }
   }
   /** The headline tiles open the store table, filtered to what the tile counts. */
   function showStores(f: ScopeFilter) {
@@ -169,7 +187,11 @@ export function IncidentView({ lot, hazard, autostart, playback, initial }: { lo
   const doneEv = replaying ? replay.visible.find((e) => e.type === "done") : undefined;
   const shown = replaying ? (doneEv?.type === "done" ? doneEv.result : undefined) : result;
   const lastEnd = replaying ? replay.visible.findLast((e) => e.type === "tool_end") : undefined;
-  const currentId = lastEnd?.type === "tool_end" ? lastEnd.call.id : undefined;
+  // The log follows the playhead in a replay, and the step being worked in a live run.
+  // The agent's open question to the coordinator during a live run, if any.
+  const asking = running ? steps.findLast((x) => x.kind === "tool" && x.name === "ask_coordinator" && x.running) : undefined;
+  const liveStep = running ? steps.findLast((x) => x.kind === "tool" && x.running) : undefined;
+  const currentId = lastEnd?.type === "tool_end" ? lastEnd.call.id : liveStep?.kind === "tool" ? liveStep.id : undefined;
   const scoped = !replaying || completed.includes("minimal_recall");
   const showReport = scoped ? report : undefined;
 
@@ -241,6 +263,7 @@ export function IncidentView({ lot, hazard, autostart, playback, initial }: { lo
             <b className="font-medium tabular-nums">{stages.filter(([, s]) => s === "done").length} steps done{skipped.length ? `, ${skipped.length} skipped` : ""}</b>
             {stages.some(([, s]) => s === "failed") && <Badge variant="destructive">a step failed</Badge>}
             {notices.length > 0 && <Badge variant={allApproved ? "default" : "outline"}>{allApproved ? "✓" : "○"} Approved {approved}/{notices.length}</Badge>}
+            {running && <RunProgress done={stages.filter(([, st]) => st === "done").length} elapsed={startedAt ? (now - startedAt) / 1000 : 0} />}
             {!active && stages.length > 0 && <Button size="xs" variant="link" className="px-0 text-muted-foreground" aria-expanded={showPath} onClick={() => setShowPath(!showPath)}>{showPath ? "Hide steps" : "Show steps"}</Button>}
           </div>
           {(active || showPath) && <div className="flex w-full flex-col gap-1.5">
@@ -271,7 +294,7 @@ export function IncidentView({ lot, hazard, autostart, playback, initial }: { lo
       <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_24rem]">
         <main className="flex min-w-0 flex-col gap-4">
           {report || running || replaying ? <>
-            <Card id="scope" className="scroll-mt-16">
+            <Card id="scope" className="scroll-mt-16 overflow-visible">
               <CardHeader>
                 <CardTitle>{showReport ? "What left the plant" : replaying ? "Replay of the trace" : "Live trace"}</CardTitle>
                 <CardAction>
@@ -341,6 +364,9 @@ export function IncidentView({ lot, hazard, autostart, playback, initial }: { lo
           {shown && <Notices lot={shown.lot} notices={notices} canApprove={canApprove} onApprove={approve} onPick={setSelected} />}
         </div>
       </div>
+
+      {asking?.kind === "tool" && <CoordinatorAsk key={asking.id} input={asking.input as Ask} now={now}
+        onAnswer={(choice) => api(`/incident/${lot}/answer`, { choice }).catch((e) => setError((e as Error).message))} />}
 
       {showReport && store && (
         <Drawer label={`Evidence for ${store.name}`} onClose={closeDrawer}>
@@ -462,7 +488,7 @@ function Kpis({ r, hold, lot, gaps, onGaps, onShow, canPreview }: {
   const wait = <span data-slot="skeleton" className="inline-block h-8 w-16 animate-pulse rounded-md bg-muted" />;
   const show = (f: ScopeFilter) => (c ? () => onShow(f) : undefined);
   return (
-    <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5" aria-label="Key figures">
+    <section className="grid grid-cols-2 gap-3 lg:grid-cols-5" aria-label="Key figures">
       <Kpi label="Stores to pull" onClick={show("recall")} accent={c && <Accent tone="text-destructive">of {c.blanket}</Accent>}
         foot={c ? `Blanket recall: all ${c.blanket}` : "Tracing deliveries…"}
         detail={c ? `${c.blanket} stores stocked the ${r?.skus.length} affected products. The records clear ${c.safe} of them; a blanket recall would hit all ${c.blanket}.` : undefined}>
@@ -495,4 +521,79 @@ function Kpis({ r, hold, lot, gaps, onGaps, onShow, canPreview }: {
       </Kpi>
     </section>
   );
+}
+
+/** Re-renders every second while `on`, for the live run's elapsed time. */
+function useTicker(on: boolean) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!on) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [on]);
+  return now;
+}
+
+// A typical L-204 run: 11 graph tools in about 50 s. Used only to set expectations while a live run is going.
+const TYPICAL_STEPS = 11, TYPICAL_S = 50;
+/** Where a live run is: steps done of a typical run, a progress bar, and roughly how long is left. */
+function RunProgress({ done, elapsed }: { done: number; elapsed: number }) {
+  const pct = Math.min(95, Math.max((done / TYPICAL_STEPS) * 100, (elapsed / TYPICAL_S) * 100));
+  const left = Math.max(0, Math.round(TYPICAL_S - elapsed));
+  return (
+    <span className="flex min-w-56 flex-1 items-center gap-3" role="status">
+      <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted" aria-hidden="true">
+        <span className="block h-full rounded-full bg-primary transition-[width] duration-700" style={{ width: `${pct}%` }} />
+      </span>
+      <span className="text-xs whitespace-nowrap text-muted-foreground tabular-nums">Step {done + 1} of ~{TYPICAL_STEPS} · {left ? `about ${left} s left` : "finishing up"}</span>
+    </span>
+  );
+}
+
+type Ask = { question: string; options: { value: string; label: string }[]; default: string };
+const ASK_S = 90; // the agent takes the default after this long without an answer (src/agent/questions.ts)
+/**
+ * The agent's question, pinned to the bottom of the screen so it can't be missed wherever the coordinator has scrolled.
+ * The countdown says what happens when it runs out: the agent takes the default.
+ */
+function CoordinatorAsk({ input, now, onAnswer }: { input: Ask; now: number; onAnswer: (choice: string) => void }) {
+  const [since] = useState(() => Date.now());
+  const [sent, setSent] = useState<string>();
+  const left = Math.max(0, Math.ceil(ASK_S - (now - since) / 1000));
+  const fallback = input.options?.find((o) => o.value === input.default)?.label ?? input.default;
+  return (
+    <div role="alertdialog" aria-labelledby="ask-q" aria-describedby="ask-d"
+      className="fixed inset-x-3 bottom-3 z-50 mx-auto max-w-2xl animate-in rounded-2xl bg-popover p-4 shadow-2xl ring-1 ring-chart-4/60 fade-in slide-in-from-bottom-4 sm:p-5">
+      <div className="flex items-start gap-3">
+        <span className="relative mt-1 flex size-2.5 shrink-0" aria-hidden="true">
+          <span className="absolute inline-flex size-full animate-ping rounded-full bg-chart-4 opacity-75" />
+          <span className="relative inline-flex size-2.5 rounded-full bg-chart-4" />
+        </span>
+        <div className="flex min-w-0 flex-1 flex-col gap-3">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+            <p className="text-xs font-medium tracking-[0.14em] text-chart-4 uppercase">The agent needs your decision</p>
+            <p id="ask-d" className="text-xs text-muted-foreground tabular-nums">{left ? `${left} s left, then the default applies: “${fallback}”` : `No answer, so the default applies: “${fallback}”`}</p>
+          </div>
+          <p id="ask-q" className="text-sm font-medium">{input.question}</p>
+          <div className="h-1 overflow-hidden rounded-full bg-muted" aria-hidden="true">
+            <div className="h-full bg-chart-4 transition-[width] duration-1000 ease-linear" style={{ width: `${(left / ASK_S) * 100}%` }} />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {(input.options ?? []).map((o) => (
+              <Button key={o.value} size="sm" className="rounded-full" variant={o.value === input.default ? "default" : "outline"} disabled={!!sent}
+                onClick={() => { setSent(o.value); onAnswer(o.value); }}>
+                {sent === o.value ? "Sent…" : o.label}{o.value === input.default && !sent ? " (default)" : ""}
+              </Button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const urlParam = (k: string) => new URLSearchParams(location.search).get(k) ?? undefined;
+/** `v` if it is one of `ok`, else `def`: a hand-edited URL never puts the view in an impossible state. */
+function pick<T extends string>(v: string | undefined, ok: readonly T[], def: T): T {
+  return ok.includes(v as T) ? (v as T) : def;
 }
