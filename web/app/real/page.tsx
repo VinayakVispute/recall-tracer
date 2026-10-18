@@ -7,6 +7,8 @@ import { api, ApiError } from "@/lib/api";
 import { RealWorld } from "../outbreak/real-world";
 import { RealGraphView } from "./real-graph";
 
+export const metadata = { title: "Real outbreak records" };
+
 const day = (iso: string) => (iso ? new Date(`${iso}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—");
 const cell = (v: unknown) => (Array.isArray(v) ? v.join(", ") : v === null || v === undefined ? "—" : String(v));
 

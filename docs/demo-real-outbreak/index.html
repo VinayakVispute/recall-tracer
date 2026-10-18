@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sprout Outbreak Demo Plan</title>
+<meta name="description" content="How Recall Tracer's demo uses the live 2026 alfalfa sprout outbreak: the uploaded case report, the lot-code chain across four companies, the coverage gap, and what to build.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Barlow+Condensed:wght@600;700&display=swap">
+<style>
+/* Layout: an incident brief. Sticky nav, one reading column; facts first, then the moment, the script, the build list. */
+:root {
+  --bg: #f4f5f3; --panel: #ffffff; --fg: #1c2321; --muted: #5a6561; --line: #d8ddda; --soft: #eaedea;
+  --recall: #c4471b; --recall-bg: #fbe8df; --gap: #9a6b00; --gap-bg: #fbf0d3; --safe: #2f7d5b; --safe-bg: #e3f0e9;
+  --link: #3b5bdb; --link-bg: #e8edfd;
+  --sign: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --mono: "IBM Plex Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121615; --panel: #1b201e; --fg: #e7ebe8; --muted: #a0aaa5; --line: #313936; --soft: #232a27;
+  --recall: #f08158; --recall-bg: #3a221a; --gap: #e3b54d; --gap-bg: #362d16; --safe: #74c39c; --safe-bg: #1c2e25;
+  --link: #8ea7ff; --link-bg: #1f2640; color-scheme: dark;
+} }
+:root[data-theme="dark"] {
+  --bg: #121615; --panel: #1b201e; --fg: #e7ebe8; --muted: #a0aaa5; --line: #313936; --soft: #232a27;
+  --recall: #f08158; --recall-bg: #3a221a; --gap: #e3b54d; --gap-bg: #362d16; --safe: #74c39c; --safe-bg: #1c2e25;
+  --link: #8ea7ff; --link-bg: #1f2640; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.55 var(--body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 0 64px; }
+.wrap { max-width: 1120px; margin: 0 auto; display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 40px; }
+@media (max-width: 860px) { .wrap { grid-template-columns: minmax(0, 1fr); } nav.toc { display: none; } }
+nav.toc { position: sticky; top: env(safe-area-inset-top, 0px); align-self: start; padding-block: 28px 16px; font-size: 13px; }
+nav.toc a { display: block; color: var(--muted); text-decoration: none; padding: 4px 0 4px 10px; border-left: 2px solid var(--line); }
+nav.toc a:hover, nav.toc a:focus-visible { color: var(--fg); border-color: var(--recall); outline: none; }
+main { min-width: 0; padding-block: 28px 0; }
+h1, h2 { font-family: var(--sign); font-weight: 700; line-height: 1.05; margin: 0; text-wrap: balance; letter-spacing: 0.01em; }
+h1 { font-size: 2.8rem; }
+h2 { font-size: 1.9rem; margin-top: 52px; padding-top: 16px; border-top: 4px solid var(--fg); }
+h3 { font-size: 1.05rem; margin: 24px 0 0; font-weight: 600; }
+p { max-width: 70ch; margin: 10px 0; }
+ul, ol { max-width: 74ch; padding-left: 22px; margin: 8px 0; }
+li { margin: 4px 0; }
+.eyebrow { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.lede { font-size: 1.15rem; max-width: 64ch; }
+.muted { color: var(--muted); }
+code { font-family: var(--mono); font-size: 0.86em; background: var(--soft); padding: 1px 5px; border-radius: 3px; }
+pre { font-family: var(--mono); font-size: 12.5px; line-height: 1.5; background: var(--soft); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; overflow-x: auto; margin: 8px 0; }
+a { color: var(--recall); }
+.stripe { height: 8px; margin: 18px 0 6px; background: repeating-linear-gradient(-45deg, var(--gap) 0 12px, var(--fg) 12px 24px); border-radius: 2px; }
+.numbers { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 16px 0; }
+.numbers div { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; }
+.numbers b { display: block; font: 700 1.7rem/1.1 var(--sign); font-variant-numeric: tabular-nums; }
+.numbers span { font-size: 12.5px; color: var(--muted); }
+.callout { border-left: 4px solid var(--recall); background: var(--recall-bg); padding: 10px 14px; border-radius: 0 6px 6px 0; margin: 14px 0; max-width: 76ch; }
+.callout.gap { border-color: var(--gap); background: var(--gap-bg); }
+.callout.safe { border-color: var(--safe); background: var(--safe-bg); }
+.callout p { margin: 4px 0; }
+.tbl { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; margin: 10px 0; }
+th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+th { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+td .sub { display: block; font-size: 12px; color: var(--muted); }
+td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tag { display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 999px; white-space: nowrap; }
+.tag.lot { background: var(--safe-bg); color: var(--safe); }
+.tag.fda { background: var(--link-bg); color: var(--link); }
+.tag.p0 { background: var(--recall-bg); color: var(--recall); }
+.tag.p1 { background: var(--gap-bg); color: var(--gap); }
+.diagram { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin: 14px 0; overflow-x: auto; }
+.diagram svg { display: block; width: 100%; min-width: 760px; height: auto; }
+.diagram .box { fill: var(--panel); stroke: var(--line); stroke-width: 1.5; }
+.diagram .box.lot { stroke: var(--safe); stroke-width: 2.5; }
+.diagram .box.firm { stroke: var(--recall); stroke-width: 2; }
+.diagram .e-lot { stroke: var(--safe); stroke-width: 2; fill: none; }
+.diagram .e-fda { stroke: var(--link); stroke-width: 2; fill: none; stroke-dasharray: 6 5; }
+.diagram text { fill: var(--fg); font-family: var(--body); font-size: 13px; }
+.diagram text.sub { fill: var(--muted); font-size: 11.5px; }
+.diagram text.head { fill: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: 0.08em; }
+.states { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 8px 14px; align-items: center; margin: 14px 0; font-size: 14px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-family: var(--mono); font-size: 12px; padding: 2px 8px; border-radius: 4px; border: 1px solid var(--line); background: var(--soft); }
+.chip.a { background: var(--safe-bg); border-color: var(--safe); color: var(--safe); }
+.chip.b { background: var(--link-bg); border-color: var(--link); color: var(--link); }
+.chip.c { background: var(--gap-bg); border-color: var(--gap); color: var(--gap); font-weight: 600; }
+.show { display: grid; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin: 14px 0; }
+.shot { display: grid; grid-template-columns: 88px minmax(0, 1fr); background: var(--panel); border-top: 1px solid var(--line); }
+.shot:first-child { border-top: 0; }
+.shot .t { padding: 12px; font: 700 1.2rem/1 var(--sign); border-right: 1px solid var(--line); background: var(--soft); font-variant-numeric: tabular-nums; }
+.shot .t small { display: block; font: 500 11px var(--body); color: var(--muted); margin-top: 4px; }
+.shot .b { padding: 10px 14px; min-width: 0; }
+.shot h3 { margin: 0; font-size: 1rem; }
+.shot p { margin: 4px 0; max-width: none; font-size: 14px; }
+.cap { display: inline-block; background: var(--fg); color: var(--bg); padding: 2px 8px; border-radius: 3px; font-weight: 500; font-size: 13.5px; margin: 2px 0; }
+footer { margin-top: 56px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+@media (max-width: 560px) { .states { grid-template-columns: minmax(0, 1fr); } .shot { grid-template-columns: minmax(0, 1fr); } .shot .t { border-right: 0; border-bottom: 1px solid var(--line); } }
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav class="toc" aria-label="Sections">
+  <a href="#why">Why this outbreak</a>
+  <a href="#facts">The verified facts</a>
+  <a href="#chain">One lot, four companies</a>
+  <a href="#gap">The gap the graph finds</a>
+  <a href="#upload">The upload moment</a>
+  <a href="#script">Demo script, 3:00</a>
+  <a href="#build">What to build</a>
+  <a href="#honest">What we can and can't claim</a>
+  <a href="#backup">Backups</a>
+  <a href="#sources">Sources</a>
+</nav>
+
+<main>
+<div class="eyebrow">Recall Tracer · Graph Hacks Track 01 · demo plan · Oct 18, 2026</div>
+<h1>Sprout Outbreak Demo Plan</h1>
+<div class="stripe" aria-hidden="true"></div>
+<p class="lede">Open the demo on an outbreak that is still under investigation. Upload the case report CDC published, and the graph stitches four companies together through one seed lot code and shows which sick people the first recall never reached.</p>
+
+<h2 id="why">Why this outbreak</h2>
+<ul>
+  <li><b>It is live.</b> CDC and FDA last updated it on October 1, 2026. Judges can open the government pages while we present.</li>
+  <li><b>It is our product's story in real life.</b> One contaminated ingredient lot (alfalfa seed lot SAL2-24JB) moved through a seed supplier, a sprout grower and two seed repackers to people in 16 states.</li>
+  <li><b>The data is already in our graph.</b> The openFDA snapshot loaded into FalkorDB holds the seed supplier's, the grower's and one repacker's recalls. Two of them carry the same lot code.</li>
+  <li><b>It has a real gap.</b> The seed supplier's own recall reaches 6 of the 16 states with cases. The rest were reached only through retail seed packets recalled weeks later.</li>
+  <li><b>It replaces Clover Hill as the opener.</b> Clover Hill showed one missing state. This shows a multi-company chain, a lot code, and nine states, which is the problem Recall Tracer solves.</li>
+</ul>
+<div class="numbers">
+  <div><b>76</b><span>people sick, in 16 states</span></div>
+  <div><b>6</b><span>hospitalized, no deaths</span></div>
+  <div><b>4</b><span>companies linked by seed lot SAL2-24JB</span></div>
+  <div><b>83 days</b><span>from first illness to first recall</span></div>
+  <div><b>9 of 16</b><span>case states the seed supplier's recall didn't name</span></div>
+  <div><b>31 days</b><span>from the supplier's recall to the last repacker's</span></div>
+</div>
+
+<h2 id="facts">The verified facts</h2>
+<p>Every row is a public record. The recall numbers are in the openFDA snapshot loaded into our <code>fda</code> graph; the rest is from the FDA outbreak advisory and CDC's investigation pages.</p>
+<div class="tbl"><table>
+<tr><th>Company</th><th>Role</th><th>Recall</th><th>Lot code</th><th>Where it went</th><th>How we know</th></tr>
+<tr><td>International Sprout Holdings, Inc. <span class="sub">TN</span></td><td>Seed supplier</td><td>H-1341-2026 <span class="sub">Class I · initiated Aug 23, 2026 · 43,799 lb</span></td><td><b>SAL2-24JB</b></td><td>Wholesale to 16 states and Puerto Rico; Canada, Mexico, Tahiti, Venezuela</td><td><span class="tag lot">openFDA lot code</span></td></tr>
+<tr><td>Everything Sprouts, LLC <span class="sub">Minneapolis, MN</span></td><td>Sprout grower</td><td>H-1337 to H-1340-2026 <span class="sub">Class I · Aug 22, 2026 · 4 products</span></td><td>Own lots 222–230</td><td>MN, WI</td><td><span class="tag fda">FDA advisory</span> grown from the same seed lot</td></tr>
+<tr><td>Todd's Seeds LLC <span class="sub">TN</span></td><td>Seed repacker, retail</td><td>H-1404 to H-1409-2026 <span class="sub">Class I · Sep 11, 2026 · 37,481 retail units</span></td><td><b>SAL2-24JB</b></td><td>Nationwide, through Amazon or direct to consumer</td><td><span class="tag lot">openFDA lot code</span></td></tr>
+<tr><td>Berlin Seeds <span class="sub">Millersburg, OH</span></td><td>Seed repacker, retail</td><td>FDA press release, Sep 23, 2026 <span class="sub">950 lb · not yet in our openFDA snapshot</span></td><td><b>SAL2-24JB</b> (5 and 50 lb packs)</td><td>44 states, store and website</td><td><span class="tag fda">FDA advisory</span></td></tr>
+</table></div>
+<p class="muted">Outbreak: STEC <i>E. coli</i> O26:H11, O103:H25, O168:H8 and <i>Salmonella</i> Agona. Illness onsets May 31 to September 7, 2026. Of 50 people interviewed, 35 (70%) reported eating alfalfa sprouts. FDA's advisory does not name the seed supplier; the openFDA record does, through the lot code.</p>
+
+<h2 id="chain">One lot, four companies</h2>
+<p>Public recall records are filed company by company. Nothing in openFDA says these recalls belong together. A graph does it in one step: extract the lot code from each recall's code text, make the lot a node, and every recall that names it hangs off that node.</p>
+<div class="diagram">
+<svg viewBox="0 0 900 300" role="img" aria-label="Seed lot SAL2-24JB links the seed supplier, the sprout grower and two seed repackers">
+  <text x="20" y="22" class="head">SEED SUPPLIER</text><text x="330" y="22" class="head">LOT</text><text x="620" y="22" class="head">WHO GOT IT</text>
+  <path class="e-lot" d="M250,150 L330,150"/>
+  <path class="e-lot" d="M520,150 C580,150 580,60 620,60"/>
+  <path class="e-fda" d="M520,150 C580,150 580,150 620,150"/>
+  <path class="e-fda" d="M520,150 C580,150 580,240 620,240"/>
+  <rect class="box firm" x="20" y="110" width="230" height="80" rx="8"/>
+  <text x="34" y="138" font-weight="600">International Sprout Holdings</text>
+  <text x="34" y="158" class="sub">H-1341 · Aug 23 · 43,799 lb</text>
+  <text x="34" y="176" class="sub">16 states + PR, wholesale</text>
+  <rect class="box lot" x="330" y="115" width="190" height="70" rx="8"/>
+  <text x="346" y="143" font-weight="600" font-family="IBM Plex Mono, monospace">SAL2-24JB</text>
+  <text x="346" y="164" class="sub">alfalfa seed lot</text>
+  <rect class="box firm" x="620" y="25" width="260" height="70" rx="8"/>
+  <text x="634" y="52" font-weight="600">Todd's Seeds · repacker</text>
+  <text x="634" y="72" class="sub">H-1404–1409 · Sep 11 · nationwide, Amazon</text>
+  <rect class="box firm" x="620" y="115" width="260" height="70" rx="8"/>
+  <text x="634" y="142" font-weight="600">Everything Sprouts · grower</text>
+  <text x="634" y="162" class="sub">H-1337–1340 · Aug 22 · MN, WI</text>
+  <rect class="box firm" x="620" y="205" width="260" height="70" rx="8"/>
+  <text x="634" y="232" font-weight="600">Berlin Seeds · repacker</text>
+  <text x="634" y="252" class="sub">FDA notice · Sep 23 · 44 states</text>
+</svg>
+<p class="muted" style="margin:6px 4px 0">Solid green: the recall record itself names lot SAL2-24JB. Dashed blue: the FDA advisory states the link.</p>
+</div>
+<pre>// FalkorDB: every recall that names the same lot code, across companies
+MATCH (f:Firm)-[:RECALLED]->(r:Recall)-[:NAMES_LOT]->(l:LotCode {code: 'SAL2-24JB'})
+RETURN f.name, r.id, r.initiated, r.distribution ORDER BY r.initiated</pre>
+
+<h2 id="gap">The gap the graph finds</h2>
+<p>Lay the 16 states with cases over where each company's product went:</p>
+<div class="states">
+  <span>Reached by the seed supplier's recall</span><span class="chips"><span class="chip a">FL</span><span class="chip a">MN</span><span class="chip a">NY</span><span class="chip a">OR</span><span class="chip a">PA</span><span class="chip a">SC</span></span>
+  <span>Added by the sprout grower's recall</span><span class="chips"><span class="chip b">WI</span></span>
+  <span>Only through retail seed packets</span><span class="chips"><span class="chip c">IN</span><span class="chip c">IA</span><span class="chip c">KS</span><span class="chip c">MI</span><span class="chip c">NH</span><span class="chip c">NC</span><span class="chip c">ND</span><span class="chip c">SD</span><span class="chip c">WA</span></span>
+</div>
+<div class="callout gap"><p><b>The finding.</b> Nine of the sixteen states with sick people are not on the seed supplier's shipping list. The lot reached them only through two retail seed repackers, whose recalls came 19 and 31 days after the supplier's. Any other sprout growers who used the lot are not named in public records at all; FDA's advisory says at least one more grower received it.</p></div>
+<p>This is the honest version of the product's pitch: <b>public records stop at the company</b>. Inside a company, FSMA 204 lot records let the seed supplier list every customer of SAL2-24JB, and each grower list every store, in one query. That is what Recall Tracer does on our demo company.</p>
+
+<h2 id="upload">The upload moment</h2>
+<p>CDC does not publish individual case reports; it publishes the states, the case total and the onset window. The demo uploads exactly that, as a CSV a health department or a journalist could build from CDC's page:</p>
+<pre>outbreak,pathogen,state,onset_from,onset_to,source
+OB-SPROUTS-2026-08,"STEC E. coli + Salmonella Agona",FL,2026-05-31,2026-09-07,cdc.gov/ecoli/outbreaks/alfalfa-sprouts-08-26
+OB-SPROUTS-2026-08,"STEC E. coli + Salmonella Agona",IN,2026-05-31,2026-09-07,cdc.gov/ecoli/outbreaks/alfalfa-sprouts-08-26
+… one row per state: FL IN IA KS MI MN NH NY NC ND OR PA SC SD WA WI</pre>
+<p>What happens on screen after the upload, in about two seconds and with no agent call:</p>
+<ol>
+  <li><b>Candidate recalls.</b> Recalls of the right hazard (STEC or Salmonella) initiated in or after the onset window, ranked by how many case states their distribution reaches. The four sprout and seed recalls rise to the top.</li>
+  <li><b>The lot chain.</b> The graph finds that two of them name the same lot, SAL2-24JB, and draws the four-company chain above.</li>
+  <li><b>The coverage map.</b> Case states coloured by which recall reaches them: seed supplier, grower, retail only. The nine retail-only states stand out.</li>
+  <li><b>The timeline.</b> First illness May 31 · grower recall Aug 22 · seed lot recall Aug 23 · Todd's Sep 11 · Berlin Sep 23.</li>
+</ol>
+<p>The chat agent can then answer follow-ups on the same records, for example "Which companies recalled seed lot SAL2-24JB, and which case states did the supplier's recall miss?", citing recall numbers.</p>
+
+<h2 id="script">Demo script, 3:00</h2>
+<p>The real outbreak opens the demo and sets up the problem; the demo company then shows what lot-level records make possible. Captions carry the story; voice-over is optional.</p>
+<div class="show">
+  <div class="shot"><div class="t">0:00<small>15 s</small></div><div class="b">
+    <h3>Cold open: an outbreak happening now</h3>
+    <p>CDC's map for the alfalfa sprout outbreak, updated October 1, 2026.</p>
+    <p><span class="cap">76 people sick in 16 states. Still under investigation.</span></p>
+  </div></div>
+  <div class="shot"><div class="t">0:15<small>25 s</small></div><div class="b">
+    <h3>Upload the CDC case report</h3>
+    <p>Drop the CSV on the outbreak page. Candidate recalls rank, then the graph links two of them by lot code and draws the four companies around seed lot SAL2-24JB.</p>
+    <p><span class="cap">2,646 real FDA recalls. Two name the same seed lot. The graph connects four companies.</span></p>
+  </div></div>
+  <div class="shot"><div class="t">0:40<small>20 s</small></div><div class="b">
+    <h3>The gap</h3>
+    <p>The coverage map: 6 states via the seed supplier, 1 via the grower, 9 only via retail seed packets recalled 19 and 31 days later.</p>
+    <p><span class="cap">The supplier's recall reached 6 of 16 states with sick people.</span><br><span class="cap">Public records stop at the company. Inside one, they don't have to.</span></p>
+  </div></div>
+  <div class="shot"><div class="t">1:00<small>15 s</small></div><div class="b">
+    <h3>Into a company's own records</h3>
+    <p>Switch to Northfield Foods. Find the source on its illness cluster: L-204 explains 6 of 6, the same-supplier decoy L-205 is ruled out.</p>
+    <p><span class="cap">With lot-level records, one query finds the lot.</span></p>
+  </div></div>
+  <div class="shot"><div class="t">1:15<small>45 s</small></div><div class="b">
+    <h3>The agent works the recall</h3>
+    <p>Open the incident; the trace streams: hold, trace to stores, biggest spread point B-03 (betweenness), missing lot codes, scope, cleared stores verified.</p>
+    <p><span class="cap">33 of 71 stores pull. 38 proven clear. 23 graph queries, 22 ms in FalkorDB.</span></p>
+  </div></div>
+  <div class="shot"><div class="t">2:00<small>30 s</small></div><div class="b">
+    <h3>Evidence and the human decision</h3>
+    <p>Open a store's evidence chain, then confirm the class and approve the notices.</p>
+  </div></div>
+  <div class="shot"><div class="t">2:30<small>20 s</small></div><div class="b">
+    <h3>Memory and replay</h3>
+    <p>Rewind the trace to the backward check. Then open a second lot from the same supplier: the agent starts from the lessons the first incident saved.</p>
+  </div></div>
+  <div class="shot"><div class="t">2:50<small>10 s</small></div><div class="b">
+    <h3>Close</h3>
+    <p><span class="cap">Sprout seed: 83 days to the first recall, 31 more until the last. Recall Tracer: minutes, with proof for every store.</span></p>
+  </div></div>
+</div>
+
+<h2 id="build">What to build</h2>
+<div class="tbl"><table>
+<tr><th></th><th>Item</th><th>Work</th><th>Owner</th><th class="num">Effort</th></tr>
+<tr><td><span class="tag p0">P0</span></td><td>Lot codes as graph nodes</td><td>In the real-data loader, read lot codes from each recall's code text (patterns like "Lot No:", "Lot #") and link <code>(Recall)-[:NAMES_LOT]-&gt;(LotCode)</code>. SAL2-24JB then joins H-1341 and H-1404 with no hand-made link.</td><td>Dev A</td><td class="num">1.5 h</td></tr>
+<tr><td><span class="tag p0">P0</span></td><td>The sprout outbreak and FDA's stated links</td><td>Add the outbreak (76 cases, 6 hospitalized, 16 states, onsets May 31 to Sep 7) to <code>outbreaks.json</code>, and the two links FDA's advisory states (Everything Sprouts grown from the lot; Berlin Seeds repacked it), each with its source URL.</td><td>Dev A</td><td class="num">45 min</td></tr>
+<tr><td><span class="tag p0">P0</span></td><td>Public case-report check</td><td>A read-only route: take the uploaded states and onset window, rank recalls of the matching hazard by case states reached, return lot-code chains among the top recalls, and the coverage of each case state. Test it against the sprout outbreak's expected result (6 / 1 / 9).</td><td>Dev A, Dev B</td><td class="num">2 h</td></tr>
+<tr><td><span class="tag p0">P0</span></td><td>Upload on the outbreak page</td><td>"Upload a public case report": the CSV above, then the ranked recalls, the lot chain diagram (the source-map component), the coverage chips and the timeline.</td><td>Dev C, Dev D</td><td class="num">3 h</td></tr>
+<tr><td><span class="tag p1">P1</span></td><td>Refresh openFDA</td><td>Rerun the loader with <code>--fetch</code> just before recording; if Berlin Seeds' recall has reached openFDA, it joins by lot code instead of by FDA's statement.</td><td>Dev A</td><td class="num">10 min</td></tr>
+<tr><td><span class="tag p1">P1</span></td><td>Chat agent question</td><td>Give the chat agent a read-only tool over the public graph so "which companies recalled lot SAL2-24JB?" is answered from our records, not only from a live openFDA search.</td><td>Dev B</td><td class="num">1 h</td></tr>
+<tr><td><span class="tag p1">P1</span></td><td>Update the deck and demo script</td><td>New opening slides from this page; replace the Clover Hill cold open.</td><td>Dev D</td><td class="num">45 min</td></tr>
+</table></div>
+<p>The P0 items fit in one working day across the team. If time runs short, the minimum demo is the lot-code nodes plus the coverage check shown on the real-data page, without the upload control.</p>
+
+<h2 id="honest">What we can and can't claim</h2>
+<div class="callout safe"><p><b>Can say.</b> Two openFDA recalls from different companies name lot SAL2-24JB. The FDA advisory links the grower and a second repacker to the same lot. The seed supplier's distribution list covers 6 of the 16 case states. The dates and counts are as published.</p></div>
+<div class="callout"><p><b>Can't say.</b></p>
+<ul>
+  <li>That Recall Tracer would have found the source earlier. The recall records we join only exist because the investigation produced them.</li>
+  <li>That a case in a given state came from a given company. CDC publishes states, not case-level purchases.</li>
+  <li>That FDA named International Sprout Holdings. FDA's advisory does not; the openFDA recall record carries the lot code.</li>
+  <li>Hospitalization or death counts other than FDA's: 6 hospitalized, no deaths, as of October 1, 2026.</li>
+</ul></div>
+<p>Say it once in the video: <i>"The outbreak and recalls are real public records. The company in the rest of the demo is a demo company."</i></p>
+
+<h2 id="backup">Backups</h2>
+<ul>
+  <li><b>The upload control isn't built in time.</b> Show the same result on the real-data page, with the Cypher, and say "uploaded case report" as a voice line only.</li>
+  <li><b>CDC or FDA updates the numbers before recording.</b> Re-scrape the two pages and the openFDA data the morning of the recording; the script's numbers come from those, not from this page.</li>
+  <li><b>openFDA is unreachable.</b> The snapshot in <code>data/real</code> already holds everything the opener needs.</li>
+  <li><b>Clover Hill remains a fallback opener.</b> It is loaded and working today.</li>
+</ul>
+
+<h2 id="sources">Sources</h2>
+<ul>
+  <li><a href="https://www.fda.gov/food/outbreaks-foodborne-illness/outbreak-investigation-shiga-toxin-producing-e-coli-salmonella-sprouts-august-2026">FDA outbreak investigation: STEC and Salmonella, sprouts (August 2026)</a>, updated October 1, 2026: seed lot SAL2-24JB, its distribution, Berlin Seeds and Everything Sprouts, case states, onset window, interviews.</li>
+  <li><a href="https://www.cdc.gov/ecoli/outbreaks/alfalfa-sprouts-08-26/index.html">CDC notice</a>, <a href="https://www.cdc.gov/ecoli/outbreaks/alfalfa-sprouts-08-26/locations.html">where people got sick</a> and <a href="https://www.cdc.gov/ecoli/outbreaks/alfalfa-sprouts-08-26/investigation.html">investigation updates</a>.</li>
+  <li><a href="https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts/berlin-seeds-recalls-alfalfa-sprouting-seed-because-possible-health-risk">Berlin Seeds recall</a> and <a href="https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts/everything-sprouts-llc-recalls-alfalfa-sprouts-due-potential-e-coli-and-salmonella-risk">Everything Sprouts recall</a> (FDA).</li>
+  <li><a href="https://open.fda.gov/apis/food/enforcement/">openFDA food enforcement reports</a>: H-1337 to H-1340, H-1341 and H-1404 to H-1409-2026, in <code>data/real/openfda-food-recalls.json</code>.</li>
+</ul>
+
+<footer>Recall Tracer · demo plan for the 2026 alfalfa sprout outbreak · facts checked against FDA, CDC and openFDA on Oct 18, 2026.</footer>
+</main>
+</div>
+</body>
+</html>

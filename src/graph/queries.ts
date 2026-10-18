@@ -221,7 +221,7 @@ CREATE (c)-[:BOUGHT_AT {date: r.bought_at}]->(st)`;
 export const SAME_SOURCE_LOTS = `
 MATCH (s:Supplier)-[:SUPPLIED]->(top:Lot {code: $lot}), (s)-[:SUPPLIED]->(l:Lot)
 WHERE l.ingredient = top.ingredient AND l.code <> $lot AND NOT l.code IN $ranked
-RETURN l.code AS lot ORDER BY lot`;
+RETURN l.code AS lot, l.ingredient AS ingredient, s.name AS supplier_name, l.received_at AS received_at ORDER BY lot`;
 
 // --- Incident history (B5) ---
 

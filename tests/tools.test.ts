@@ -229,6 +229,7 @@ describe('outbreak OB-2026-10', () => {
       .toEqual(expected.outbreak.ranking);
     expect(r.candidates[0]).toMatchObject({ lot: 'L-204', cases_explained: 6, stores_reached: 31, supplier: 'S-03' });
     expect(r.candidates.map((c) => c.lot)).not.toContain('L-205'); // same ingredient, same supplier, reaches no case
+    expect(r.decoys).toEqual([expect.objectContaining({ lot: 'L-205', ingredient: 'diced carrot', supplier_name: 'Valley Root Co.' })]);
   });
 
   it('every case has a path from L-204 to the store it bought at', async () => {
@@ -248,7 +249,7 @@ describe('outbreak OB-2026-10', () => {
 
   it('measure reports FalkorDB time and query count', async () => {
     const m = await measure(() => findCommonSource({ cluster: 'OB-2026-10' }));
-    expect(m.queries).toBe(4);
+    expect(m.queries).toBe(5); // cases, ranking, case paths, decoys
     expect(m.db_ms).toBeGreaterThan(0);
   });
 });

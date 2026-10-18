@@ -1,25 +1,25 @@
 import { api } from "@/lib/api";
 
-type Stats = { graph: string; nodes: number; edges: number; last_run: { lot: string; queries: number; avg_db_ms: number } | null };
+type Stats = { graph: string; nodes: number; edges: number; last_run: { lot: string; queries: number; db_ms?: number; avg_db_ms: number } | null };
 
-const BASE = "Northfield Foods";
-const TAIL = "synthetic demo data";
+const ms = (n: number) => `${n < 10 ? n : Math.round(n)} ms`;
 
-/** The shell's graph line, read on the server. The layout streams it in, so a slow or absent API never blocks a page. */
+/** The shell's footer, read on the server. The layout streams it in, so a slow or absent API never blocks a page. */
 export async function GraphLine() {
   try {
     const s = await api<Stats>("/stats");
     return (
-      <span>
-        {BASE} · graph &quot;{s.graph}&quot; · {s.nodes.toLocaleString()} records
-        {s.last_run && <> · FalkorDB avg {s.last_run.avg_db_ms} ms over {s.last_run.queries} queries</>} · {TAIL}
+      <span className="flex flex-col gap-0.5">
+        <span>Connected to FalkorDB · {s.nodes.toLocaleString()} records</span>
+        {/* The total, matching the investigation log; an API without db_ms yet falls back to the average. */}
+        {s.last_run && <span>Last recall ({s.last_run.lot}): {s.last_run.queries} graph queries, {s.last_run.db_ms !== undefined ? `${ms(s.last_run.db_ms)} in FalkorDB` : `${s.last_run.avg_db_ms} ms each`}</span>}
       </span>
     );
   } catch {
-    return <span>{BASE} · FalkorDB not reachable · {TAIL}</span>;
+    return <span>FalkorDB is not reachable. Check that the API is running.</span>;
   }
 }
 
 export function GraphLineFallback() {
-  return <span>{BASE} · graph &quot;recall&quot; on FalkorDB · {TAIL}</span>;
+  return <span>Connecting to FalkorDB…</span>;
 }

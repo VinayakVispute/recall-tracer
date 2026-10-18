@@ -12,7 +12,7 @@ type Link = { id: string; source: string; target: string; kind: string; stage: s
 type Elements = { nodes: { data: Rec }[]; edges: { data: Link }[] };
 /** What a revealed element shows: present, plus a mark the agent left on it. */
 type Mark = "" | "noticed" | "verified" | "faded";
-type CardData = Rec & { mark: Mark; dim: boolean; picked: boolean };
+type CardData = Rec & { mark: Mark; dim: boolean; picked: boolean; spread: boolean };
 
 // One row per node kind: the word on the card and its colour. Colour is never the only cue, the word says it too.
 const KIND: Record<string, { word: string; color: string }> = {
@@ -25,7 +25,7 @@ const KIND: Record<string, { word: string; color: string }> = {
   site: { word: "Hold placed", color: "var(--chart-2)" },
   dc: { word: "Hold placed", color: "var(--chart-2)" },
   "store-affected": { word: "Pull", color: "var(--destructive)" },
-  "store-gap": { word: "Pull, no record", color: "var(--chart-1)" },
+  "store-gap": { word: "Pull, no lot code", color: "var(--chart-1)" },
   "store-safe": { word: "Cleared", color: "var(--muted-foreground)" },
 };
 const EDGE: Record<string, { color: string; dash?: string }> = {
@@ -45,12 +45,13 @@ function RecordCard({ data }: NodeProps<Node<CardData>>) {
         data.mark === "verified" && "ring-2 ring-chart-3",
         (data.dim || data.mark === "faded") && "opacity-20",
         data.picked && "ring-2 ring-ring",
+        data.spread && "ring-2 ring-chart-4 shadow-md",
       )}
       style={{ width: W, height: H, borderLeftColor: k?.color }}
     >
       <Handle type="target" position={Position.Left} className="opacity-0" />
       <div className="flex items-center gap-1 text-[10px] text-muted-foreground uppercase">
-        <span className="truncate">{k?.word ?? data.kind}</span>
+        <span className="truncate">{data.spread ? "Biggest spread point" : k?.word ?? data.kind}</span>
         {data.mark === "noticed" && <MailIcon className="ml-auto size-3 shrink-0" aria-label="Notice drafted" />}
         {data.mark === "verified" && <CheckIcon className="ml-auto size-3 shrink-0" aria-label="Verified clean" />}
       </div>
@@ -89,7 +90,7 @@ function layout({ nodes, edges }: Elements, all: boolean) {
   const holds = by(["site", "dc"])[0];
   if (holds) titles.push({ id: "t-hold", text: "Plants and DCs on hold", x: 1.5 * COL, y: pos.get(holds.id)!.y - 28 });
   let y = 0;
-  for (const [kind, text] of [["store-affected", "Stores to pull"], ["store-gap", "Pull, shipped with no lot code"], ["store-safe", "Cleared stores"]]) {
+  for (const [kind, text] of [["store-affected", "Stores to pull"], ["store-gap", "Pull, no lot code"], ["store-safe", "Cleared stores"]]) {
     const list = by([kind]);
     if (!list.length) continue;
     titles.push({ id: `t-${kind}`, text: `${text} · ${list.length}`, x: 3 * COL, y: y - 28 });
@@ -119,7 +120,8 @@ function lineage(id: string, edges: Link[]) {
  * `stages` is the ordered list of agent steps completed so far ('start' first). Records appear when their step
  * completes; the forward trace is staggered hop by hop so the spread is visible. Shrinking `stages` replays.
  */
-export function NetworkGraph({ lot, stages, animating, focus, onPick }: { lot: string; stages: string[]; animating: boolean; focus?: string; onPick: (store: string) => void }) {
+/** `spread` is the record betweenness centrality ranked first (rank_chokepoints): marked once that step has run. */
+export function NetworkGraph({ lot, stages, animating, focus, spread, onPick }: { lot: string; stages: string[]; animating: boolean; focus?: string; spread?: string; onPick: (store: string) => void }) {
   const [els, setEls] = useState<Elements>();
   const [marks, setMarks] = useState<Map<string, Mark>>(new Map());
   const [all, setAll] = useState(false);
@@ -171,7 +173,7 @@ export function NetworkGraph({ lot, stages, animating, focus, onPick }: { lot: s
       ...titles.map((t) => ({ id: t.id, type: "title", position: { x: t.x, y: t.y }, data: { text: t.text }, selectable: false, hidden: !marks.size })),
       ...els.nodes.filter((n) => pos.has(n.data.id)).map((n) => ({
         id: n.data.id, type: "record", position: pos.get(n.data.id)!, hidden: !marks.has(n.data.id),
-        data: { ...n.data, mark: marks.get(n.data.id) ?? "", dim: !!near && !near.has(n.data.id), picked: picked === n.data.id },
+        data: { ...n.data, mark: marks.get(n.data.id) ?? "", dim: !!near && !near.has(n.data.id), picked: picked === n.data.id, spread: n.data.id === spread },
       })),
     ];
     const edges: Edge[] = live.map((e) => ({
@@ -184,7 +186,7 @@ export function NetworkGraph({ lot, stages, animating, focus, onPick }: { lot: s
       },
     }));
     return { nodes, edges };
-  }, [els, all, marks, picked, animating]);
+  }, [els, all, marks, picked, animating, spread]);
 
   // Keep the whole picture in frame as it grows or the view changes.
   const shown = nodes.filter((n) => !n.hidden).length;

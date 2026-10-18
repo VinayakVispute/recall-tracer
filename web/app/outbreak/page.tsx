@@ -3,6 +3,8 @@ import { OutbreakView, type ClusterDetail } from "./outbreak-view";
 import { PasteCases } from "./paste-cases";
 import { RealWorld } from "./real-world";
 
+export const metadata = { title: "Find the source" };
+
 // The seeded cluster. Kept here: a constant imported from a "use client" module is a client reference on the server, not a string.
 const EXAMPLE_CLUSTER = "OB-2026-10";
 

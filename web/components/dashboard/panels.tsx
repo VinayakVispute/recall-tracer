@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import type { Incident, IncidentReport } from "@server/tools/incident"
-import { JUDGEMENT, fmtMs, graphTime, toolTotals, type Step } from "@/lib/trace"
+import { JUDGEMENT, chokepointOf, fmtMs, graphTime, recordName, toolTotals, type Step } from "@/lib/trace"
 import type { Notice } from "@server/tools/index"
 import { cn } from "@/lib/utils"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -22,7 +22,7 @@ type Store = Report["stores"][number]
 export const fmt = (n: number) => n.toLocaleString()
 export const shortDate = (iso: string) => (iso ? new Date(iso.length === 10 ? iso + "T00:00:00" : iso).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "")
 export const shortTime = (iso: string) => (iso ? new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "")
-export const STATUS_LABEL = { recall: "Pull product", gap: "Pull, no record", safe: "Cleared" } as const
+export const STATUS_LABEL = { recall: "Pull", gap: "Pull, no lot code", safe: "Cleared" } as const
 export const chainOf = (name: string) => name.split(" #")[0]
 
 const STATUS_VARIANT = { recall: "destructive", gap: "default", safe: "secondary" } as const
@@ -60,56 +60,65 @@ const DEPTH_ITEMS = ["consumer", "retail", "wholesale"].map((k) => ({ value: k, 
 export function Assessment({ incident, running, onConfirm }: { incident: Incident; running: boolean; onConfirm: (cls: string, depth: string) => void }) {
   const [cls, setCls] = useState<string>()
   const [depth, setDepth] = useState<string>()
+  const [editing, setEditing] = useState(false)
+  // One compact row until the coordinator wants to change something, so the scope and the graph stay above the fold.
   if (!incident.class) return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Hazard assessment</CardTitle>
-        <CardDescription>{running ? "The agent is assessing the hazard and will propose a recall class and depth." : "Not assessed yet."}</CardDescription>
-      </CardHeader>
+    <Card size="sm">
+      <CardContent className="text-sm text-muted-foreground">{running ? "The agent is assessing the hazard and will propose a recall class and depth." : "Hazard not assessed yet."}</CardContent>
     </Card>
   )
   const c = cls ?? incident.class, d = depth ?? incident.depth!
   if (incident.confirmed_at) return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Class {incident.confirmed_class}, {incident.confirmed_depth}-level recall</CardTitle>
-        <CardDescription>Confirmed by the coordinator at {shortTime(incident.confirmed_at)}{incident.confirmed_class !== incident.class || incident.confirmed_depth !== incident.depth ? `, changed from the agent's proposal of Class ${incident.class}, ${incident.depth}` : ", as the agent proposed"}. {CLASS_TEXT[incident.confirmed_class!]}; {DEPTH_TEXT[incident.confirmed_depth!]}.</CardDescription>
-      </CardHeader>
+    <Card size="sm">
+      <CardContent className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm">
+        <Badge>Confirmed</Badge>
+        <b>Class {incident.confirmed_class}, {incident.confirmed_depth}-level recall</b>
+        <span className="text-muted-foreground">at {shortTime(incident.confirmed_at)}{incident.confirmed_class !== incident.class || incident.confirmed_depth !== incident.depth ? `, changed from the agent's proposal of Class ${incident.class}, ${incident.depth}` : ", as the agent proposed"}. Store notices can now be approved.</span>
+      </CardContent>
     </Card>
   )
   return (
-    <Card>
-      <CardHeader>
-        <CardDescription>Hazard assessment, proposed by the agent</CardDescription>
-        <CardTitle>Class {incident.class}, {incident.depth}-level recall</CardTitle>
-        <p className="text-sm">{incident.rationale}</p>
-      </CardHeader>
-      <CardContent>
-        <form className="flex flex-col gap-3" onSubmit={(e) => { e.preventDefault(); onConfirm(c, d) }}>
-          <div className="flex flex-col gap-1.5">
-            <Label>Class</Label>
-            <Select items={CLASS_ITEMS} value={c} onValueChange={(v) => v && setCls(v)}>
-              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-              <SelectContent>{CLASS_ITEMS.map((i) => <SelectItem key={i.value} value={i.value}>{i.label}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label>Depth</Label>
-            <Select items={DEPTH_ITEMS} value={d} onValueChange={(v) => v && setDepth(v)}>
-              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-              <SelectContent>{DEPTH_ITEMS.map((i) => <SelectItem key={i.value} value={i.value}>{i.label}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <Button type="submit" className="self-start">{c === incident.class && d === incident.depth ? "Confirm" : "Confirm with changes"}</Button>
-          <Muted className="text-xs">Notices can be approved only after this. FDA assigns the final class; this is the firm&apos;s assessment.</Muted>
-        </form>
+    <Card size="sm" className="border-chart-4/50">
+      <CardContent className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <Badge variant="outline" className="border-chart-4 text-chart-4">Agent proposal</Badge>
+          <b className="text-sm">Class {incident.class}, {incident.depth}-level recall</b>
+          <span className="min-w-0 flex-1 basis-80 text-sm text-muted-foreground">{incident.rationale}</span>
+          {!editing && <div className="flex gap-2">
+            <Button size="sm" onClick={() => onConfirm(c, d)}>Confirm</Button>
+            <Button size="sm" variant="outline" onClick={() => setEditing(true)}>Change</Button>
+          </div>}
+        </div>
+        {editing && (
+          <form className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end" onSubmit={(e) => { e.preventDefault(); onConfirm(c, d) }}>
+            <div className="flex min-w-0 flex-col gap-1.5">
+              <Label>Class</Label>
+              <Select items={CLASS_ITEMS} value={c} onValueChange={(v) => v && setCls(v)}>
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>{CLASS_ITEMS.map((i) => <SelectItem key={i.value} value={i.value}>{i.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="flex min-w-0 flex-col gap-1.5">
+              <Label>Depth</Label>
+              <Select items={DEPTH_ITEMS} value={d} onValueChange={(v) => v && setDepth(v)}>
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>{DEPTH_ITEMS.map((i) => <SelectItem key={i.value} value={i.value}>{i.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="flex gap-2">
+              <Button type="submit" size="sm">{c === incident.class && d === incident.depth ? "Confirm" : "Confirm with changes"}</Button>
+              <Button type="button" size="sm" variant="ghost" onClick={() => { setEditing(false); setCls(undefined); setDepth(undefined) }}>Cancel</Button>
+            </div>
+          </form>
+        )}
+        <Muted className="text-xs">Store notices can be approved only after this. The FDA assigns the final class; this is the firm&apos;s assessment.</Muted>
       </CardContent>
     </Card>
   )
 }
 
 /** One paragraph that reads the lineage out loud. */
-export function ScopeStory({ r }: { r: Report }) {
+export function ScopeStory({ r, spread }: { r: Report; spread?: { id: string; stores: number } }) {
   const used = r.lineage.filter((e) => e.type === "USED_IN")
   const rework = r.lineage.filter((e) => e.type === "REWORKED_INTO")
   const lots = r.product_lots.filter((p) => p.affected)
@@ -123,6 +132,7 @@ export function ScopeStory({ r }: { r: Report }) {
       {rework.map((e) => <span key={e.target}> Then <b>{e.qty_kg} kg of leftovers from {e.source} were reworked into {e.target}</b>, which carried it into one more lot.</span>)}
       {" "}Those batches made {lots.length} product lots of {r.skus.map((s) => s.product).join(", ")}.
       {" "}<b>{fmt(lots.reduce((n, p) => n + p.shipped, 0))} units reached {hit.filter((s) => s.status === "recall").length} stores</b> in {states.size} states{hit.some((s) => s.status === "gap") ? <>, plus {fmt(hit.flatMap((s) => s.untracked).reduce((n, u) => n + u.units, 0))} units delivered to {hit.filter((s) => s.status === "gap").length} stores with no lot code</> : null}; {fmt(lots.reduce((n, p) => n + p.held, 0))} units never left and are on hold.
+      {spread && <> The biggest spread point was <b>{recordName(spread.id)}, with {spread.stores} stores downstream</b>.</>}
     </p>
   )
 }
@@ -191,17 +201,17 @@ export type { Step }
 export const TITLE: Record<string, string> = {
   propose_classification: "Hazard assessment",
   place_hold: "Hold at plants and DCs",
-  trace_forward: "Forward trace",
-  coverage_gaps: "Delivery record check",
+  trace_forward: "Trace to stores",
+  coverage_gaps: "Missing lot codes",
   unaffected_stores: "Clearance check",
   minimal_recall: "Scope decision",
-  trace_backward: "Backward check on cleared stores",
+  trace_backward: "Cleared stores verified",
   draft_recall_notice: "Store notices drafted",
   find_common_source: "Common source search",
   case_path: "Case evidence path",
-  recall_memory: "Memory from earlier incidents",
-  rank_chokepoints: "Chokepoint (betweenness centrality)",
-  record_lessons: "Lessons saved for the next incident",
+  recall_memory: "Past incidents",
+  rank_chokepoints: "Biggest spread point",
+  record_lessons: "Lessons saved",
 }
 const DOING: Record<string, string> = {
   propose_classification: "Recording the proposed class and depth",
@@ -214,7 +224,7 @@ const DOING: Record<string, string> = {
   find_common_source: "Walking every case back to the ingredient lots that could have reached it",
   case_path: "Reading one case's path back to its lot",
   recall_memory: "Reading what earlier incidents learned about this supplier and these stores",
-  rank_chokepoints: "Running betweenness centrality to find where the spread concentrated",
+  rank_chokepoints: "Finding the record most of the spread passed through",
   record_lessons: "Writing lessons into the graph for the next incident",
 }
 
@@ -233,6 +243,7 @@ export function AgentTrace({ steps, running, meta, summary, error, current, repl
   const [open, setOpen] = useState<number>()
   const box = useRef<HTMLDivElement>(null)
   const totals = toolTotals(steps)
+  const spread = chokepointOf(steps)
   // Keep the current step in view inside the log, without scrolling the page.
   useEffect(() => {
     const el = current && box.current?.querySelector<HTMLElement>(`[data-step="${CSS.escape(current)}"]`)
@@ -273,10 +284,11 @@ export function AgentTrace({ steps, running, meta, summary, error, current, repl
                       ? <Badge variant="outline" className="border-chart-4 text-chart-4">Agent judgement</Badge>
                       : <span className="font-mono text-xs whitespace-nowrap text-muted-foreground tabular-nums" title={s.call && graphTime(s.call).db ? "FalkorDB's own execution time for this step's queries" : "MCP tool call, including its FalkorDB queries"}>{s.call ? `${graphTime(s.call).db ? "FalkorDB" : "graph"} ${fmtMs(graphTime(s.call).ms)}` : "…"}</span>}
                   </div>
-                  <p className="text-sm text-muted-foreground">{s.running ? DOING[s.name] ?? "Querying the graph" : s.call?.summary}</p>
+                  <p className="text-sm text-muted-foreground">{s.running ? DOING[s.name] ?? "Querying the graph" : s.name === "rank_chokepoints" && spread ? `${recordName(spread.id)[0].toUpperCase()}${recordName(spread.id).slice(1)} carried the lot to the most stores: ${spread.stores} downstream.` : s.call?.summary}</p>
+                  {s.name === "rank_chokepoints" && s.call && !s.call.error && <Badge variant="outline" className="self-start">Graph algorithm: betweenness centrality</Badge>}
                   {s.call?.error && <Badge variant="destructive">Failed</Badge>}
                   {s.name === "minimal_recall" && s.call && (
-                    <p className="text-sm"><b>Policy applied:</b> stores with no delivery record are {(s.input as { add_gap_stores?: boolean } | undefined)?.add_gap_stores === false ? "flagged for the coordinator" : "pulled too"}, because the records can&apos;t clear them. A recall that misses contaminated product is worse than one that pulls a few extra units.</p>
+                    <p className="text-sm"><b>Policy applied:</b> stores whose deliveries had no lot code are {(s.input as { add_gap_stores?: boolean } | undefined)?.add_gap_stores === false ? "flagged for the coordinator" : "pulled too"}, because the records can&apos;t clear them. A recall that misses contaminated product is worse than one that pulls a few extra units.</p>
                   )}
                   {s.name === "propose_classification" && s.call && (
                     <p className="text-sm"><b>A proposal.</b> The coordinator confirms or changes it in the assessment card above. Notices can&apos;t be approved before that.</p>
@@ -284,10 +296,10 @@ export function AgentTrace({ steps, running, meta, summary, error, current, repl
                   {s.call && (
                     <Collapsible open={open === i} onOpenChange={(o) => setOpen(o ? i : undefined)}>
                       <CollapsibleTrigger render={<Button variant="link" size="xs" className="px-0" />}>
-                        {open === i ? "Hide" : `Tool ${s.name}, show input and Cypher`}
+                        {open === i ? "Hide the query" : "Show the query"}
                       </CollapsibleTrigger>
                       <CollapsibleContent className="flex flex-col gap-2 pt-1">
-                        <p className="font-mono text-xs break-words"><b>Input</b> {brief(s.input)}</p>
+                        <p className="font-mono text-xs break-words"><b>Tool</b> {s.name} · <b>Input</b> {brief(s.input)}</p>
                         <p className="text-xs text-muted-foreground">{graphTime(s.call).db ? `${s.call.queries} ${s.call.queries === 1 ? "query" : "queries"}, ${fmtMs(s.call.db_ms)} in FalkorDB, ${s.call.ms} ms for the whole MCP call.` : `${s.call.ms} ms for the MCP call.`}</p>
                         {(s.call.cypher ?? []).map((q, j) => <pre key={j} className="overflow-x-auto rounded-md bg-muted p-2 font-mono text-xs">{q.trim()}</pre>)}
                       </CollapsibleContent>
@@ -316,71 +328,6 @@ export function AgentTrace({ steps, running, meta, summary, error, current, repl
           </>
         )}
         {meta && <p className="text-xs text-muted-foreground tabular-nums">{meta.model}, {meta.turns} turns, {(meta.ms / 1000).toFixed(1)} s, {fmt(meta.input_tokens + meta.output_tokens)} tokens</p>}
-      </CardContent>
-    </Card>
-  )
-}
-
-// --- Store register ---------------------------------------------------------
-
-export type Filter = "all" | Store["status"]
-
-/** The filter can be driven from outside (the headline tiles), or left to the table's own buttons. */
-export function StoreRegister({ r, notices, onPick, selected, stateFilter, clearState, filter: outer, onFilter }: {
-  r: Report; notices: Notice[]; onPick: (id: string) => void; selected?: string; stateFilter?: string; clearState: () => void;
-  filter?: Filter; onFilter?: (f: Filter) => void;
-}) {
-  const [own, setOwn] = useState<Filter>("all")
-  const filter = outer ?? own
-  const setFilter = onFilter ?? setOwn
-  const [q, setQ] = useState("")
-  const noticeOf = useMemo(() => new Map(notices.map((n) => [n.store, n.status])), [notices])
-  const count = (f: Filter) => r.stores.filter((s) => f === "all" || s.status === f).length
-  const rows = r.stores.filter((s) =>
-    (filter === "all" || s.status === filter) && (!stateFilter || s.region === stateFilter) &&
-    (!q || `${s.id} ${s.name} ${s.city} ${s.shipments.map((x) => x.lot).join(" ")}`.toLowerCase().includes(q.toLowerCase())))
-  return (
-    <Card id="store-decisions" className="scroll-mt-20">
-      <CardHeader>
-        <CardTitle>Store decisions <Badge variant="secondary" className="tabular-nums">{rows.length}</Badge></CardTitle>
-        <CardDescription>Every store that stocked the affected products, and what the records say. Click a row for the evidence.</CardDescription>
-        <CardAction className="flex flex-wrap items-center justify-end gap-2" role="group" aria-label="Filter stores">
-          {(["all", "recall", "gap", "safe"] as Filter[]).map((f) => (
-            <Button key={f} size="sm" variant={filter === f ? "default" : "outline"} aria-pressed={filter === f} onClick={() => setFilter(f)}>
-              {f === "all" ? "All" : STATUS_LABEL[f]} <span className="tabular-nums">{count(f)}</span>
-            </Button>
-          ))}
-          {stateFilter && <Button size="sm" variant="secondary" aria-pressed onClick={clearState}>{stateFilter} ✕</Button>}
-          <Input className="w-56" type="search" placeholder="Search store, city or lot" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search stores" />
-        </CardAction>
-      </CardHeader>
-      <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Decision</TableHead><TableHead>Store</TableHead><TableHead>Location</TableHead><TableHead>Received</TableHead>
-              <TableHead className="text-right">Units to pull</TableHead><TableHead>Last delivery</TableHead><TableHead>Notice</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.map((s) => (
-              <TableRow key={s.id} className={cn("cursor-pointer", selected === s.id && "bg-muted")} aria-selected={selected === s.id} onClick={() => onPick(s.id)} tabIndex={0} onKeyDown={(e) => e.key === "Enter" && onPick(s.id)}>
-                <TableCell><StatusBadge s={s.status} /></TableCell>
-                <TableCell className="font-medium">{s.name}<Sub><span className="font-mono">{s.id}</span></Sub></TableCell>
-                <TableCell>{s.city}, {s.region}</TableCell>
-                <TableCell>
-                  <div className="flex flex-wrap gap-1">
-                    {s.shipments.map((x) => <Badge key={x.lot} variant={x.affected ? "destructive" : "outline"} className="font-mono" title={`${x.units} units of ${x.product}, ${shortDate(x.shipped_at)}`}>{x.lot}</Badge>)}
-                    {s.untracked.map((u, i) => <Badge key={i} variant="outline" className="border-dashed" title={`${u.units} units of ${u.product}, ${shortDate(u.shipped_at)}`}>{u.product}, no lot code</Badge>)}
-                  </div>
-                </TableCell>
-                <TableCell className="text-right tabular-nums">{s.units_at_risk ? fmt(s.units_at_risk) : "0"}</TableCell>
-                <TableCell>{shortDate(s.last_shipped)}</TableCell>
-                <TableCell>{noticeOf.get(s.id) === "approved" ? <Badge>Approved</Badge> : noticeOf.get(s.id) ? <Badge variant="outline">Draft</Badge> : <span className="text-muted-foreground">None needed</span>}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
       </CardContent>
     </Card>
   )

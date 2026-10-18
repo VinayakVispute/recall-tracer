@@ -25,6 +25,8 @@ export type OutbreakResult = {
   candidates: Candidate[];
   /** For the top candidate: each case's path from the lot to the store, as node ids. */
   paths: Record<string, string[][]>;
+  /** Lots of the same ingredient from the same supplier as the top candidate that explain no case: what a keyword search would also flag. */
+  decoys?: { lot: string; ingredient: string; supplier_name: string; received_at: string }[];
   summary: string;
 };
 
