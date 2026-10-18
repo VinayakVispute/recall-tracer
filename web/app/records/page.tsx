@@ -5,6 +5,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { api, ApiError } from "@/lib/api";
+import { SourceMap } from "@/components/records/source-map";
 
 export const metadata = { title: "Records" };
 
@@ -107,6 +108,14 @@ export default async function Page() {
           </CardFooter>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Where the data comes from</CardTitle>
+          <CardDescription>Each source, and the records it becomes in FalkorDB. Public recall records and the company&apos;s records are two separate graphs.</CardDescription>
+        </CardHeader>
+        <CardContent><SourceMap s={s} /></CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
