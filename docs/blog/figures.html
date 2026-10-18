@@ -1,0 +1,137 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Recall Tracer blog figures</title>
+<!-- Inline figures for the blog, same look as cover.html (mono). ?fig=schema|run|memory. Rendered to fig-*.png by the scratchpad script. -->
+<style>
+  * { margin: 0; box-sizing: border-box; }
+  html, body { background: #fff; }
+  body { font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; color: #000; }
+  .fig { display: none; width: 1000px; padding: 28px 32px; background: #fff;
+         background-image: linear-gradient(#ececec 1px, transparent 1px), linear-gradient(90deg, #ececec 1px, transparent 1px); background-size: 28px 28px; }
+  .fig.on { display: block; }
+  .eyebrow { font-family: ui-monospace, Menlo, monospace; font-size: 13px; letter-spacing: .08em; display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .eyebrow::before { content: ""; width: 8px; height: 12px; background: #000; }
+  svg { display: block; width: 936px; }
+  text { font-family: ui-monospace, Menlo, monospace; font-size: 12px; fill: #000; }
+  .lbl { font-size: 11px; fill: #555; }
+  .big { font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; font-weight: 700; font-size: 14px; }
+  .box { fill: #fff; stroke: #000; stroke-width: 2; }
+  .box.dim { stroke: #999; stroke-dasharray: 4 3; }
+  .box.ink { fill: #000; }
+  .e { stroke: #000; stroke-width: 2; fill: none; marker-end: url(#a); }
+  .e.dash { stroke-dasharray: 5 4; }
+  .e.dot { stroke: #777; stroke-dasharray: 2 4; marker-end: url(#ag); }
+  .axis { stroke: #000; stroke-width: 2; }
+  .tick { stroke: #000; stroke-width: 2; }
+  .n { fill: #000; }
+  .n.hollow { fill: #fff; stroke: #000; stroke-width: 2.5; }
+</style>
+<script>addEventListener('DOMContentLoaded', () => document.getElementById(new URLSearchParams(location.search).get('fig') || 'schema').classList.add('on'));</script>
+
+<svg width="0" height="0" style="position:absolute"><defs>
+  <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#000"/></marker>
+  <marker id="ag" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#777"/></marker>
+</defs></svg>
+
+<!-- 1. The graph: one row of the supply chain, with rework, the no-lot-code edge, holds, incidents and memory around it. -->
+<div class="fig" id="schema">
+  <div class="eyebrow">THE GRAPH &nbsp;/&nbsp; EDGES ONLY POINT FORWARD IN TIME</div>
+  <svg viewBox="0 0 936 330" height="330">
+    <!-- main row, y 150..190 -->
+    <rect class="box" x="20" y="150" width="120" height="40" rx="6"/><text class="big" x="80" y="175" text-anchor="middle">Supplier</text>
+    <rect class="box ink" x="220" y="150" width="90" height="40" rx="6"/><text class="big" x="265" y="175" text-anchor="middle" style="fill:#fff">Lot</text>
+    <rect class="box" x="390" y="150" width="110" height="40" rx="6"/><text class="big" x="445" y="175" text-anchor="middle">Batch</text>
+    <rect class="box" x="580" y="150" width="130" height="40" rx="6"/><text class="big" x="645" y="175" text-anchor="middle">ProductLot</text>
+    <rect class="box" x="800" y="150" width="110" height="40" rx="6"/><text class="big" x="855" y="175" text-anchor="middle">Store</text>
+    <path class="e" d="M140 170 L218 170"/><text class="lbl" x="179" y="160" text-anchor="middle">SUPPLIED</text>
+    <path class="e" d="M310 170 L388 170"/><text class="lbl" x="349" y="160" text-anchor="middle">USED_IN</text>
+    <path class="e" d="M500 170 L578 170"/><text class="lbl" x="539" y="160" text-anchor="middle">PRODUCED</text>
+    <path class="e" d="M710 170 L798 170"/><text class="lbl" x="754" y="160" text-anchor="middle">SHIPPED_TO</text>
+
+    <!-- rework: Batch -> Batch above -->
+    <rect class="box" x="390" y="40" width="110" height="40" rx="6"/><text class="big" x="445" y="65" text-anchor="middle">Batch</text>
+    <path class="e" d="M445 150 L445 82"/><text class="lbl" x="455" y="120">REWORKED_INTO</text>
+    <path class="e" d="M500 60 L645 60 L645 148"/><text class="lbl" x="655" y="110">PRODUCED</text>
+    <text class="lbl" x="510" y="30">leftovers of B-03 went into B-09</text>
+
+    <!-- incident -> lot -->
+    <rect class="box" x="220" y="40" width="90" height="40" rx="6"/><text class="big" x="265" y="65" text-anchor="middle">Incident</text>
+    <path class="e" d="M265 80 L265 148"/><text class="lbl" x="275" y="120">CONCERNS</text>
+
+    <!-- no lot code: Product (dashed box) -> Store -->
+    <rect class="box dim" x="800" y="260" width="110" height="40" rx="6"/><text class="big" x="855" y="285" text-anchor="middle">Product</text>
+    <path class="e dash" d="M855 258 L855 192"/><text class="lbl" x="845" y="230" text-anchor="end">SHIPPED_UNTRACKED</text>
+    <text class="lbl" x="910" y="320" text-anchor="end">a delivery logged with no lot code</text>
+
+    <!-- held at -->
+    <rect class="box" x="580" y="260" width="130" height="40" rx="6"/><text class="big" x="645" y="285" text-anchor="middle">Site / DC</text>
+    <path class="e" d="M645 190 L645 258"/><text class="lbl" x="655" y="230">HELD_AT</text>
+
+    <!-- memory -->
+    <rect class="box" x="20" y="260" width="120" height="40" rx="6"/><text class="big" x="80" y="285" text-anchor="middle">Memory</text>
+    <path class="e dot" d="M80 260 L80 192"/><text class="lbl" x="90" y="230">ABOUT</text>
+    <text class="lbl" x="150" y="285">lessons from earlier incidents,</text>
+    <text class="lbl" x="150" y="300">about a supplier, store, batch or DC</text>
+  </svg>
+</div>
+
+<!-- 2. The recorded L-204 run on a time axis. Times and summaries from demo/run-L-204.json. -->
+<div class="fig" id="run">
+  <div class="eyebrow">RECORDED RUN &nbsp;/&nbsp; L-204 &nbsp;/&nbsp; 11 TOOL CALLS IN 50 SECONDS, 16 MS OF IT IN FALKORDB</div>
+  <svg viewBox="0 0 936 300" height="300">
+    <!-- axis: 0..50 s over x 40..900 (17.2 px per second) -->
+    <line class="axis" x1="40" y1="150" x2="910" y2="150"/>
+    <g class="lbl">
+      <text x="40" y="172" text-anchor="middle">0 s</text><text x="212" y="172" text-anchor="middle">10 s</text><text x="384" y="172" text-anchor="middle">20 s</text>
+      <text x="556" y="172" text-anchor="middle">30 s</text><text x="728" y="172" text-anchor="middle">40 s</text><text x="900" y="172" text-anchor="middle">50 s</text>
+    </g>
+    <!-- above the axis -->
+    <line class="tick" x1="83" y1="150" x2="83" y2="100"/><circle class="n" cx="83" cy="150" r="5"/>
+    <text x="83" y="78" text-anchor="middle">recall_memory</text><text class="lbl" x="83" y="93" text-anchor="middle">1 lesson, OB-2026-10</text>
+    <line class="tick" x1="193" y1="150" x2="193" y2="60"/><circle class="n" cx="193" cy="150" r="5"/>
+    <text x="193" y="38" text-anchor="middle">trace_forward</text><text class="lbl" x="193" y="53" text-anchor="middle">4 batches, 7 lots, 31 stores</text>
+    <line class="tick" x1="307" y1="150" x2="307" y2="100"/><circle class="n hollow" cx="307" cy="150" r="7"/>
+    <text x="307" y="78" text-anchor="middle">ask_coordinator</text><text class="lbl" x="307" y="93" text-anchor="middle">human: "Pull it there too"</text>
+    <line class="tick" x1="491" y1="150" x2="491" y2="60"/><circle class="n" cx="491" cy="150" r="5"/>
+    <text x="491" y="38" text-anchor="middle">trace_backward</text><text class="lbl" x="491" y="53" text-anchor="middle">8 cleared lots, 0 contain L-204</text>
+    <line class="tick" x1="762" y1="150" x2="762" y2="60"/><circle class="n" cx="762" cy="150" r="5"/>
+    <text x="762" y="38" text-anchor="middle">draft_recall_notice + record_lessons</text><text class="lbl" x="762" y="53" text-anchor="middle">33 notices pending approval, 4 lessons saved</text>
+    <!-- below the axis -->
+    <line class="tick" x1="135" y1="150" x2="135" y2="200"/><circle class="n" cx="135" cy="150" r="5"/>
+    <text x="160" y="218" text-anchor="middle">propose_classification + place_hold</text><text class="lbl" x="160" y="233" text-anchor="middle">Class I, 2,652 units + 93 kg held</text>
+    <line class="tick" x1="240" y1="150" x2="240" y2="245"/><circle class="n" cx="240" cy="150" r="5"/>
+    <text x="240" y="263" text-anchor="middle">rank_chokepoints + coverage_gaps</text><text class="lbl" x="240" y="278" text-anchor="middle">B-03 (betweenness 175), 2 stores with no lot code</text>
+    <line class="tick" x1="413" y1="150" x2="413" y2="200"/><circle class="n" cx="413" cy="150" r="5"/>
+    <text x="413" y="218" text-anchor="middle">minimal_recall</text><text class="lbl" x="413" y="233" text-anchor="middle">33 of 71 stores, 2,256 units</text>
+    <!-- the gaps are the model thinking -->
+    <text class="lbl" x="700" y="218" text-anchor="middle">gaps between dots: the model deciding what to check next</text>
+  </svg>
+</div>
+
+<!-- 3. Memory handoff: who writes Memory nodes, who reads them, and what changed because of it. -->
+<div class="fig" id="memory">
+  <div class="eyebrow">MEMORY &nbsp;/&nbsp; THE TWO AGENTS NEVER TALK, THE GRAPH CARRIES THE LESSON</div>
+  <svg viewBox="0 0 936 250" height="250">
+    <!-- writers -->
+    <rect class="box" x="20" y="40" width="180" height="56" rx="6"/>
+    <text class="big" x="110" y="63" text-anchor="middle">Outbreak pipeline</text><text class="lbl" x="110" y="82" text-anchor="middle">after each outbreak run</text>
+    <rect class="box" x="20" y="154" width="180" height="56" rx="6"/>
+    <text class="big" x="110" y="177" text-anchor="middle">Incident agent, L-204</text><text class="lbl" x="110" y="196" text-anchor="middle">record_lessons, last step</text>
+    <!-- the graph -->
+    <rect class="box ink" x="400" y="30" width="180" height="190" rx="8"/>
+    <text class="big" x="490" y="56" text-anchor="middle" style="fill:#fff">FalkorDB</text>
+    <circle cx="490" cy="100" r="9" style="fill:#fff"/><text x="490" y="128" text-anchor="middle" style="fill:#fff">Memory</text>
+    <text class="lbl" x="490" y="150" text-anchor="middle" style="fill:#bbb">ABOUT → supplier</text>
+    <circle cx="445" cy="180" r="9" style="fill:#fff"/><circle cx="535" cy="180" r="9" style="fill:#fff"/>
+    <text class="lbl" x="445" y="205" text-anchor="middle" style="fill:#bbb">ST-013</text><text class="lbl" x="535" y="205" text-anchor="middle" style="fill:#bbb">ST-021</text>
+    <!-- reader -->
+    <rect class="box" x="716" y="97" width="200" height="56" rx="6"/>
+    <text class="big" x="816" y="120" text-anchor="middle">Incident agent, L-205</text><text class="lbl" x="816" y="139" text-anchor="middle">recall_memory, first step</text>
+    <!-- arrows -->
+    <path class="e" d="M200 68 L398 90"/><text class="lbl" x="298" y="58" text-anchor="middle">"6 of 6 cases trace to L-204"</text>
+    <path class="e" d="M200 182 L398 170"/><text class="lbl" x="298" y="204" text-anchor="middle">"2 stores missed lot codes"</text>
+    <path class="e" d="M580 125 L714 125"/><text class="lbl" x="647" y="115" text-anchor="middle">same supplier</text>
+    <text class="lbl" x="816" y="180" text-anchor="middle">checked ST-013 and ST-021 early</text>
+    <text class="lbl" x="816" y="195" text-anchor="middle">and named them as repeats</text>
+  </svg>
+</div>

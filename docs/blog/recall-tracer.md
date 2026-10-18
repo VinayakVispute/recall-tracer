@@ -63,6 +63,8 @@ It's the same shape every time. A contaminated ingredient moves through other pr
 (Memory)-[:ABOUT]->(Supplier | Store | Batch | Site | DC)  // lessons from earlier incidents
 ```
 
+![The graph: supplier to lot to batch to product lot to store, with rework, holds, untracked deliveries, incidents and memory](fig-schema.png)
+
 Edges only point forward in time, so there are no cycles and bounded variable-length matches are safe. Missing lot codes are edges too (`SHIPPED_UNTRACKED`), which turns "which stores can't be cleared from the records?" into a query instead of a guess.
 
 ### Every tool is a Cypher query
@@ -110,6 +112,8 @@ Now the agent picks each check from what the last one returned, and before every
         trace_backward     -> 8 product lots walked back; 0 contain L-204            1.36 ms
 ```
 
+![The recorded L-204 run on a timeline: 11 tool calls in 50 seconds, with the stop to ask a human in the middle](fig-run.png)
+
 Four lots, four different runs:
 
 | Lot | What the graph showed | What the agent did |
@@ -128,6 +132,8 @@ Some stores got the product through a delivery with no lot code. The graph can't
 At the end of each incident the agent is told to write 2 to 4 lessons as `Memory` nodes, each with an `ABOUT` edge to the supplier, store, batch, plant or DC it's about. The first thing the next incident does is `recall_memory`. When we opened L-205 (same supplier as L-204), the agent read that stores ST-013 and ST-021 had missing lot codes before, checked their delivery records early, and flagged them as repeat problems. The plan changed, not just the summary.
 
 The outbreak side writes to the same memory. The outbreak agent starts from illness cases and finds the lot that explains them; when it finishes, the pipeline writes a lesson about that lot's supplier. When the coordinator opens that lot, the incident agent reads the lesson on its first step. The two agents never call each other. The handoff is one node and one edge in the graph.
+
+![Memory: the outbreak pipeline and the L-204 agent write Memory nodes, the L-205 agent reads them on its first step](fig-memory.png)
 
 ### MCP and the stack
 
