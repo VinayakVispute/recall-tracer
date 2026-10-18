@@ -1,6 +1,8 @@
 import { api } from "@/lib/api";
 
-type Stats = { graph: string; nodes: number; edges: number; last_run: { lot: string; queries: number; avg_db_ms: number } | null };
+type Stats = { graph: string; nodes: number; edges: number; last_run: { lot: string; queries: number; db_ms?: number; avg_db_ms: number } | null };
+
+const ms = (n: number) => `${n < 10 ? n : Math.round(n)} ms`;
 
 /** The shell's footer, read on the server. The layout streams it in, so a slow or absent API never blocks a page. */
 export async function GraphLine() {
@@ -9,7 +11,8 @@ export async function GraphLine() {
     return (
       <span className="flex flex-col gap-0.5">
         <span>Connected to FalkorDB · {s.nodes.toLocaleString()} records</span>
-        {s.last_run && <span>Last run: {s.last_run.queries} queries, {s.last_run.avg_db_ms} ms each on average</span>}
+        {/* The total, matching the investigation log; an API without db_ms yet falls back to the average. */}
+        {s.last_run && <span>Last recall ({s.last_run.lot}): {s.last_run.queries} graph queries, {s.last_run.db_ms !== undefined ? `${ms(s.last_run.db_ms)} in FalkorDB` : `${s.last_run.avg_db_ms} ms each`}</span>}
         <span>Demo company with synthetic records</span>
       </span>
     );

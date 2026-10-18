@@ -228,12 +228,13 @@ app.post('/incident/:lot/confirm', async (c) => {
 /** The shell's graph line: graph size, and FalkorDB's own average time per query over the last run. No Claude call. */
 app.get('/stats', async (c) => {
   const [[{ n: nodes }], [{ n: edges }]] = await Promise.all([query<{ n: number }>(COUNT_NODES), query<{ n: number }>(COUNT_EDGES)]);
-  let last_run: { lot: string; queries: number; avg_db_ms: number } | null = null;
+  let last_run: { lot: string; queries: number; db_ms: number; avg_db_ms: number } | null = null;
   try {
     const r = JSON.parse(readFileSync(LAST, 'utf8')) as RecallResult;
     const queries = r.tool_calls.reduce((n, t) => n + (t.queries ?? 0), 0);
     const ms = r.tool_calls.reduce((n, t) => n + (t.db_ms ?? 0), 0);
-    if (queries) last_run = { lot: r.lot, queries, avg_db_ms: Math.round((ms / queries) * 10) / 10 };
+    // db_ms is the run's total FalkorDB time, the same figure the investigation log's header shows.
+    if (queries) last_run = { lot: r.lot, queries, db_ms: Math.round(ms * 10) / 10, avg_db_ms: Math.round((ms / queries) * 10) / 10 };
   } catch { /* no run yet */ }
   return c.json({ graph: 'recall', nodes, edges, last_run });
 });
