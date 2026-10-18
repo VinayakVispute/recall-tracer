@@ -134,7 +134,7 @@ footer { margin-top: 56px; padding-top: 14px; border-top: 1px solid var(--line);
   <div class="win"><span class="tag wow">Proof of safety</span><h3>3. Clearing stores, not just flagging them</h3><p>The agent proves 38 stores are clear by walking every lot they hold back to its ingredients. Stores with no lot code on a delivery are pulled, with the reason.</p><p class="when">1:45 · Live trace</p></div>
   <div class="win"><span class="tag judge">Agent acts</span><h3>4. The graph is written, and the human decides</h3><p>The agent places a hold and writes the incident to FalkorDB. Its two judgements, the hazard class and the gap policy, are labelled as proposals. The coordinator confirms, and nothing is ever sent.</p><p class="when">1:20 and 2:15</p></div>
   <div class="win"><span class="tag wow">Explainable</span><h3>5. Rewind the investigation</h3><p>Drag the playhead back to any step and the graph, log and dashboard show what the agent knew then. Share a link to that exact step. Every decision can be audited.</p><p class="when">2:25 · Replay timeline</p></div>
-  <div class="win"><span class="tag judge">MCP</span><h3>6. The same tools, anywhere</h3><p>The ten graph tools are an MCP server. In Claude Code, one command adds them, and Claude answers "which stores got L-204, and why?" with the same paths.</p><p class="when">2:40 · Terminal</p></div>
+  <div class="win"><span class="tag judge">MCP</span><h3>6. The same tools, anywhere</h3><p>The 13 graph tools are an MCP server. In Claude Code, one command adds them, and Claude answers "which stores got L-204, and why?" with the same paths.</p><p class="when">2:40 · Terminal</p></div>
 </div>
 
 <h2 id="show">Run of show, 3:00</h2>
@@ -253,7 +253,7 @@ RETURN f.name, r.id, r.initiated, r.distribution ORDER BY r.initiated</pre>
   <p class="where">Terminal with Claude Code.</p>
   <dl>
     <dt>Do</dt><dd>Run <code>claude mcp add --transport http recall-tracer &lt;app&gt;/mcp</code>, then ask "Which stores got lot L-204, and why?". Claude calls <code>trace_forward</code> and answers with the paths.</dd>
-    <dt>Caption</dt><dd><span class="cap">Ten graph tools, one MCP server. Use them from any MCP client.</span></dd>
+    <dt>Caption</dt><dd><span class="cap">13 graph tools, one MCP server. Use them from any MCP client.</span></dd>
   </dl>
 </div></div>
 
@@ -271,7 +271,7 @@ RETURN f.name, r.id, r.initiated, r.distribution ORDER BY r.initiated</pre>
 <div class="tbl"><table>
 <tr><th>Track 1 focus</th><th>Where it shows</th><th>The one line to say</th></tr>
 <tr><td>Multi-hop reasoning</td><td>Outbreak search, forward trace, backward check</td><td>"Eight hops in one query: lot, batch, rework, product lot, store."</td></tr>
-<tr><td>Graph queries and algorithms as tools</td><td>Cypher under every log step, the FalkorDB time per step, the biggest spread point from betweenness</td><td>"Ten tools, each one a Cypher query you can read."</td></tr>
+<tr><td>Graph queries and algorithms as tools</td><td>Cypher under every log step, the FalkorDB time per step, the biggest spread point from betweenness</td><td>"13 tools, each one a Cypher query you can read."</td></tr>
 <tr><td>Tool selection through MCP</td><td>The agent lists tools from our MCP server, plus the Claude Code shot</td><td>"The agent only sees the graph through MCP."</td></tr>
 <tr><td>Actions based on what the graph shows</td><td>Hold, incident record, drafted notices, CSV</td><td>"It writes the hold into the graph before anything else."</td></tr>
 <tr><td>Explainable results</td><td>Evidence drawer, judgement cards, replay timeline</td><td>"Every store has a reason, and every step can be replayed."</td></tr>
@@ -280,7 +280,7 @@ RETURN f.name, r.id, r.initiated, r.distribution ORDER BY r.initiated</pre>
 
 <h2 id="setup">Recording checklist</h2>
 <ul class="check">
-  <li><label><input type="checkbox" id="c1"> Reseed both graphs: <code>bun run generate --seed 42 --reset</code> and <code>bun run real</code>. Then do one live L-204 run, so the incident exists and the latest run is recorded.</label></li>
+  <li><label><input type="checkbox" id="c1"> Reseed both graphs: <code>bun run generate --seed 42 --reset</code> and <code>bun run real</code>. Then do two live L-204 runs, and record the second: the first run after a reseed is slower in FalkorDB (127 ms against 22 ms in testing). Put the number the investigation log shows into the caption.</label></li>
   <li><label><input type="checkbox" id="c2"> Use the production build (<code>bun run build</code>, then start), so the Next.js dev badge isn't in the corner.</label></li>
   <li><label><input type="checkbox" id="c3"> Browser at 1440 by 900, zoom 110%, dark theme, bookmarks bar hidden. Turn on cursor highlighting.</label></li>
   <li><label><input type="checkbox" id="c4"> Load every page once before recording, so nothing compiles on camera.</label></li>
